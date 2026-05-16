@@ -1,4 +1,4 @@
-package com.potato.liftinsight.bar
+package com.potato.liftinsight.common
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FiberManualRecord

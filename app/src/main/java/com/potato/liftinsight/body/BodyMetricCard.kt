@@ -1,4 +1,4 @@
-package com.potato.liftinsight.screen
+package com.potato.liftinsight.body
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,10 +13,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.potato.liftinsight.R
-import com.potato.liftinsight.widget.MetricCard
-import com.potato.liftinsight.widget.MetricCardInputDialog
-import com.potato.liftinsight.widget.MetricCardInputType
-import com.potato.liftinsight.widget.MetricCardOption
+import com.potato.liftinsight.common.MetricCard
+import com.potato.liftinsight.common.MetricCardInputDialog
+import com.potato.liftinsight.common.MetricCardInputType
+import com.potato.liftinsight.common.MetricCardOption
 
 @Composable
 internal fun BodyMetricCard(

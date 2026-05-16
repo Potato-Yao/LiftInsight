@@ -1,4 +1,4 @@
-package com.potato.liftinsight.route
+package com.potato.liftinsight.home
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -11,11 +11,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.potato.liftinsight.bar.LiftInsightBottomBar
-import com.potato.liftinsight.screen.BodyScreen
-import com.potato.liftinsight.screen.HomeScreen
-import com.potato.liftinsight.screen.defaultBodyMetrics
-import com.potato.liftinsight.screen.updateBodyMetric
+import com.potato.liftinsight.body.BodyScreen
+import com.potato.liftinsight.body.model.defaultBodyMetrics
+import com.potato.liftinsight.body.model.updateBodyMetric
+import com.potato.liftinsight.common.LiftInsightBottomBar
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
 
 @Composable

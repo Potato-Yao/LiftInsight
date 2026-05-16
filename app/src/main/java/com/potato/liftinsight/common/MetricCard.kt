@@ -1,10 +1,11 @@
-package com.potato.liftinsight.widget
+package com.potato.liftinsight.common
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
@@ -165,7 +166,7 @@ fun MetricCardInputDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = { value = choice.id }
                             ) {
-                                androidx.compose.foundation.layout.Row(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 12.dp, vertical = 8.dp),

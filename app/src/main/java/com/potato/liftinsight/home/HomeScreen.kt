@@ -1,4 +1,4 @@
-package com.potato.liftinsight.screen
+package com.potato.liftinsight.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,7 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
-import com.potato.liftinsight.widget.MetricCard
+import com.potato.liftinsight.common.MetricCard
 
 @Composable
 internal fun HomeScreen(modifier: Modifier = Modifier) {
