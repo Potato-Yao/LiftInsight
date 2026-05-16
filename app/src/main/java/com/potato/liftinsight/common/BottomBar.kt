@@ -1,55 +1,59 @@
 package com.potato.liftinsight.common
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FiberManualRecord
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.res.stringResource
-import com.potato.liftinsight.R
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
+
+data class BottomBarItem(
+    val label: String,
+    val icon: ImageVector,
+    val selectedIcon: ImageVector = icon,
+    val contentDescription: String = label
+)
 
 @Composable
 internal fun LiftInsightBottomBar(
+    items: List<BottomBarItem>,
     selectedTabIndex: Int,
     onTabSelected: (Int) -> Unit
 ) {
-    val bottomItems = listOf(
-        BottomBarItem(
-            label = stringResource(R.string.nav_home),
-            icon = { Icon(Icons.Filled.Home, contentDescription = null) }
-        ),
-        BottomBarItem(
-            label = stringResource(R.string.nav_plan),
-            icon = { Icon(Icons.Filled.FitnessCenter, contentDescription = null) }
-        ),
-        BottomBarItem(
-            label = stringResource(R.string.nav_body),
-            icon = { Icon(Icons.Filled.FiberManualRecord, contentDescription = null) }
-        ),
-        BottomBarItem(
-            label = stringResource(R.string.nav_settings),
-            icon = { Icon(Icons.Filled.Settings, contentDescription = null) }
-        )
-    )
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.background,
+        tonalElevation = 0.dp
+    ) {
+        items.forEachIndexed { index, item ->
+            val isSelected = selectedTabIndex == index
 
-    NavigationBar {
-        bottomItems.forEachIndexed { index, item ->
             NavigationBarItem(
-                selected = selectedTabIndex == index,
+                selected = isSelected,
                 onClick = { onTabSelected(index) },
-                icon = item.icon,
-                label = { Text(item.label) }
+                colors = NavigationBarItemDefaults.colors(
+                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                    selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                icon = {
+                    Icon(
+                        imageVector = if (isSelected) item.selectedIcon else item.icon,
+                        contentDescription = item.contentDescription
+                    )
+                },
+                label = {
+                    Text(
+                        text = item.label,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
             )
         }
     }
 }
 
-private data class BottomBarItem(
-    val label: String,
-    val icon: @Composable () -> Unit
-)

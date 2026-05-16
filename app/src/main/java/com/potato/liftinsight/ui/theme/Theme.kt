@@ -1,6 +1,5 @@
 package com.potato.liftinsight.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -9,35 +8,49 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = ClockBlueDark,
+    onPrimary = ClockBackgroundDark,
+    primaryContainer = ClockBlueContainerDark,
+    onPrimaryContainer = ClockBlueDark,
+    secondary = ClockAccentDark,
+    secondaryContainer = ClockAccentContainerDark,
+    tertiary = ClockHighlightDark,
+    background = ClockBackgroundDark,
+    surface = ClockSurfaceDark,
+    surfaceContainer = Color(0xFF181C24),
+    surfaceContainerHigh = Color(0xFF202530),
+    surfaceContainerHighest = Color(0xFF2A3040),
+    onSurface = Color(0xFFE4E8F0),
+    onSurfaceVariant = Color(0xFFC3C8D4),
+    outline = Color(0xFF87909E)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
+    primary = ClockBlueLight,
     onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primaryContainer = ClockBlueContainerLight,
+    onPrimaryContainer = Color(0xFF112A4E),
+    secondary = ClockAccentLight,
+    secondaryContainer = ClockAccentContainerLight,
+    tertiary = ClockHighlightLight,
+    background = ClockBackgroundLight,
+    surface = ClockSurfaceLight,
+    surfaceContainer = Color(0xFFF0F3F9),
+    surfaceContainerHigh = Color(0xFFE8ECF4),
+    surfaceContainerHighest = Color(0xFFDDE3EE),
+    onSurface = Color(0xFF171C24),
+    onSurfaceVariant = Color(0xFF5E6574),
+    outline = Color(0xFF757C88)
 )
 
 @Composable
 fun LiftInsightTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

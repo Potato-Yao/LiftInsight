@@ -1,12 +1,12 @@
 <resources>
     <string name="app_name">LiftInsight</string>
     <string name="home_welcome_back">Welcome back!</string>
-    <string name="home_todays_task_label">Today\'s task:</string>
+    <string name="home_todays_task_label">Today\'s plan</string>
     <string name="home_no_task_placeholder">No task scheduled yet</string>
     <string name="home_start_training_title">Start training</string>
     <string name="home_start_training_subtitle">Open your workout and begin today\'s session</string>
-    <string name="home_body_recovery_percentage">Body recovery percentage:</string>
-    <string name="home_todays_task_intensity">Today\'s task\'s intensity</string>
+    <string name="home_body_recovery_percentage">Recovery</string>
+    <string name="home_todays_task_intensity">Session intensity</string>
     <string name="home_no_data_placeholder">Not available yet</string>
     <string name="nav_home">Home</string>
     <string name="nav_body">Body</string>
@@ -32,6 +32,8 @@
     <string name="body_no_data_placeholder">Add data</string>
     <string name="body_clear_value_option">Clear value</string>
     <string name="body_updated_at_value">Updated: %1$s</string>
+    <string name="body_section_profile">Profile</string>
+    <string name="body_section_best_lifts">Best lifts</string>
     <string name="common_ok">OK</string>
     <string name="common_cancel">Cancel</string>
 </resources>

@@ -77,6 +77,19 @@ Aim for a UI that feels:
 - readable
 - calm and practical
 - mobile-first
+- polished in a way that is comparable to Google&apos;s Android Clock app, especially in spacing, clarity, and restrained motion
+
+### Clock-Inspired Interaction Notes
+
+When refining existing screens, it is acceptable to take inspiration from the feel of Google&apos;s Android Clock app, especially its:
+
+- strong headline hierarchy
+- spacious card layout
+- obvious selected states and touch targets
+- subtle, smooth animations
+- clean Material icon usage
+
+Do not copy proprietary assets or clone screens literally. Match the calm design language and interaction quality while keeping the product focused on lifting plans, records, and motion analysis.
 
 ### Google-Inspired Design Principles
 
