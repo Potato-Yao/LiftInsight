@@ -135,6 +135,8 @@ If you are an LLM or coding assistant working on this repository:
 4. make screens feel like a polished Google-style Android app
 5. avoid inventing unrelated product directions without evidence in the repo
 6. prefer straightforward, maintainable code over heavy abstraction
+7. for non-ui code, write test with as much as possible coverage.
+8. add files you changes to git, but do not commit or push. Let a human review before committing.
 
 ## Scope and Non-Goals
 
