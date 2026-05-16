@@ -108,6 +108,7 @@ The current app already uses Compose and a Material theme. Keep moving in that d
 - Material 3 theming
 - Material icons for common actions and navigation
 - Android-native patterns before introducing custom frameworks
+- Keep good MVC model
 
 ### Architecture Guidance
 
