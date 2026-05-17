@@ -4,7 +4,9 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +33,7 @@ import com.potato.liftinsight.body.model.defaultBodyMetrics
 import com.potato.liftinsight.body.model.updateBodyMetric
 import com.potato.liftinsight.common.BottomBarItem
 import com.potato.liftinsight.common.LiftInsightBottomBar
+import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
 
 @Composable
@@ -66,15 +69,46 @@ fun LiftInsightHomeRoute() {
             transitionSpec = {
                 val direction = if (targetState > initialState) 1 else -1
 
-                (fadeIn(animationSpec = tween(durationMillis = 220, delayMillis = 40)) +
+                (fadeIn(
+                    animationSpec = tween(
+                        durationMillis = LiftInsightMotion.MediumDuration,
+                        delayMillis = 50,
+                        easing = LiftInsightMotion.EnterEasing
+                    )
+                ) +
                     slideInHorizontally(
-                        animationSpec = tween(durationMillis = 220),
-                        initialOffsetX = { fullWidth -> direction * (fullWidth / 12) }
+                        animationSpec = tween(
+                            durationMillis = LiftInsightMotion.LongDuration,
+                            easing = LiftInsightMotion.EnterEasing
+                        ),
+                        initialOffsetX = { fullWidth -> direction * (fullWidth / 14) }
+                    ) +
+                    slideInVertically(
+                        animationSpec = tween(
+                            durationMillis = LiftInsightMotion.MediumDuration,
+                            easing = LiftInsightMotion.EnterEasing
+                        ),
+                        initialOffsetY = { fullHeight -> fullHeight / 40 }
                     )) togetherWith
-                    (fadeOut(animationSpec = tween(durationMillis = 120)) +
+                    (fadeOut(
+                        animationSpec = tween(
+                            durationMillis = LiftInsightMotion.ShortDuration,
+                            easing = LiftInsightMotion.ExitEasing
+                        )
+                    ) +
                         slideOutHorizontally(
-                            animationSpec = tween(durationMillis = 120),
-                            targetOffsetX = { fullWidth -> -direction * (fullWidth / 16) }
+                            animationSpec = tween(
+                                durationMillis = LiftInsightMotion.ShortDuration,
+                                easing = LiftInsightMotion.ExitEasing
+                            ),
+                            targetOffsetX = { fullWidth -> -direction * (fullWidth / 18) }
+                        ) +
+                        slideOutVertically(
+                            animationSpec = tween(
+                                durationMillis = LiftInsightMotion.ShortDuration,
+                                easing = LiftInsightMotion.ExitEasing
+                            ),
+                            targetOffsetY = { fullHeight -> -(fullHeight / 48) }
                         ))
             },
             label = "mainTabs"

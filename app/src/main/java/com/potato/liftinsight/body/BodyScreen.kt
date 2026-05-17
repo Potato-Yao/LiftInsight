@@ -1,5 +1,11 @@
 package com.potato.liftinsight.body
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +16,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -17,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
 import com.potato.liftinsight.body.model.BodyMetricSection
 import com.potato.liftinsight.body.model.BodyMetricState
+import com.potato.liftinsight.ui.theme.LiftInsightMotion
 
 @Composable
 internal fun BodyScreen(
@@ -24,8 +36,13 @@ internal fun BodyScreen(
     onMetricValueChange: (metricId: Int, newValue: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showContent by remember { mutableStateOf(false) }
     val summaryMetrics = metrics.filter { it.section == BodyMetricSection.SUMMARY }
     val strengthMetrics = metrics.filter { it.section == BodyMetricSection.STRENGTH }
+
+    LaunchedEffect(Unit) {
+        showContent = true
+    }
 
     Column(
         modifier = modifier
@@ -34,26 +51,61 @@ internal fun BodyScreen(
             .padding(horizontal = 24.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = stringResource(R.string.nav_body),
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.SemiBold
+        AnimatedVisibility(
+            visible = showContent,
+            enter = bodySectionEnter(delayMillis = 0),
+            exit = ExitTransition.None
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = stringResource(R.string.nav_body),
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showContent,
+            enter = bodySectionEnter(delayMillis = 50),
+            exit = ExitTransition.None
+        ) {
+            BodyMetricSection(
+                title = stringResource(R.string.body_section_profile),
+                metrics = summaryMetrics,
+                onMetricValueChange = onMetricValueChange
             )
         }
 
-        BodyMetricSection(
-            title = stringResource(R.string.body_section_profile),
-            metrics = summaryMetrics,
-            onMetricValueChange = onMetricValueChange
-        )
-
-        BodyMetricSection(
-            title = stringResource(R.string.body_section_best_lifts),
-            metrics = strengthMetrics,
-            onMetricValueChange = onMetricValueChange
-        )
+        AnimatedVisibility(
+            visible = showContent,
+            enter = bodySectionEnter(delayMillis = 120),
+            exit = ExitTransition.None
+        ) {
+            BodyMetricSection(
+                title = stringResource(R.string.body_section_best_lifts),
+                metrics = strengthMetrics,
+                onMetricValueChange = onMetricValueChange
+            )
+        }
     }
+}
+
+private fun bodySectionEnter(delayMillis: Int): EnterTransition {
+    return fadeIn(
+        animationSpec = tween(
+            durationMillis = LiftInsightMotion.MediumDuration,
+            delayMillis = delayMillis,
+            easing = LiftInsightMotion.EnterEasing
+        )
+    ) + slideInVertically(
+        animationSpec = tween(
+            durationMillis = LiftInsightMotion.LongDuration,
+            delayMillis = delayMillis,
+            easing = LiftInsightMotion.EnterEasing
+        ),
+        initialOffsetY = { fullHeight -> fullHeight / 12 }
+    )
 }
 
 @Composable

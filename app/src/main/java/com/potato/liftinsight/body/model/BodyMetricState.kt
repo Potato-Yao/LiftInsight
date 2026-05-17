@@ -3,8 +3,9 @@ package com.potato.liftinsight.body.model
 import com.potato.liftinsight.R
 import com.potato.liftinsight.common.MetricCardChoice
 import com.potato.liftinsight.common.MetricCardInputType
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 enum class BodyMetricSection {
     SUMMARY,
@@ -125,6 +126,6 @@ fun updateBodyMetric(
 }
 
 private fun timestampNow(): String {
-    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-    return LocalDateTime.now().format(formatter)
+    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+    return formatter.format(Date())
 }

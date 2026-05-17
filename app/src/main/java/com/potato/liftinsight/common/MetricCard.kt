@@ -2,6 +2,7 @@ package com.potato.liftinsight.common
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
@@ -36,11 +37,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
+import com.potato.liftinsight.ui.theme.LiftInsightMotion
 
 data class MetricCardOption(
     val id: String,
@@ -84,7 +87,10 @@ fun MetricCard(
         } else {
             MaterialTheme.colorScheme.surfaceContainer
         },
-        animationSpec = tween(durationMillis = 220),
+        animationSpec = tween(
+            durationMillis = LiftInsightMotion.MediumDuration,
+            easing = LiftInsightMotion.EnterEasing
+        ),
         label = "metricCardContainer"
     )
     val borderColor by animateColorAsState(
@@ -93,13 +99,47 @@ fun MetricCard(
         } else {
             MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
         },
-        animationSpec = tween(durationMillis = 220),
+        animationSpec = tween(
+            durationMillis = LiftInsightMotion.MediumDuration,
+            easing = LiftInsightMotion.EnterEasing
+        ),
         label = "metricCardBorder"
     )
     val borderWidth by animateDpAsState(
         targetValue = if (highlighted) 1.5.dp else 1.dp,
-        animationSpec = tween(durationMillis = 220),
+        animationSpec = tween(
+            durationMillis = LiftInsightMotion.MediumDuration,
+            easing = LiftInsightMotion.EnterEasing
+        ),
         label = "metricCardBorderWidth"
+    )
+    val leadingContainerColor by animateColorAsState(
+        targetValue = if (highlighted) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        },
+        animationSpec = tween(
+            durationMillis = LiftInsightMotion.MediumDuration,
+            easing = LiftInsightMotion.EnterEasing
+        ),
+        label = "metricCardLeadingContainer"
+    )
+    val cardElevation by animateDpAsState(
+        targetValue = if (highlighted) 2.dp else 0.dp,
+        animationSpec = tween(
+            durationMillis = LiftInsightMotion.MediumDuration,
+            easing = LiftInsightMotion.EnterEasing
+        ),
+        label = "metricCardElevation"
+    )
+    val contentScale by animateFloatAsState(
+        targetValue = if (highlighted) 1f else 0.995f,
+        animationSpec = tween(
+            durationMillis = LiftInsightMotion.MediumDuration,
+            easing = LiftInsightMotion.EnterEasing
+        ),
+        label = "metricCardScale"
     )
 
     Card(
@@ -117,17 +157,29 @@ fun MetricCard(
                 } else {
                     Modifier
                 }
+            )
+            .graphicsLayer(
+                scaleX = contentScale,
+                scaleY = contentScale
             ),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = BorderStroke(width = borderWidth, color = borderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = cardElevation,
+            pressedElevation = 1.dp
+        ),
         shape = cardShape
     ) {
         Box {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .animateContentSize()
+                    .animateContentSize(
+                        animationSpec = tween(
+                            durationMillis = LiftInsightMotion.MediumDuration,
+                            easing = LiftInsightMotion.EnterEasing
+                        )
+                    )
                     .padding(horizontal = 22.dp, vertical = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -139,7 +191,7 @@ fun MetricCard(
                     if (leadingContent != null) {
                         Surface(
                             modifier = Modifier.size(48.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            color = leadingContainerColor,
                             shape = RoundedCornerShape(18.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {

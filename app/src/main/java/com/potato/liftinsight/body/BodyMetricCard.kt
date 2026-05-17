@@ -1,5 +1,14 @@
 package com.potato.liftinsight.body
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,6 +34,7 @@ import com.potato.liftinsight.common.MetricCard
 import com.potato.liftinsight.common.MetricCardInputDialog
 import com.potato.liftinsight.common.MetricCardInputType
 import com.potato.liftinsight.common.MetricCardOption
+import com.potato.liftinsight.ui.theme.LiftInsightMotion
 
 @Composable
 internal fun BodyMetricCard(
@@ -38,6 +49,26 @@ internal fun BodyMetricCard(
 ) {
     var showEditor by remember(title) { mutableStateOf(false) }
     val isEdited = value != defaultValue
+    val editIconTint by animateColorAsState(
+        targetValue = if (isEdited) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = tween(
+            durationMillis = LiftInsightMotion.MediumDuration,
+            easing = LiftInsightMotion.EnterEasing
+        ),
+        label = "bodyMetricEditTint"
+    )
+    val editIconScale by animateFloatAsState(
+        targetValue = if (isEdited) 1f else 0.92f,
+        animationSpec = tween(
+            durationMillis = LiftInsightMotion.MediumDuration,
+            easing = LiftInsightMotion.EnterEasing
+        ),
+        label = "bodyMetricEditScale"
+    )
 
     MetricCard(
         title = title,
@@ -55,7 +86,11 @@ internal fun BodyMetricCard(
             Icon(
                 imageVector = Icons.Rounded.Edit,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = editIconTint,
+                modifier = Modifier.graphicsLayer(
+                    scaleX = editIconScale,
+                    scaleY = editIconScale
+                )
             )
         },
         onOptionSelected = { option ->
@@ -80,32 +115,63 @@ internal fun BodyMetricCard(
         val shownValue = displayValue.ifBlank { defaultValue }
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (!unitLabel.isNullOrBlank() && inputType !is MetricCardInputType.SingleChoice) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.Bottom
-                ) {
+            AnimatedContent(
+                targetState = shownValue,
+                transitionSpec = {
+                    (fadeIn(
+                        animationSpec = tween(
+                            durationMillis = LiftInsightMotion.MediumDuration,
+                            easing = LiftInsightMotion.EnterEasing
+                        )
+                    ) + slideInVertically(
+                        animationSpec = tween(
+                            durationMillis = LiftInsightMotion.MediumDuration,
+                            easing = LiftInsightMotion.EnterEasing
+                        ),
+                        initialOffsetY = { fullHeight -> fullHeight / 3 }
+                    )) togetherWith
+                        (fadeOut(
+                            animationSpec = tween(
+                                durationMillis = LiftInsightMotion.ShortDuration,
+                                easing = LiftInsightMotion.ExitEasing
+                            )
+                        ) + slideOutVertically(
+                            animationSpec = tween(
+                                durationMillis = LiftInsightMotion.ShortDuration,
+                                easing = LiftInsightMotion.ExitEasing
+                            ),
+                            targetOffsetY = { fullHeight -> -(fullHeight / 5) }
+                        ))
+                },
+                label = "bodyMetricValue"
+            ) { animatedValue ->
+                if (!unitLabel.isNullOrBlank() && inputType !is MetricCardInputType.SingleChoice) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Text(
+                            text = animatedValue,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Text(
+                            text = unitLabel,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
                     Text(
-                        text = shownValue,
+                        text = animatedValue,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-
-                    Text(
-                        text = unitLabel,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
-            } else {
-                Text(
-                    text = shownValue,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
             }
         }
     }
