@@ -33,8 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,132 +43,45 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
 import com.potato.liftinsight.body.BodyScreen
-import com.potato.liftinsight.body.model.defaultBodyMetrics
-import com.potato.liftinsight.body.model.updateBodyMetric
 import com.potato.liftinsight.common.BottomBarItem
 import com.potato.liftinsight.common.LiftInsightBottomBar
+import com.potato.liftinsight.home.controller.HomeController
+import com.potato.liftinsight.home.controller.HomeState
+import com.potato.liftinsight.home.controller.PlanDestination
+import com.potato.liftinsight.home.controller.planDestinationDepth
+import com.potato.liftinsight.home.model.HomeLabels
+import com.potato.liftinsight.home.model.defaultHomeCatalog
 import com.potato.liftinsight.plan.MotionDetailScreen
 import com.potato.liftinsight.plan.PlanDetailScreen
 import com.potato.liftinsight.plan.PlanScreen
-import com.potato.liftinsight.plan.model.AvailableMotionState
-import com.potato.liftinsight.plan.model.PlanMotionState
-import com.potato.liftinsight.plan.model.TrainingPlanState
-import com.potato.liftinsight.plan.model.addMotionToPlan
-import com.potato.liftinsight.plan.model.createTrainingPlan
-import com.potato.liftinsight.plan.model.deletePlanMotion
-import com.potato.liftinsight.plan.model.deleteTrainingPlan
-import com.potato.liftinsight.plan.model.movePlanMotion
 import com.potato.liftinsight.plan.model.planMotion
-import com.potato.liftinsight.plan.model.selectTrainingPlan
 import com.potato.liftinsight.plan.model.trainingPlan
-import com.potato.liftinsight.plan.model.updateMotionRepsPerSet
-import com.potato.liftinsight.plan.model.updateMotionSets
-import com.potato.liftinsight.plan.model.updateTrainingPlanName
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
 
 @Composable
-fun LiftInsightHomeRoute() {
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val bodyMetrics = remember { mutableStateListOf(*defaultBodyMetrics().toTypedArray()) }
-
-    val strengthBaseName = stringResource(R.string.plan_name_strength_base)
-    val competitionPeakName = stringResource(R.string.plan_name_competition_peak)
-    val techniqueCycleName = stringResource(R.string.plan_name_technique_cycle)
-    val pullVolumeBlockName = stringResource(R.string.plan_name_pull_volume_block)
-    val snatchTitle = stringResource(R.string.motion_name_snatch)
-    val cleanAndJerkTitle = stringResource(R.string.motion_name_clean_and_jerk)
-    val snatchPullTitle = stringResource(R.string.motion_name_snatch_pull)
-    val cleanPullTitle = stringResource(R.string.motion_name_clean_pull)
-    val pushPressTitle = stringResource(R.string.motion_name_push_press)
-    val frontSquatTitle = stringResource(R.string.body_front_squat)
-    val backSquatTitle = stringResource(R.string.body_back_squat)
-
-    val availableMotions = remember(
-        snatchTitle,
-        cleanAndJerkTitle,
-        snatchPullTitle,
-        cleanPullTitle,
-        pushPressTitle,
-        frontSquatTitle,
-        backSquatTitle
-    ) {
-        listOf(
-            AvailableMotionState(id = 1, title = snatchTitle, defaultSets = 5, defaultRepsPerSet = 2),
-            AvailableMotionState(id = 2, title = cleanAndJerkTitle, defaultSets = 5, defaultRepsPerSet = 1),
-            AvailableMotionState(id = 3, title = snatchPullTitle, defaultSets = 4, defaultRepsPerSet = 3),
-            AvailableMotionState(id = 4, title = cleanPullTitle, defaultSets = 4, defaultRepsPerSet = 3),
-            AvailableMotionState(id = 5, title = pushPressTitle, defaultSets = 4, defaultRepsPerSet = 4),
-            AvailableMotionState(id = 6, title = frontSquatTitle, defaultSets = 5, defaultRepsPerSet = 3),
-            AvailableMotionState(id = 7, title = backSquatTitle, defaultSets = 5, defaultRepsPerSet = 5)
-        )
+fun HomeRoute() {
+    val controller = remember { HomeController() }
+    val labels = HomeLabels(
+        strengthBaseName = stringResource(R.string.plan_name_strength_base),
+        competitionPeakName = stringResource(R.string.plan_name_competition_peak),
+        techniqueCycleName = stringResource(R.string.plan_name_technique_cycle),
+        pullVolumeBlockName = stringResource(R.string.plan_name_pull_volume_block),
+        snatchTitle = stringResource(R.string.motion_name_snatch),
+        cleanAndJerkTitle = stringResource(R.string.motion_name_clean_and_jerk),
+        snatchPullTitle = stringResource(R.string.motion_name_snatch_pull),
+        cleanPullTitle = stringResource(R.string.motion_name_clean_pull),
+        pushPressTitle = stringResource(R.string.motion_name_push_press),
+        frontSquatTitle = stringResource(R.string.body_front_squat),
+        backSquatTitle = stringResource(R.string.body_back_squat)
+    )
+    val catalog = remember(labels) {
+        defaultHomeCatalog(labels)
     }
-
-    var trainingPlans by remember(
-        strengthBaseName,
-        competitionPeakName,
-        techniqueCycleName,
-        pullVolumeBlockName,
-        snatchTitle,
-        cleanAndJerkTitle,
-        snatchPullTitle,
-        cleanPullTitle,
-        pushPressTitle,
-        frontSquatTitle,
-        backSquatTitle
-    ) {
-        mutableStateOf(
-            listOf(
-                TrainingPlanState(
-                    id = 1,
-                    name = strengthBaseName,
-                    lastAppliedAt = 1715600000000,
-                    motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 1, title = snatchTitle, sets = 5, repsPerSet = 2),
-                        PlanMotionState(entryId = 2, motionId = 6, title = frontSquatTitle, sets = 5, repsPerSet = 3),
-                        PlanMotionState(entryId = 3, motionId = 3, title = snatchPullTitle, sets = 4, repsPerSet = 3)
-                    )
-                ),
-                TrainingPlanState(
-                    id = 2,
-                    name = competitionPeakName,
-                    lastAppliedAt = 1715800000000,
-                    motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 2, title = cleanAndJerkTitle, sets = 6, repsPerSet = 1),
-                        PlanMotionState(entryId = 2, motionId = 1, title = snatchTitle, sets = 5, repsPerSet = 1),
-                        PlanMotionState(entryId = 3, motionId = 5, title = pushPressTitle, sets = 4, repsPerSet = 3)
-                    )
-                ),
-                TrainingPlanState(
-                    id = 3,
-                    name = techniqueCycleName,
-                    lastAppliedAt = 1715400000000,
-                    motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 1, title = snatchTitle, sets = 6, repsPerSet = 2),
-                        PlanMotionState(entryId = 2, motionId = 2, title = cleanAndJerkTitle, sets = 5, repsPerSet = 2),
-                        PlanMotionState(entryId = 3, motionId = 4, title = cleanPullTitle, sets = 4, repsPerSet = 3)
-                    )
-                ),
-                TrainingPlanState(
-                    id = 4,
-                    name = pullVolumeBlockName,
-                    lastAppliedAt = 1715200000000,
-                    motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 4, title = cleanPullTitle, sets = 5, repsPerSet = 3),
-                        PlanMotionState(entryId = 2, motionId = 7, title = backSquatTitle, sets = 5, repsPerSet = 5),
-                        PlanMotionState(entryId = 3, motionId = 5, title = pushPressTitle, sets = 4, repsPerSet = 4)
-                    )
-                )
-            )
-        )
+    var state by remember(catalog) {
+        mutableStateOf(controller.createInitialState(catalog))
     }
-
-    var currentPlanId by remember { mutableIntStateOf(2) }
-    var planDestination by remember { mutableStateOf<PlanDestination>(PlanDestination.List) }
-    var planIdPendingDelete by remember { mutableStateOf<Int?>(null) }
-    var motionPendingDelete by remember { mutableStateOf<MotionDeleteTarget?>(null) }
-    var addMotionPlanId by remember { mutableStateOf<Int?>(null) }
-    val nextPlanName = stringResource(R.string.plan_name_new_default, trainingPlans.size + 1)
+    val nextPlanName = stringResource(R.string.plan_name_new_default, state.trainingPlans.size + 1)
 
     val bottomBarItems = listOf(
         BottomBarItem(
@@ -190,25 +101,147 @@ fun LiftInsightHomeRoute() {
         )
     )
 
+    HomeScaffold(
+        state = state,
+        bottomBarItems = bottomBarItems,
+        onTabSelected = { tabIndex ->
+            state = controller.selectTab(state, tabIndex)
+        },
+        onBodyMetricValueChange = { metricId, newValue ->
+            state = controller.updateBodyMetric(state, metricId, newValue)
+        },
+        onCreatePlan = {
+            state = controller.createPlan(state, nextPlanName)
+        },
+        onSelectPlan = { planId ->
+            state = controller.selectPlan(state, planId)
+        },
+        onOpenPlanDetail = { planId ->
+            state = controller.showPlanDetail(state, planId)
+        },
+        onBackToPlanList = {
+            state = controller.showPlanList(state)
+        },
+        onRenamePlan = { planId, newName ->
+            state = controller.renamePlan(state, planId, newName)
+        },
+        onMoveMotionUp = { planId, motionEntryId ->
+            state = controller.movePlanMotion(
+                state = state,
+                planId = planId,
+                motionEntryId = motionEntryId,
+                direction = -1
+            )
+        },
+        onMoveMotionDown = { planId, motionEntryId ->
+            state = controller.movePlanMotion(
+                state = state,
+                planId = planId,
+                motionEntryId = motionEntryId,
+                direction = 1
+            )
+        },
+        onOpenMotionDetail = { planId, motionEntryId ->
+            state = controller.showMotionDetail(state, planId, motionEntryId)
+        },
+        onDecreaseMotionSets = { planId, motionEntryId, sets ->
+            state = controller.updateMotionSets(
+                state = state,
+                planId = planId,
+                motionEntryId = motionEntryId,
+                sets = sets - 1
+            )
+        },
+        onIncreaseMotionSets = { planId, motionEntryId, sets ->
+            state = controller.updateMotionSets(
+                state = state,
+                planId = planId,
+                motionEntryId = motionEntryId,
+                sets = sets + 1
+            )
+        },
+        onDecreaseMotionReps = { planId, motionEntryId, repsPerSet ->
+            state = controller.updateMotionRepsPerSet(
+                state = state,
+                planId = planId,
+                motionEntryId = motionEntryId,
+                repsPerSet = repsPerSet - 1
+            )
+        },
+        onIncreaseMotionReps = { planId, motionEntryId, repsPerSet ->
+            state = controller.updateMotionRepsPerSet(
+                state = state,
+                planId = planId,
+                motionEntryId = motionEntryId,
+                repsPerSet = repsPerSet + 1
+            )
+        },
+        onRequestPlanDeletion = { planId ->
+            state = controller.requestPlanDeletion(state, planId)
+        },
+        onDismissPlanDeletion = {
+            state = controller.cancelPlanDeletion(state)
+        },
+        onConfirmPlanDeletion = {
+            state = controller.confirmPlanDeletion(state)
+        },
+        onRequestMotionDeletion = { planId, motionEntryId ->
+            state = controller.requestMotionDeletion(state, planId, motionEntryId)
+        },
+        onDismissMotionDeletion = {
+            state = controller.cancelMotionDeletion(state)
+        },
+        onConfirmMotionDeletion = {
+            state = controller.confirmMotionDeletion(state)
+        },
+        onOpenAddMotionPicker = { planId ->
+            state = controller.openAddMotionPicker(state, planId)
+        },
+        onDismissAddMotionPicker = {
+            state = controller.closeAddMotionPicker(state)
+        },
+        onAddMotionToPlan = { planId, motion ->
+            state = controller.addMotionToPlan(state, planId, motion)
+        }
+    )
+}
+
+@Composable
+private fun HomeScaffold(
+    state: HomeState,
+    bottomBarItems: List<BottomBarItem>,
+    onTabSelected: (Int) -> Unit,
+    onBodyMetricValueChange: (Int, String) -> Unit,
+    onCreatePlan: () -> Unit,
+    onSelectPlan: (Int) -> Unit,
+    onOpenPlanDetail: (Int) -> Unit,
+    onBackToPlanList: () -> Unit,
+    onRenamePlan: (Int, String) -> Unit,
+    onMoveMotionUp: (Int, Int) -> Unit,
+    onMoveMotionDown: (Int, Int) -> Unit,
+    onOpenMotionDetail: (Int, Int) -> Unit,
+    onDecreaseMotionSets: (Int, Int, Int) -> Unit,
+    onIncreaseMotionSets: (Int, Int, Int) -> Unit,
+    onDecreaseMotionReps: (Int, Int, Int) -> Unit,
+    onIncreaseMotionReps: (Int, Int, Int) -> Unit,
+    onRequestPlanDeletion: (Int) -> Unit,
+    onDismissPlanDeletion: () -> Unit,
+    onConfirmPlanDeletion: () -> Unit,
+    onRequestMotionDeletion: (Int, Int) -> Unit,
+    onDismissMotionDeletion: () -> Unit,
+    onConfirmMotionDeletion: () -> Unit,
+    onOpenAddMotionPicker: (Int) -> Unit,
+    onDismissAddMotionPicker: () -> Unit,
+    onAddMotionToPlan: (Int, com.potato.liftinsight.plan.model.AvailableMotionState) -> Unit
+) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            if (selectedTabIndex == 2) {
-                when (val destination = planDestination) {
+            if (state.selectedTabIndex == 2) {
+                when (val destination = state.planDestination) {
                     PlanDestination.List -> {
-                        FloatingActionButton(
-                            onClick = {
-                                val createResult = createTrainingPlan(
-                                    plans = trainingPlans,
-                                    name = nextPlanName,
-                                    createdAt = System.currentTimeMillis()
-                                )
-
-                                trainingPlans = createResult.plans
-                                planDestination = PlanDestination.Detail(createResult.createdPlanId)
-                            }
-                        ) {
+                        FloatingActionButton(onClick = onCreatePlan) {
                             Icon(
                                 imageVector = Icons.Rounded.Add,
                                 contentDescription = stringResource(R.string.plan_add_plan_content_description)
@@ -222,7 +255,7 @@ fun LiftInsightHomeRoute() {
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             SmallFloatingActionButton(
-                                onClick = { planIdPendingDelete = destination.planId },
+                                onClick = { onRequestPlanDeletion(destination.planId) },
                                 containerColor = MaterialTheme.colorScheme.errorContainer,
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer
                             ) {
@@ -232,7 +265,9 @@ fun LiftInsightHomeRoute() {
                                 )
                             }
 
-                            FloatingActionButton(onClick = { addMotionPlanId = destination.planId }) {
+                            FloatingActionButton(
+                                onClick = { onOpenAddMotionPicker(destination.planId) }
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Add,
                                     contentDescription = stringResource(R.string.plan_add_motion_content_description)
@@ -248,13 +283,13 @@ fun LiftInsightHomeRoute() {
         bottomBar = {
             LiftInsightBottomBar(
                 items = bottomBarItems,
-                selectedTabIndex = selectedTabIndex,
-                onTabSelected = { selectedTabIndex = it }
+                selectedTabIndex = state.selectedTabIndex,
+                onTabSelected = onTabSelected
             )
         }
     ) { innerPadding ->
         AnimatedContent(
-            targetState = selectedTabIndex,
+            targetState = state.selectedTabIndex,
             transitionSpec = {
                 val direction = if (targetState > initialState) 1 else -1
 
@@ -306,179 +341,166 @@ fun LiftInsightHomeRoute() {
                 0 -> HomeScreen(modifier = Modifier.padding(innerPadding))
 
                 1 -> BodyScreen(
-                    metrics = bodyMetrics,
-                    onMetricValueChange = { metricId, newValue ->
-                        bodyMetrics.apply {
-                            clear()
-                            addAll(
-                                updateBodyMetric(
-                                    metrics = this,
-                                    metricId = metricId,
-                                    newValue = newValue
-                                )
-                            )
-                        }
-                    },
+                    metrics = state.bodyMetrics,
+                    onMetricValueChange = onBodyMetricValueChange,
                     modifier = Modifier.padding(innerPadding)
                 )
 
                 else -> {
-                    when (val destination = planDestination) {
-                        PlanDestination.List -> {
-                            PlanScreen(
-                                plans = trainingPlans,
-                                currentPlanId = currentPlanId,
-                                onSelectPlan = { planId ->
-                                    val selectionResult = selectTrainingPlan(
-                                        plans = trainingPlans,
-                                        currentPlanId = currentPlanId,
-                                        planId = planId,
-                                        selectedAt = System.currentTimeMillis()
-                                    )
-
-                                    trainingPlans = selectionResult.plans
-                                    currentPlanId = selectionResult.currentPlanId
-                                },
-                                onEditPlan = { planId ->
-                                    planDestination = PlanDestination.Detail(planId)
-                                },
-                                modifier = Modifier.padding(innerPadding)
-                            )
-                        }
-
-                        is PlanDestination.Detail -> {
-                            val plan = trainingPlan(trainingPlans, destination.planId)
-
-                            if (plan == null) {
-                                PlanScreen(
-                                    plans = trainingPlans,
-                                    currentPlanId = currentPlanId,
-                                    onSelectPlan = { planId ->
-                                        val selectionResult = selectTrainingPlan(
-                                            plans = trainingPlans,
-                                            currentPlanId = currentPlanId,
-                                            planId = planId,
-                                            selectedAt = System.currentTimeMillis()
-                                        )
-
-                                        trainingPlans = selectionResult.plans
-                                        currentPlanId = selectionResult.currentPlanId
-                                    },
-                                    onEditPlan = { planId ->
-                                        planDestination = PlanDestination.Detail(planId)
-                                    },
-                                    modifier = Modifier.padding(innerPadding)
-                                )
+                    AnimatedContent(
+                        targetState = state.planDestination,
+                        transitionSpec = {
+                            val direction = if (
+                                planDestinationDepth(targetState) >= planDestinationDepth(initialState)
+                            ) {
+                                1
                             } else {
-                                PlanDetailScreen(
-                                    plan = plan,
-                                    onBack = { planDestination = PlanDestination.List },
-                                    onRenamePlan = { updatedName ->
-                                        trainingPlans = updateTrainingPlanName(
-                                            plans = trainingPlans,
-                                            planId = destination.planId,
-                                            newName = updatedName
-                                        )
-                                    },
-                                    onMoveMotionUp = { motionEntryId ->
-                                        trainingPlans = movePlanMotion(
-                                            plans = trainingPlans,
-                                            planId = destination.planId,
-                                            motionEntryId = motionEntryId,
-                                            direction = -1
-                                        )
-                                    },
-                                    onMoveMotionDown = { motionEntryId ->
-                                        trainingPlans = movePlanMotion(
-                                            plans = trainingPlans,
-                                            planId = destination.planId,
-                                            motionEntryId = motionEntryId,
-                                            direction = 1
-                                        )
-                                    },
-                                    onEditMotion = { motionEntryId ->
-                                        planDestination = PlanDestination.Motion(
-                                            planId = destination.planId,
-                                            motionEntryId = motionEntryId
-                                        )
-                                    },
+                                -1
+                            }
+
+                            (fadeIn(
+                                animationSpec = tween(
+                                    durationMillis = LiftInsightMotion.MediumDuration,
+                                    delayMillis = 40,
+                                    easing = LiftInsightMotion.EnterEasing
+                                )
+                            ) +
+                                slideInHorizontally(
+                                    animationSpec = tween(
+                                        durationMillis = LiftInsightMotion.LongDuration,
+                                        easing = LiftInsightMotion.EnterEasing
+                                    ),
+                                    initialOffsetX = { fullWidth -> direction * (fullWidth / 10) }
+                                ) +
+                                slideInVertically(
+                                    animationSpec = tween(
+                                        durationMillis = LiftInsightMotion.MediumDuration,
+                                        easing = LiftInsightMotion.EnterEasing
+                                    ),
+                                    initialOffsetY = { fullHeight -> fullHeight / 48 }
+                                )) togetherWith
+                                (fadeOut(
+                                    animationSpec = tween(
+                                        durationMillis = LiftInsightMotion.ShortDuration,
+                                        easing = LiftInsightMotion.ExitEasing
+                                    )
+                                ) +
+                                    slideOutHorizontally(
+                                        animationSpec = tween(
+                                            durationMillis = LiftInsightMotion.ShortDuration,
+                                            easing = LiftInsightMotion.ExitEasing
+                                        ),
+                                        targetOffsetX = { fullWidth -> -direction * (fullWidth / 12) }
+                                    ) +
+                                    slideOutVertically(
+                                        animationSpec = tween(
+                                            durationMillis = LiftInsightMotion.ShortDuration,
+                                            easing = LiftInsightMotion.ExitEasing
+                                        ),
+                                        targetOffsetY = { fullHeight -> -(fullHeight / 56) }
+                                    ))
+                        },
+                        label = "planPanels"
+                    ) { destination ->
+                        when (destination) {
+                            PlanDestination.List -> {
+                                PlanListPanel(
+                                    trainingPlans = state.trainingPlans,
+                                    currentPlanId = state.currentPlanId,
+                                    onSelectPlan = onSelectPlan,
+                                    onEditPlan = onOpenPlanDetail,
                                     modifier = Modifier.padding(innerPadding)
                                 )
                             }
-                        }
 
-                        is PlanDestination.Motion -> {
-                            val plan = trainingPlan(trainingPlans, destination.planId)
-                            val motion = plan?.let { planMotion(it, destination.motionEntryId) }
+                            is PlanDestination.Detail -> {
+                                val plan = trainingPlan(state.trainingPlans, destination.planId)
 
-                            if (plan == null || motion == null) {
-                                PlanScreen(
-                                    plans = trainingPlans,
-                                    currentPlanId = currentPlanId,
-                                    onSelectPlan = { planId ->
-                                        val selectionResult = selectTrainingPlan(
-                                            plans = trainingPlans,
-                                            currentPlanId = currentPlanId,
-                                            planId = planId,
-                                            selectedAt = System.currentTimeMillis()
-                                        )
+                                if (plan == null) {
+                                    PlanListPanel(
+                                        trainingPlans = state.trainingPlans,
+                                        currentPlanId = state.currentPlanId,
+                                        onSelectPlan = onSelectPlan,
+                                        onEditPlan = onOpenPlanDetail,
+                                        modifier = Modifier.padding(innerPadding)
+                                    )
+                                } else {
+                                    PlanDetailScreen(
+                                        plan = plan,
+                                        onBack = onBackToPlanList,
+                                        onRenamePlan = { updatedName ->
+                                            onRenamePlan(destination.planId, updatedName)
+                                        },
+                                        onMoveMotionUp = { motionEntryId ->
+                                            onMoveMotionUp(destination.planId, motionEntryId)
+                                        },
+                                        onMoveMotionDown = { motionEntryId ->
+                                            onMoveMotionDown(destination.planId, motionEntryId)
+                                        },
+                                        onEditMotion = { motionEntryId ->
+                                            onOpenMotionDetail(destination.planId, motionEntryId)
+                                        },
+                                        modifier = Modifier.padding(innerPadding)
+                                    )
+                                }
+                            }
 
-                                        trainingPlans = selectionResult.plans
-                                        currentPlanId = selectionResult.currentPlanId
-                                        planDestination = PlanDestination.List
-                                    },
-                                    onEditPlan = { planId ->
-                                        planDestination = PlanDestination.Detail(planId)
-                                    },
-                                    modifier = Modifier.padding(innerPadding)
-                                )
-                            } else {
-                                MotionDetailScreen(
-                                    planName = plan.name,
-                                    motion = motion,
-                                    onBack = {
-                                        planDestination = PlanDestination.Detail(destination.planId)
-                                    },
-                                    onDecreaseSets = {
-                                        trainingPlans = updateMotionSets(
-                                            plans = trainingPlans,
-                                            planId = destination.planId,
-                                            motionEntryId = destination.motionEntryId,
-                                            sets = motion.sets - 1
-                                        )
-                                    },
-                                    onIncreaseSets = {
-                                        trainingPlans = updateMotionSets(
-                                            plans = trainingPlans,
-                                            planId = destination.planId,
-                                            motionEntryId = destination.motionEntryId,
-                                            sets = motion.sets + 1
-                                        )
-                                    },
-                                    onDecreaseRepsPerSet = {
-                                        trainingPlans = updateMotionRepsPerSet(
-                                            plans = trainingPlans,
-                                            planId = destination.planId,
-                                            motionEntryId = destination.motionEntryId,
-                                            repsPerSet = motion.repsPerSet - 1
-                                        )
-                                    },
-                                    onIncreaseRepsPerSet = {
-                                        trainingPlans = updateMotionRepsPerSet(
-                                            plans = trainingPlans,
-                                            planId = destination.planId,
-                                            motionEntryId = destination.motionEntryId,
-                                            repsPerSet = motion.repsPerSet + 1
-                                        )
-                                    },
-                                    onDeleteMotion = {
-                                        motionPendingDelete = MotionDeleteTarget(
-                                            planId = destination.planId,
-                                            motionEntryId = destination.motionEntryId
-                                        )
-                                    },
-                                    modifier = Modifier.padding(innerPadding)
-                                )
+                            is PlanDestination.Motion -> {
+                                val plan = trainingPlan(state.trainingPlans, destination.planId)
+                                val motion = plan?.let { planMotion(it, destination.motionEntryId) }
+
+                                if (plan == null || motion == null) {
+                                    PlanListPanel(
+                                        trainingPlans = state.trainingPlans,
+                                        currentPlanId = state.currentPlanId,
+                                        onSelectPlan = onSelectPlan,
+                                        onEditPlan = onOpenPlanDetail,
+                                        modifier = Modifier.padding(innerPadding)
+                                    )
+                                } else {
+                                    MotionDetailScreen(
+                                        planName = plan.name,
+                                        motion = motion,
+                                        onBack = {
+                                            onOpenPlanDetail(destination.planId)
+                                        },
+                                        onDecreaseSets = {
+                                            onDecreaseMotionSets(
+                                                destination.planId,
+                                                destination.motionEntryId,
+                                                motion.sets
+                                            )
+                                        },
+                                        onIncreaseSets = {
+                                            onIncreaseMotionSets(
+                                                destination.planId,
+                                                destination.motionEntryId,
+                                                motion.sets
+                                            )
+                                        },
+                                        onDecreaseRepsPerSet = {
+                                            onDecreaseMotionReps(
+                                                destination.planId,
+                                                destination.motionEntryId,
+                                                motion.repsPerSet
+                                            )
+                                        },
+                                        onIncreaseRepsPerSet = {
+                                            onIncreaseMotionReps(
+                                                destination.planId,
+                                                destination.motionEntryId,
+                                                motion.repsPerSet
+                                            )
+                                        },
+                                        onDeleteMotion = {
+                                            onRequestMotionDeletion(
+                                                destination.planId,
+                                                destination.motionEntryId
+                                            )
+                                        },
+                                        modifier = Modifier.padding(innerPadding)
+                                    )
+                                }
                             }
                         }
                     }
@@ -487,10 +509,12 @@ fun LiftInsightHomeRoute() {
         }
     }
 
-    val pendingPlanDelete = planIdPendingDelete?.let { trainingPlan(trainingPlans, it) }
+    val pendingPlanDelete = state.planIdPendingDelete?.let { planId ->
+        trainingPlan(state.trainingPlans, planId)
+    }
     if (pendingPlanDelete != null) {
         AlertDialog(
-            onDismissRequest = { planIdPendingDelete = null },
+            onDismissRequest = onDismissPlanDeletion,
             title = {
                 Text(text = stringResource(R.string.plan_delete_dialog_title))
             },
@@ -503,39 +527,26 @@ fun LiftInsightHomeRoute() {
                 )
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        val deleteResult = deleteTrainingPlan(
-                            plans = trainingPlans,
-                            currentPlanId = currentPlanId,
-                            planId = pendingPlanDelete.id
-                        )
-
-                        trainingPlans = deleteResult.plans
-                        currentPlanId = deleteResult.currentPlanId
-                        planDestination = PlanDestination.List
-                        planIdPendingDelete = null
-                    }
-                ) {
+                TextButton(onClick = onConfirmPlanDeletion) {
                     Text(text = stringResource(R.string.plan_delete_action))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { planIdPendingDelete = null }) {
+                TextButton(onClick = onDismissPlanDeletion) {
                     Text(text = stringResource(R.string.common_cancel))
                 }
             }
         )
     }
 
-    val pendingMotionDelete = motionPendingDelete
+    val pendingMotionDelete = state.motionPendingDelete
     if (pendingMotionDelete != null) {
-        val plan = trainingPlan(trainingPlans, pendingMotionDelete.planId)
+        val plan = trainingPlan(state.trainingPlans, pendingMotionDelete.planId)
         val motion = plan?.let { planMotion(it, pendingMotionDelete.motionEntryId) }
 
         if (plan != null && motion != null) {
             AlertDialog(
-                onDismissRequest = { motionPendingDelete = null },
+                onDismissRequest = onDismissMotionDeletion,
                 title = {
                     Text(text = stringResource(R.string.motion_delete_dialog_title))
                 },
@@ -549,22 +560,12 @@ fun LiftInsightHomeRoute() {
                     )
                 },
                 confirmButton = {
-                    TextButton(
-                        onClick = {
-                            trainingPlans = deletePlanMotion(
-                                plans = trainingPlans,
-                                planId = pendingMotionDelete.planId,
-                                motionEntryId = pendingMotionDelete.motionEntryId
-                            )
-                            planDestination = PlanDestination.Detail(pendingMotionDelete.planId)
-                            motionPendingDelete = null
-                        }
-                    ) {
+                    TextButton(onClick = onConfirmMotionDeletion) {
                         Text(text = stringResource(R.string.plan_delete_action))
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { motionPendingDelete = null }) {
+                    TextButton(onClick = onDismissMotionDeletion) {
                         Text(text = stringResource(R.string.common_cancel))
                     }
                 }
@@ -572,33 +573,21 @@ fun LiftInsightHomeRoute() {
         }
     }
 
-    val motionPickerPlan = addMotionPlanId?.let { trainingPlan(trainingPlans, it) }
+    val motionPickerPlan = state.addMotionPlanId?.let { planId ->
+        trainingPlan(state.trainingPlans, planId)
+    }
     if (motionPickerPlan != null) {
         AlertDialog(
-            onDismissRequest = { addMotionPlanId = null },
+            onDismissRequest = onDismissAddMotionPicker,
             title = {
                 Text(text = stringResource(R.string.plan_add_motion_dialog_title))
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    availableMotions.forEach { motion ->
+                    state.availableMotions.forEach { motion ->
                         TextButton(
                             onClick = {
-                                val addResult = addMotionToPlan(
-                                    plans = trainingPlans,
-                                    planId = motionPickerPlan.id,
-                                    motion = motion
-                                )
-
-                                trainingPlans = addResult.plans
-                                addMotionPlanId = null
-
-                                if (addResult.motionEntryId != -1) {
-                                    planDestination = PlanDestination.Motion(
-                                        planId = motionPickerPlan.id,
-                                        motionEntryId = addResult.motionEntryId
-                                    )
-                                }
+                                onAddMotionToPlan(motionPickerPlan.id, motion)
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -609,7 +598,7 @@ fun LiftInsightHomeRoute() {
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { addMotionPlanId = null }) {
+                TextButton(onClick = onDismissAddMotionPicker) {
                     Text(text = stringResource(R.string.common_cancel))
                 }
             }
@@ -617,23 +606,27 @@ fun LiftInsightHomeRoute() {
     }
 }
 
-private sealed interface PlanDestination {
-    data object List : PlanDestination
-
-    data class Detail(val planId: Int) : PlanDestination
-
-    data class Motion(val planId: Int, val motionEntryId: Int) : PlanDestination
+@Composable
+private fun PlanListPanel(
+    trainingPlans: List<com.potato.liftinsight.plan.model.TrainingPlanState>,
+    currentPlanId: Int,
+    onSelectPlan: (Int) -> Unit,
+    onEditPlan: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    PlanScreen(
+        plans = trainingPlans,
+        currentPlanId = currentPlanId,
+        onSelectPlan = onSelectPlan,
+        onEditPlan = onEditPlan,
+        modifier = modifier
+    )
 }
-
-private data class MotionDeleteTarget(
-    val planId: Int,
-    val motionEntryId: Int
-)
 
 @Preview(showBackground = true)
 @Composable
-private fun LiftInsightHomeRoutePreview() {
+private fun HomeRoutePreview() {
     LiftInsightTheme {
-        LiftInsightHomeRoute()
+        HomeRoute()
     }
 }
