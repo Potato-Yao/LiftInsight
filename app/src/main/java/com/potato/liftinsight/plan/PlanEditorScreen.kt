@@ -1,0 +1,517 @@
+package com.potato.liftinsight.plan
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.potato.liftinsight.R
+import com.potato.liftinsight.plan.model.PlanMotionState
+import com.potato.liftinsight.plan.model.TrainingPlanState
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PlanDetailScreen(
+    plan: TrainingPlanState,
+    onBack: () -> Unit,
+    onRenamePlan: (String) -> Unit,
+    onMoveMotionUp: (motionEntryId: Int) -> Unit,
+    onMoveMotionDown: (motionEntryId: Int) -> Unit,
+    onEditMotion: (motionEntryId: Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var draftPlanName by remember(plan.id, plan.name) { mutableStateOf(plan.name) }
+
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = {
+                Text(text = stringResource(R.string.plan_rename_dialog_title))
+            },
+            text = {
+                OutlinedTextField(
+                    value = draftPlanName,
+                    onValueChange = { draftPlanName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = {
+                        Text(text = stringResource(R.string.plan_title_label))
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onRenamePlan(draftPlanName)
+                        showRenameDialog = false
+                    }
+                ) {
+                    Text(text = stringResource(R.string.common_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(text = stringResource(R.string.plan_detail_top_bar_title))
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 24.dp,
+                top = innerPadding.calculateTopPadding() + 12.dp,
+                end = 24.dp,
+                bottom = 120.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item(key = "planTitle") {
+                PlanTitleRow(
+                    title = plan.name,
+                    onEdit = {
+                        draftPlanName = plan.name
+                        showRenameDialog = true
+                    }
+                )
+            }
+
+            if (plan.motions.isEmpty()) {
+                item(key = "emptyMotions") {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        shape = RoundedCornerShape(28.dp),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                        )
+                    ) {
+                        Text(
+                            text = stringResource(R.string.plan_detail_empty_motions),
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                itemsIndexed(
+                    items = plan.motions,
+                    key = { _, motion -> motion.entryId }
+                ) { index, motion ->
+                    PlanMotionRow(
+                        motion = motion,
+                        isMoveUpEnabled = index > 0,
+                        isMoveDownEnabled = index < plan.motions.lastIndex,
+                        onMoveUp = { onMoveMotionUp(motion.entryId) },
+                        onMoveDown = { onMoveMotionDown(motion.entryId) },
+                        onEdit = { onEditMotion(motion.entryId) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun MotionDetailScreen(
+    planName: String,
+    motion: PlanMotionState,
+    onBack: () -> Unit,
+    onDecreaseSets: () -> Unit,
+    onIncreaseSets: () -> Unit,
+    onDecreaseRepsPerSet: () -> Unit,
+    onIncreaseRepsPerSet: () -> Unit,
+    onDeleteMotion: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(text = planName)
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 24.dp,
+                top = innerPadding.calculateTopPadding() + 12.dp,
+                end = 24.dp,
+                bottom = 32.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item(key = "motionTitle") {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(32.dp),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.motion_detail_title_label),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+                        )
+
+                        Text(
+                            text = motion.title,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+
+            item(key = "sets") {
+                MotionValueRow(
+                    label = stringResource(R.string.motion_detail_sets_label),
+                    value = motion.sets,
+                    onDecrease = onDecreaseSets,
+                    onIncrease = onIncreaseSets
+                )
+            }
+
+            item(key = "reps") {
+                MotionValueRow(
+                    label = stringResource(R.string.motion_detail_reps_per_set_label),
+                    value = motion.repsPerSet,
+                    onDecrease = onDecreaseRepsPerSet,
+                    onIncrease = onIncreaseRepsPerSet
+                )
+            }
+
+            item(key = "delete") {
+                DeleteRow(
+                    label = stringResource(R.string.motion_detail_delete_label),
+                    onClick = onDeleteMotion
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanTitleRow(
+    title: String,
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, top = 18.dp, end = 8.dp, bottom = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.plan_title_label),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = stringResource(R.string.plan_edit_title_content_description)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanMotionRow(
+    motion: PlanMotionState,
+    isMoveUpEnabled: Boolean,
+    isMoveDownEnabled: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 8.dp, top = 14.dp, end = 8.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column {
+                IconButton(
+                    onClick = onMoveUp,
+                    enabled = isMoveUpEnabled
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.KeyboardArrowUp,
+                        contentDescription = stringResource(
+                            R.string.plan_move_motion_up_content_description,
+                            motion.title
+                        )
+                    )
+                }
+
+                IconButton(
+                    onClick = onMoveDown,
+                    enabled = isMoveDownEnabled
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = stringResource(
+                            R.string.plan_move_motion_down_content_description,
+                            motion.title
+                        )
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = motion.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = stringResource(
+                        R.string.plan_motion_summary,
+                        motion.sets,
+                        motion.repsPerSet
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = stringResource(
+                        R.string.plan_edit_motion_content_description,
+                        motion.title
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MotionValueRow(
+    label: String,
+    value: Int,
+    onDecrease: () -> Unit,
+    onIncrease: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = label,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = onDecrease,
+                    enabled = value > 1
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Remove,
+                        contentDescription = stringResource(
+                            R.string.motion_detail_decrease_value_content_description,
+                            label
+                        )
+                    )
+                }
+
+                Text(
+                    text = value.toString(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                IconButton(onClick = onIncrease) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = stringResource(
+                            R.string.motion_detail_increase_value_content_description,
+                            label
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeleteRow(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Delete,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer
+            )
+
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
+    }
+}
+
+
