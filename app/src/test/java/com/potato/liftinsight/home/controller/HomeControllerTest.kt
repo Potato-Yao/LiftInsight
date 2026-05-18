@@ -32,12 +32,34 @@ class HomeControllerTest {
     fun createInitialState_loadsCatalogAndDefaults() {
         val state = initialState()
 
+        assertEquals(MainTab.Home, state.selectedTab)
         assertEquals(0, state.selectedTabIndex)
         assertEquals(7, state.availableMotions.size)
         assertEquals(4, state.trainingPlans.size)
         assertEquals(2, state.currentPlanId)
         assertEquals(PlanDestination.List, state.planDestination)
         assertTrue(state.bodyMetrics.isNotEmpty())
+    }
+
+    @Test
+    fun selectTab_updatesSelectedMainTab() {
+        val controller = HomeController()
+        val motionState = controller.selectTab(initialState(controller), 2)
+        val settingsState = controller.selectTab(initialState(controller), 4)
+
+        assertEquals(MainTab.Motion, motionState.selectedTab)
+        assertEquals(2, motionState.selectedTabIndex)
+        assertEquals(MainTab.Settings, settingsState.selectedTab)
+        assertEquals(4, settingsState.selectedTabIndex)
+    }
+
+    @Test
+    fun selectTab_withInvalidIndexFallsBackToHome() {
+        val controller = HomeController()
+        val updatedState = controller.selectTab(initialState(controller), 99)
+
+        assertEquals(MainTab.Home, updatedState.selectedTab)
+        assertEquals(0, updatedState.selectedTabIndex)
     }
 
     @Test

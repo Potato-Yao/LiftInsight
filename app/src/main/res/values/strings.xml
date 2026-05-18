@@ -10,8 +10,13 @@
     <string name="home_no_data_placeholder">Not available yet</string>
     <string name="nav_home">Home</string>
     <string name="nav_body">Body</string>
+    <string name="nav_motion">Motion</string>
     <string name="nav_plan">Plan</string>
     <string name="nav_settings">Settings</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_subtitle">Choose how LiftInsight looks on your device.</string>
+    <string name="settings_about">About</string>
+    <string name="settings_about_subtitle">View app details and project information.</string>
     <string name="plan_current_plan_label">Current plan:</string>
     <string name="plan_no_current_plan_selected">No plan selected</string>
     <string name="plan_no_plans_available">No plans available yet</string>

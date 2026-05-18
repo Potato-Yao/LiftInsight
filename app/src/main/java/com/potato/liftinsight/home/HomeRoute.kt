@@ -19,10 +19,14 @@ import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.automirrored.rounded.Assignment
 import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -46,16 +50,19 @@ import com.potato.liftinsight.body.BodyScreen
 import com.potato.liftinsight.common.BottomBarItem
 import com.potato.liftinsight.common.LiftInsightBottomBar
 import com.potato.liftinsight.home.controller.HomeController
+import com.potato.liftinsight.home.controller.MainTab
 import com.potato.liftinsight.home.controller.HomeState
 import com.potato.liftinsight.home.controller.PlanDestination
 import com.potato.liftinsight.home.controller.planDestinationDepth
 import com.potato.liftinsight.home.model.HomeLabels
 import com.potato.liftinsight.home.model.defaultHomeCatalog
+import com.potato.liftinsight.motion.MotionScreen
 import com.potato.liftinsight.plan.MotionDetailScreen
 import com.potato.liftinsight.plan.PlanDetailScreen
 import com.potato.liftinsight.plan.PlanScreen
 import com.potato.liftinsight.plan.model.planMotion
 import com.potato.liftinsight.plan.model.trainingPlan
+import com.potato.liftinsight.settings.SettingsScreen
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
 
@@ -95,9 +102,19 @@ fun HomeRoute() {
             selectedIcon = Icons.Rounded.AccessibilityNew
         ),
         BottomBarItem(
+            label = stringResource(R.string.nav_motion),
+            icon = Icons.Outlined.Videocam,
+            selectedIcon = Icons.Rounded.Videocam
+        ),
+        BottomBarItem(
             label = stringResource(R.string.nav_plan),
             icon = Icons.AutoMirrored.Outlined.Assignment,
             selectedIcon = Icons.AutoMirrored.Rounded.Assignment
+        ),
+        BottomBarItem(
+            label = stringResource(R.string.nav_settings),
+            icon = Icons.Outlined.Settings,
+            selectedIcon = Icons.Rounded.Settings
         )
     )
 
@@ -238,7 +255,7 @@ private fun HomeScaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            if (state.selectedTabIndex == 2) {
+            if (state.selectedTab == MainTab.Plan) {
                 when (val destination = state.planDestination) {
                     PlanDestination.List -> {
                         FloatingActionButton(onClick = onCreatePlan) {
@@ -289,7 +306,7 @@ private fun HomeScaffold(
         }
     ) { innerPadding ->
         AnimatedContent(
-            targetState = state.selectedTabIndex,
+            targetState = state.selectedTab,
             transitionSpec = {
                 val direction = if (targetState > initialState) 1 else -1
 
@@ -336,17 +353,19 @@ private fun HomeScaffold(
                         ))
             },
             label = "mainTabs"
-        ) { tabIndex ->
-            when (tabIndex) {
-                0 -> HomeScreen(modifier = Modifier.padding(innerPadding))
+        ) { tab ->
+            when (tab) {
+                MainTab.Home -> HomeScreen(modifier = Modifier.padding(innerPadding))
 
-                1 -> BodyScreen(
+                MainTab.Body -> BodyScreen(
                     metrics = state.bodyMetrics,
                     onMetricValueChange = onBodyMetricValueChange,
                     modifier = Modifier.padding(innerPadding)
                 )
 
-                else -> {
+                MainTab.Motion -> MotionScreen(modifier = Modifier.padding(innerPadding))
+
+                MainTab.Plan -> {
                     AnimatedContent(
                         targetState = state.planDestination,
                         transitionSpec = {
@@ -505,6 +524,8 @@ private fun HomeScaffold(
                         }
                     }
                 }
+
+                MainTab.Settings -> SettingsScreen(modifier = Modifier.padding(innerPadding))
             }
         }
     }

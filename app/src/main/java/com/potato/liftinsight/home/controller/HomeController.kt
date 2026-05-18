@@ -18,8 +18,22 @@ import com.potato.liftinsight.plan.model.updateMotionRepsPerSet as applyMotionRe
 import com.potato.liftinsight.plan.model.updateMotionSets as applyMotionSetsUpdate
 import com.potato.liftinsight.plan.model.updateTrainingPlanName
 
+enum class MainTab {
+    Home,
+    Body,
+    Motion,
+    Plan,
+    Settings;
+
+    companion object {
+        fun fromIndex(index: Int): MainTab {
+            return entries.getOrNull(index) ?: Home
+        }
+    }
+}
+
 data class HomeState(
-    val selectedTabIndex: Int = 0,
+    val selectedTab: MainTab = MainTab.Home,
     val bodyMetrics: List<BodyMetricState>,
     val availableMotions: List<AvailableMotionState>,
     val trainingPlans: List<TrainingPlanState>,
@@ -28,7 +42,10 @@ data class HomeState(
     val planIdPendingDelete: Int? = null,
     val motionPendingDelete: MotionDeleteTarget? = null,
     val addMotionPlanId: Int? = null
-)
+) {
+    val selectedTabIndex: Int
+        get() = selectedTab.ordinal
+}
 
 sealed interface PlanDestination {
     data object List : PlanDestination
@@ -70,7 +87,7 @@ class HomeController(
     }
 
     fun selectTab(state: HomeState, tabIndex: Int): HomeState {
-        return state.copy(selectedTabIndex = tabIndex)
+        return state.copy(selectedTab = MainTab.fromIndex(tabIndex))
     }
 
     fun updateBodyMetric(
