@@ -57,7 +57,9 @@ import com.potato.liftinsight.home.controller.MainTab
 import com.potato.liftinsight.home.controller.HomeState
 import com.potato.liftinsight.home.controller.PlanDestination
 import com.potato.liftinsight.home.controller.planDestinationDepth
+import com.potato.liftinsight.motion.controller.MotionController
 import com.potato.liftinsight.motion.MotionScreen
+import com.potato.liftinsight.motion.model.MotionState
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.data.defaultTrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.MotionDetailScreen
@@ -70,6 +72,7 @@ import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.todaysPlanMotions
 import com.potato.liftinsight.plan.model.trainingPlan
+import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.settings.SettingsScreen
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
@@ -87,13 +90,20 @@ fun HomeRoute(
             shouldSeedDebugPlans = enableDebugPlanSeed
         )
     }
+    val motionController = remember(context) {
+        MotionController(MotionStore.from(context))
+    }
     val coroutineScope = rememberCoroutineScope()
     var state by remember(controller) {
         mutableStateOf(controller.emptyState())
     }
+    var motionState by remember(motionController) {
+        mutableStateOf(motionController.emptyState())
+    }
 
-    LaunchedEffect(controller, context) {
+    LaunchedEffect(controller, motionController, context) {
         state = controller.loadState(defaultTrainingPlanSeedCatalog(context))
+        motionState = motionController.loadState()
     }
 
     val nextPlanName = stringResource(R.string.plan_name_new_default, state.trainingPlans.size + 1)
@@ -128,6 +138,7 @@ fun HomeRoute(
 
     HomeScaffold(
         state = state,
+        motionState = motionState,
         bottomBarItems = bottomBarItems,
         onTabSelected = { tabIndex ->
             state = controller.selectTab(state, tabIndex)
@@ -266,6 +277,38 @@ fun HomeRoute(
             coroutineScope.launch {
                 state = controller.addMotionToPlan(state, planId, motion)
             }
+        },
+        onAddMotion = {
+            motionState = motionController.openCreateMotion(motionState)
+        },
+        onEditMotionLibraryEntry = { motionId ->
+            motionState = motionController.openEditMotion(motionState, motionId)
+        },
+        onBackFromMotionEditor = {
+            motionState = motionController.closeEditor(motionState)
+        },
+        onMotionNameChange = { name ->
+            motionState = motionController.updateEditorName(motionState, name)
+        },
+        onSubmitMotion = {
+            coroutineScope.launch {
+                val result = motionController.submitMotion(motionState)
+                motionState = result.state
+
+                if (result.didChangeData) {
+                    state = controller.refreshState(state)
+                }
+            }
+        },
+        onDeleteMotionFromLibrary = {
+            coroutineScope.launch {
+                val result = motionController.deleteMotion(motionState)
+                motionState = result.state
+
+                if (result.didChangeData) {
+                    state = controller.refreshState(state)
+                }
+            }
         }
     )
 }
@@ -273,6 +316,7 @@ fun HomeRoute(
 @Composable
 private fun HomeScaffold(
     state: HomeState,
+    motionState: MotionState,
     bottomBarItems: List<BottomBarItem>,
     onTabSelected: (Int) -> Unit,
     onBodyMetricValueChange: (Int, String) -> Unit,
@@ -299,7 +343,13 @@ private fun HomeScaffold(
     onConfirmMotionDeletion: () -> Unit,
     onOpenAddMotionPicker: (Int) -> Unit,
     onDismissAddMotionPicker: () -> Unit,
-    onAddMotionToPlan: (Int, AvailableMotionState) -> Unit
+    onAddMotionToPlan: (Int, AvailableMotionState) -> Unit,
+    onAddMotion: () -> Unit,
+    onEditMotionLibraryEntry: (Int) -> Unit,
+    onBackFromMotionEditor: () -> Unit,
+    onMotionNameChange: (String) -> Unit,
+    onSubmitMotion: () -> Unit,
+    onDeleteMotionFromLibrary: () -> Unit
 ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -415,7 +465,16 @@ private fun HomeScaffold(
                     modifier = Modifier.padding(innerPadding)
                 )
 
-                MainTab.Motion -> MotionScreen(modifier = Modifier.padding(innerPadding))
+                MainTab.Motion -> MotionScreen(
+                    state = motionState,
+                    onAddMotion = onAddMotion,
+                    onEditMotion = onEditMotionLibraryEntry,
+                    onBackFromEditor = onBackFromMotionEditor,
+                    onMotionNameChange = onMotionNameChange,
+                    onSubmitMotion = onSubmitMotion,
+                    onDeleteMotion = onDeleteMotionFromLibrary,
+                    modifier = Modifier.padding(innerPadding)
+                )
 
                 MainTab.Plan -> {
                     AnimatedContent(
@@ -739,6 +798,7 @@ private fun HomeRoutePreview() {
         HomeScaffold(
             state = HomeState(
                 bodyMetrics = emptyList(),
+                selectedTab = MainTab.Motion,
                 availableMotions = listOf(
                     AvailableMotionState(
                         id = 1,
@@ -766,6 +826,7 @@ private fun HomeRoutePreview() {
                 ),
                 currentPlanId = 1
             ),
+            motionState = MotionState(),
             bottomBarItems = emptyList(),
             onTabSelected = {},
             onBodyMetricValueChange = { _, _ -> },
@@ -792,7 +853,13 @@ private fun HomeRoutePreview() {
             onConfirmMotionDeletion = {},
             onOpenAddMotionPicker = {},
             onDismissAddMotionPicker = {},
-            onAddMotionToPlan = { _, _ -> }
+            onAddMotionToPlan = { _, _ -> },
+            onAddMotion = {},
+            onEditMotionLibraryEntry = {},
+            onBackFromMotionEditor = {},
+            onMotionNameChange = {},
+            onSubmitMotion = {},
+            onDeleteMotionFromLibrary = {}
         )
     }
 }

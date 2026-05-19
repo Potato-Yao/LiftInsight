@@ -534,6 +534,10 @@ class HomeController(
         )
     }
 
+    suspend fun refreshState(state: HomeState): HomeState {
+        return reloadState(state)
+    }
+
     private suspend fun reloadState(
         state: HomeState,
         requestedDestination: PlanDestination = state.planDestination,

@@ -8,6 +8,7 @@ import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -25,6 +26,7 @@ import org.robolectric.annotation.Config
 class HomeControllerTest {
     private lateinit var database: LiftInsightDatabase
     private lateinit var trainingPlanStore: TrainingPlanStore
+    private lateinit var motionStore: MotionStore
     private lateinit var seedCatalog: TrainingPlanSeedCatalog
 
     @Before
@@ -34,6 +36,7 @@ class HomeControllerTest {
             .allowMainThreadQueries()
             .build()
         trainingPlanStore = TrainingPlanStore.fromDatabase(database)
+        motionStore = MotionStore.fromDatabase(database)
         seedCatalog = TrainingPlanSeedCatalog(
             availableMotions = listOf(
                 AvailableMotionState(id = 1, title = "Snatch"),
@@ -221,6 +224,27 @@ class HomeControllerTest {
         assertEquals(listOf(1, 3), updatedPlan.motions.map { it.entryId })
         assertEquals(PlanDestination.Detail(1), updatedState.planDestination)
         assertEquals(null, updatedState.motionPendingDelete)
+    }
+
+    @Test
+    fun refreshState_readsMotionLibraryChangesFromDatabase() = runBlocking {
+        val controller = controller()
+        val state = initialState(controller)
+        val snatch = motionStore.getMotions().first { motion -> motion.name == "Snatch" }
+
+        motionStore.updateMotion(snatch.copy(name = "Hang Snatch"))
+
+        val refreshedState = controller.refreshState(state)
+
+        assertTrue(refreshedState.availableMotions.any { motion -> motion.title == "Hang Snatch" })
+        assertEquals(
+            "Hang Snatch",
+            refreshedState.trainingPlans
+                .first { it.id == 1 }
+                .motions
+                .first { it.entryId == 1 }
+                .title
+        )
     }
 }
 
