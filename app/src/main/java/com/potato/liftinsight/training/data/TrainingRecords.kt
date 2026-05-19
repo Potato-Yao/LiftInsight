@@ -1,0 +1,43 @@
+package com.potato.liftinsight.training.data
+
+data class MotionRecord(
+    val id: Int,
+    val name: String
+)
+
+data class CreateMotionRequest(
+    val name: String? = null
+)
+
+data class MetaPlanRecord(
+    val id: Int,
+    val motionId: Int,
+    val motionName: String,
+    val sets: Int,
+    val reps: Int,
+    val weight: Double,
+    val orderIndex: Int
+)
+
+data class CreateMetaPlanRequest(
+    val motionId: Int,
+    val sets: Int,
+    val reps: Int,
+    val weight: Double,
+    val orderIndex: Int
+)
+
+data class PlanRecord(
+    val id: Int,
+    val name: String,
+    val repeatCycle: Int,
+    val metaPlans: List<MetaPlanRecord> = emptyList()
+)
+
+data class CreatePlanRequest(
+    val name: String? = null,
+    val repeatCycle: Int,
+    val metaPlans: List<CreateMetaPlanRequest> = emptyList()
+)
+
+
