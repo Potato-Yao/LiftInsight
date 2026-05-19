@@ -128,6 +128,7 @@ class MotionStoreTest {
                         motionId = motionId,
                         sets = 5,
                         reps = 2,
+                        intensity = 0.8,
                         weight = 80.0,
                         orderIndex = 0
                     )

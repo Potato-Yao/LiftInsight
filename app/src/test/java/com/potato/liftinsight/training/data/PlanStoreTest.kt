@@ -47,11 +47,13 @@ class PlanStoreTest {
             CreatePlanRequest(
                 name = "  Strength Base  ",
                 repeatCycle = 7,
+                lastAppliedAt = 1234L,
                 metaPlans = listOf(
                     CreateMetaPlanRequest(
                         motionId = frontSquatId,
                         sets = 5,
                         reps = 3,
+                        intensity = 0.78,
                         weight = 105.0,
                         orderIndex = 1
                     ),
@@ -59,6 +61,7 @@ class PlanStoreTest {
                         motionId = snatchId,
                         sets = 6,
                         reps = 2,
+                        intensity = 0.85,
                         weight = 72.5,
                         orderIndex = 0
                     )
@@ -70,9 +73,11 @@ class PlanStoreTest {
 
         assertEquals("Strength Base", storedPlan?.name)
         assertEquals(7, storedPlan?.repeatCycle)
+        assertEquals(1234L, storedPlan?.lastAppliedAt)
         assertEquals(listOf(0, 1), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.orderIndex })
         assertEquals(listOf("Snatch", "Front Squat"), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.motionName })
         assertEquals(2, planDao.countMetaPlansForPlan(planId))
+        assertEquals(0.85, storedPlan?.metaPlans?.first()?.intensity ?: Double.NaN, 0.0)
         assertEquals(72.5, storedPlan?.metaPlans?.first()?.weight ?: Double.NaN, 0.0)
     }
 
@@ -89,6 +94,7 @@ class PlanStoreTest {
                         motionId = snatchId,
                         sets = 5,
                         reps = 2,
+                        intensity = 0.75,
                         weight = 75.0,
                         orderIndex = 0
                     )
@@ -121,6 +127,7 @@ class PlanStoreTest {
                         motionId = cleanPullId,
                         sets = 4,
                         reps = 3,
+                        intensity = 0.82,
                         weight = 120.0,
                         orderIndex = 0
                     )
@@ -133,6 +140,7 @@ class PlanStoreTest {
                 id = planId,
                 name = "  Competition Peak  ",
                 repeatCycle = 14,
+                lastAppliedAt = 5678L,
                 metaPlans = listOf(
                     MetaPlanRecord(
                         id = 0,
@@ -140,6 +148,7 @@ class PlanStoreTest {
                         motionName = "",
                         sets = 5,
                         reps = 2,
+                        intensity = 0.88,
                         weight = 82.5,
                         orderIndex = 0
                     ),
@@ -149,6 +158,7 @@ class PlanStoreTest {
                         motionName = "",
                         sets = 4,
                         reps = 3,
+                        intensity = 0.8,
                         weight = 110.0,
                         orderIndex = 1
                     )
@@ -161,7 +171,9 @@ class PlanStoreTest {
         assertTrue(updated)
         assertEquals("Competition Peak", storedPlan?.name)
         assertEquals(14, storedPlan?.repeatCycle)
+        assertEquals(5678L, storedPlan?.lastAppliedAt)
         assertEquals(listOf("Snatch", "Front Squat"), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.motionName })
+        assertEquals(0.8, storedPlan?.metaPlans?.last()?.intensity ?: Double.NaN, 0.0)
         assertEquals(110.0, storedPlan?.metaPlans?.last()?.weight ?: Double.NaN, 0.0)
         assertEquals(2, planDao.countMetaPlansForPlan(planId))
     }
@@ -178,6 +190,7 @@ class PlanStoreTest {
                         motionId = snatchId,
                         sets = 5,
                         reps = 1,
+                        intensity = 0.92,
                         weight = 85.0,
                         orderIndex = 0
                     )
@@ -207,6 +220,7 @@ class PlanStoreTest {
                         motionId = snatchId,
                         sets = 5,
                         reps = 2,
+                        intensity = 0.8,
                         weight = 80.0,
                         orderIndex = 0
                     ),
@@ -214,6 +228,7 @@ class PlanStoreTest {
                         motionId = cleanPullId,
                         sets = 4,
                         reps = 3,
+                        intensity = 0.82,
                         weight = 110.0,
                         orderIndex = 0
                     )
@@ -233,6 +248,29 @@ class PlanStoreTest {
                         motionId = 999,
                         sets = 5,
                         reps = 2,
+                        intensity = 0.8,
+                        weight = 80.0,
+                        orderIndex = 0
+                    )
+                )
+            )
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun createPlan_rejectsNegativeIntensity() {
+        val snatchId = createMotion("Snatch")
+
+        planStore.createPlan(
+            CreatePlanRequest(
+                name = "Bad Intensity",
+                repeatCycle = 7,
+                metaPlans = listOf(
+                    CreateMetaPlanRequest(
+                        motionId = snatchId,
+                        sets = 5,
+                        reps = 2,
+                        intensity = -0.1,
                         weight = 80.0,
                         orderIndex = 0
                     )

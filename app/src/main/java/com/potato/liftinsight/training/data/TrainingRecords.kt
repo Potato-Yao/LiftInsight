@@ -15,6 +15,7 @@ data class MetaPlanRecord(
     val motionName: String,
     val sets: Int,
     val reps: Int,
+    val intensity: Double,
     val weight: Double,
     val orderIndex: Int
 )
@@ -23,6 +24,7 @@ data class CreateMetaPlanRequest(
     val motionId: Int,
     val sets: Int,
     val reps: Int,
+    val intensity: Double,
     val weight: Double,
     val orderIndex: Int
 )
@@ -31,12 +33,14 @@ data class PlanRecord(
     val id: Int,
     val name: String,
     val repeatCycle: Int,
+    val lastAppliedAt: Long = 0L,
     val metaPlans: List<MetaPlanRecord> = emptyList()
 )
 
 data class CreatePlanRequest(
     val name: String? = null,
     val repeatCycle: Int,
+    val lastAppliedAt: Long = 0L,
     val metaPlans: List<CreateMetaPlanRequest> = emptyList()
 )
 

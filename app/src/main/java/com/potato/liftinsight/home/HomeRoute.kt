@@ -36,10 +36,13 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -54,40 +57,43 @@ import com.potato.liftinsight.home.controller.MainTab
 import com.potato.liftinsight.home.controller.HomeState
 import com.potato.liftinsight.home.controller.PlanDestination
 import com.potato.liftinsight.home.controller.planDestinationDepth
-import com.potato.liftinsight.home.model.HomeLabels
-import com.potato.liftinsight.home.model.defaultHomeCatalog
 import com.potato.liftinsight.motion.MotionScreen
+import com.potato.liftinsight.plan.data.TrainingPlanStore
+import com.potato.liftinsight.plan.data.defaultTrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.MotionDetailScreen
 import com.potato.liftinsight.plan.PlanDetailScreen
 import com.potato.liftinsight.plan.PlanScreen
 import com.potato.liftinsight.plan.model.planMotion
+import com.potato.liftinsight.plan.model.AvailableMotionState
+import com.potato.liftinsight.plan.model.PlanMotionState
+import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.trainingPlan
 import com.potato.liftinsight.settings.SettingsScreen
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
+import kotlinx.coroutines.launch
 
 @Composable
-fun HomeRoute() {
-    val controller = remember { HomeController() }
-    val labels = HomeLabels(
-        strengthBaseName = stringResource(R.string.plan_name_strength_base),
-        competitionPeakName = stringResource(R.string.plan_name_competition_peak),
-        techniqueCycleName = stringResource(R.string.plan_name_technique_cycle),
-        pullVolumeBlockName = stringResource(R.string.plan_name_pull_volume_block),
-        snatchTitle = stringResource(R.string.motion_name_snatch),
-        cleanAndJerkTitle = stringResource(R.string.motion_name_clean_and_jerk),
-        snatchPullTitle = stringResource(R.string.motion_name_snatch_pull),
-        cleanPullTitle = stringResource(R.string.motion_name_clean_pull),
-        pushPressTitle = stringResource(R.string.motion_name_push_press),
-        frontSquatTitle = stringResource(R.string.body_front_squat),
-        backSquatTitle = stringResource(R.string.body_back_squat)
-    )
-    val catalog = remember(labels) {
-        defaultHomeCatalog(labels)
+fun HomeRoute(
+    trainingPlanStore: TrainingPlanStore,
+    enableDebugPlanSeed: Boolean
+) {
+    val context = LocalContext.current
+    val controller = remember(trainingPlanStore, enableDebugPlanSeed) {
+        HomeController(
+            trainingPlanStore = trainingPlanStore,
+            shouldSeedDebugPlans = enableDebugPlanSeed
+        )
     }
-    var state by remember(catalog) {
-        mutableStateOf(controller.createInitialState(catalog))
+    val coroutineScope = rememberCoroutineScope()
+    var state by remember(controller) {
+        mutableStateOf(controller.emptyState())
     }
+
+    LaunchedEffect(controller, context) {
+        state = controller.loadState(defaultTrainingPlanSeedCatalog(context))
+    }
+
     val nextPlanName = stringResource(R.string.plan_name_new_default, state.trainingPlans.size + 1)
 
     val bottomBarItems = listOf(
@@ -128,10 +134,14 @@ fun HomeRoute() {
             state = controller.updateBodyMetric(state, metricId, newValue)
         },
         onCreatePlan = {
-            state = controller.createPlan(state, nextPlanName)
+            coroutineScope.launch {
+                state = controller.createPlan(state, nextPlanName)
+            }
         },
         onSelectPlan = { planId ->
-            state = controller.selectPlan(state, planId)
+            coroutineScope.launch {
+                state = controller.selectPlan(state, planId)
+            }
         },
         onOpenPlanDetail = { planId ->
             state = controller.showPlanDetail(state, planId)
@@ -140,58 +150,72 @@ fun HomeRoute() {
             state = controller.showPlanList(state)
         },
         onRenamePlan = { planId, newName ->
-            state = controller.renamePlan(state, planId, newName)
+            coroutineScope.launch {
+                state = controller.renamePlan(state, planId, newName)
+            }
         },
         onMoveMotionUp = { planId, motionEntryId ->
-            state = controller.movePlanMotion(
-                state = state,
-                planId = planId,
-                motionEntryId = motionEntryId,
-                direction = -1
-            )
+            coroutineScope.launch {
+                state = controller.movePlanMotion(
+                    state = state,
+                    planId = planId,
+                    motionEntryId = motionEntryId,
+                    direction = -1
+                )
+            }
         },
         onMoveMotionDown = { planId, motionEntryId ->
-            state = controller.movePlanMotion(
-                state = state,
-                planId = planId,
-                motionEntryId = motionEntryId,
-                direction = 1
-            )
+            coroutineScope.launch {
+                state = controller.movePlanMotion(
+                    state = state,
+                    planId = planId,
+                    motionEntryId = motionEntryId,
+                    direction = 1
+                )
+            }
         },
         onOpenMotionDetail = { planId, motionEntryId ->
             state = controller.showMotionDetail(state, planId, motionEntryId)
         },
         onDecreaseMotionSets = { planId, motionEntryId, sets ->
-            state = controller.updateMotionSets(
-                state = state,
-                planId = planId,
-                motionEntryId = motionEntryId,
-                sets = sets - 1
-            )
+            coroutineScope.launch {
+                state = controller.updateMotionSets(
+                    state = state,
+                    planId = planId,
+                    motionEntryId = motionEntryId,
+                    sets = sets - 1
+                )
+            }
         },
         onIncreaseMotionSets = { planId, motionEntryId, sets ->
-            state = controller.updateMotionSets(
-                state = state,
-                planId = planId,
-                motionEntryId = motionEntryId,
-                sets = sets + 1
-            )
+            coroutineScope.launch {
+                state = controller.updateMotionSets(
+                    state = state,
+                    planId = planId,
+                    motionEntryId = motionEntryId,
+                    sets = sets + 1
+                )
+            }
         },
         onDecreaseMotionReps = { planId, motionEntryId, repsPerSet ->
-            state = controller.updateMotionRepsPerSet(
-                state = state,
-                planId = planId,
-                motionEntryId = motionEntryId,
-                repsPerSet = repsPerSet - 1
-            )
+            coroutineScope.launch {
+                state = controller.updateMotionRepsPerSet(
+                    state = state,
+                    planId = planId,
+                    motionEntryId = motionEntryId,
+                    repsPerSet = repsPerSet - 1
+                )
+            }
         },
         onIncreaseMotionReps = { planId, motionEntryId, repsPerSet ->
-            state = controller.updateMotionRepsPerSet(
-                state = state,
-                planId = planId,
-                motionEntryId = motionEntryId,
-                repsPerSet = repsPerSet + 1
-            )
+            coroutineScope.launch {
+                state = controller.updateMotionRepsPerSet(
+                    state = state,
+                    planId = planId,
+                    motionEntryId = motionEntryId,
+                    repsPerSet = repsPerSet + 1
+                )
+            }
         },
         onRequestPlanDeletion = { planId ->
             state = controller.requestPlanDeletion(state, planId)
@@ -200,7 +224,9 @@ fun HomeRoute() {
             state = controller.cancelPlanDeletion(state)
         },
         onConfirmPlanDeletion = {
-            state = controller.confirmPlanDeletion(state)
+            coroutineScope.launch {
+                state = controller.confirmPlanDeletion(state)
+            }
         },
         onRequestMotionDeletion = { planId, motionEntryId ->
             state = controller.requestMotionDeletion(state, planId, motionEntryId)
@@ -209,7 +235,9 @@ fun HomeRoute() {
             state = controller.cancelMotionDeletion(state)
         },
         onConfirmMotionDeletion = {
-            state = controller.confirmMotionDeletion(state)
+            coroutineScope.launch {
+                state = controller.confirmMotionDeletion(state)
+            }
         },
         onOpenAddMotionPicker = { planId ->
             state = controller.openAddMotionPicker(state, planId)
@@ -218,7 +246,9 @@ fun HomeRoute() {
             state = controller.closeAddMotionPicker(state)
         },
         onAddMotionToPlan = { planId, motion ->
-            state = controller.addMotionToPlan(state, planId, motion)
+            coroutineScope.launch {
+                state = controller.addMotionToPlan(state, planId, motion)
+            }
         }
     )
 }
@@ -249,7 +279,7 @@ private fun HomeScaffold(
     onConfirmMotionDeletion: () -> Unit,
     onOpenAddMotionPicker: (Int) -> Unit,
     onDismissAddMotionPicker: () -> Unit,
-    onAddMotionToPlan: (Int, com.potato.liftinsight.plan.model.AvailableMotionState) -> Unit
+    onAddMotionToPlan: (Int, AvailableMotionState) -> Unit
 ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -629,7 +659,7 @@ private fun HomeScaffold(
 
 @Composable
 private fun PlanListPanel(
-    trainingPlans: List<com.potato.liftinsight.plan.model.TrainingPlanState>,
+    trainingPlans: List<TrainingPlanState>,
     currentPlanId: Int,
     onSelectPlan: (Int) -> Unit,
     onEditPlan: (Int) -> Unit,
@@ -648,6 +678,58 @@ private fun PlanListPanel(
 @Composable
 private fun HomeRoutePreview() {
     LiftInsightTheme {
-        HomeRoute()
+        HomeScaffold(
+            state = HomeState(
+                bodyMetrics = emptyList(),
+                availableMotions = listOf(
+                    AvailableMotionState(
+                        id = 1,
+                        title = "Snatch"
+                    )
+                ),
+                trainingPlans = listOf(
+                    TrainingPlanState(
+                        id = 1,
+                        name = "Strength Base",
+                        lastAppliedAt = 1715600000000,
+                        motions = listOf(
+                            PlanMotionState(
+                                entryId = 1,
+                                motionId = 1,
+                                title = "Snatch",
+                                sets = 5,
+                                repsPerSet = 2,
+                                intensity = 0.82
+                            )
+                        )
+                    )
+                ),
+                currentPlanId = 1
+            ),
+            bottomBarItems = emptyList(),
+            onTabSelected = {},
+            onBodyMetricValueChange = { _, _ -> },
+            onCreatePlan = {},
+            onSelectPlan = {},
+            onOpenPlanDetail = {},
+            onBackToPlanList = {},
+            onRenamePlan = { _, _ -> },
+            onMoveMotionUp = { _, _ -> },
+            onMoveMotionDown = { _, _ -> },
+            onOpenMotionDetail = { _, _ -> },
+            onDecreaseMotionSets = { _, _, _ -> },
+            onIncreaseMotionSets = { _, _, _ -> },
+            onDecreaseMotionReps = { _, _, _ -> },
+            onIncreaseMotionReps = { _, _, _ -> },
+            onRequestPlanDeletion = {},
+            onDismissPlanDeletion = {},
+            onConfirmPlanDeletion = {},
+            onRequestMotionDeletion = { _, _ -> },
+            onDismissMotionDeletion = {},
+            onConfirmMotionDeletion = {},
+            onOpenAddMotionPicker = {},
+            onDismissAddMotionPicker = {},
+            onAddMotionToPlan = { _, _ -> }
+        )
     }
 }

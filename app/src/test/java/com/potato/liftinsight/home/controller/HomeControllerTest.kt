@@ -1,36 +1,117 @@
 package com.potato.liftinsight.home.controller
 
-import com.potato.liftinsight.home.model.HomeLabels
-import com.potato.liftinsight.home.model.defaultHomeCatalog
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import com.potato.liftinsight.plan.data.TrainingPlanSeedCatalog
+import com.potato.liftinsight.plan.data.TrainingPlanStore
+import com.potato.liftinsight.plan.model.AvailableMotionState
+import com.potato.liftinsight.plan.model.PlanMotionState
+import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.training.data.LiftInsightDatabase
+import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class HomeControllerTest {
-    private fun sampleLabels(): HomeLabels {
-        return HomeLabels(
-            strengthBaseName = "Strength Base",
-            competitionPeakName = "Competition Peak",
-            techniqueCycleName = "Technique Cycle",
-            pullVolumeBlockName = "Pull Volume Block",
-            snatchTitle = "Snatch",
-            cleanAndJerkTitle = "Clean & Jerk",
-            snatchPullTitle = "Snatch Pull",
-            cleanPullTitle = "Clean Pull",
-            pushPressTitle = "Push Press",
-            frontSquatTitle = "Front Squat",
-            backSquatTitle = "Back Squat"
+    private lateinit var database: LiftInsightDatabase
+    private lateinit var trainingPlanStore: TrainingPlanStore
+    private lateinit var seedCatalog: TrainingPlanSeedCatalog
+
+    @Before
+    fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        database = Room.inMemoryDatabaseBuilder(context, LiftInsightDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        trainingPlanStore = TrainingPlanStore.fromDatabase(database)
+        seedCatalog = TrainingPlanSeedCatalog(
+            availableMotions = listOf(
+                AvailableMotionState(id = 1, title = "Snatch"),
+                AvailableMotionState(id = 2, title = "Clean & Jerk"),
+                AvailableMotionState(id = 3, title = "Snatch Pull"),
+                AvailableMotionState(id = 4, title = "Clean Pull"),
+                AvailableMotionState(id = 5, title = "Push Press"),
+                AvailableMotionState(id = 6, title = "Front Squat"),
+                AvailableMotionState(id = 7, title = "Back Squat")
+            ),
+            debugPlans = listOf(
+                TrainingPlanState(
+                    id = 1,
+                    name = "Strength Base",
+                    lastAppliedAt = 1715600000000,
+                    motions = listOf(
+                        PlanMotionState(entryId = 1, motionId = 1, title = "Snatch", sets = 5, repsPerSet = 2, intensity = 0.82),
+                        PlanMotionState(entryId = 2, motionId = 6, title = "Front Squat", sets = 5, repsPerSet = 3, intensity = 0.78),
+                        PlanMotionState(entryId = 3, motionId = 3, title = "Snatch Pull", sets = 4, repsPerSet = 3, intensity = 0.9)
+                    )
+                ),
+                TrainingPlanState(
+                    id = 2,
+                    name = "Competition Peak",
+                    lastAppliedAt = 1715800000000,
+                    motions = listOf(
+                        PlanMotionState(entryId = 1, motionId = 2, title = "Clean & Jerk", sets = 6, repsPerSet = 1, intensity = 0.92),
+                        PlanMotionState(entryId = 2, motionId = 1, title = "Snatch", sets = 5, repsPerSet = 1, intensity = 0.88),
+                        PlanMotionState(entryId = 3, motionId = 5, title = "Push Press", sets = 4, repsPerSet = 3, intensity = 0.8)
+                    )
+                ),
+                TrainingPlanState(
+                    id = 3,
+                    name = "Technique Cycle",
+                    lastAppliedAt = 1715400000000,
+                    motions = listOf(
+                        PlanMotionState(entryId = 1, motionId = 1, title = "Snatch", sets = 6, repsPerSet = 2, intensity = 0.74),
+                        PlanMotionState(entryId = 2, motionId = 2, title = "Clean & Jerk", sets = 5, repsPerSet = 2, intensity = 0.76),
+                        PlanMotionState(entryId = 3, motionId = 4, title = "Clean Pull", sets = 4, repsPerSet = 3, intensity = 0.84)
+                    )
+                ),
+                TrainingPlanState(
+                    id = 4,
+                    name = "Pull Volume Block",
+                    lastAppliedAt = 1715200000000,
+                    motions = listOf(
+                        PlanMotionState(entryId = 1, motionId = 4, title = "Clean Pull", sets = 5, repsPerSet = 3, intensity = 0.86),
+                        PlanMotionState(entryId = 2, motionId = 7, title = "Back Squat", sets = 5, repsPerSet = 5, intensity = 0.8),
+                        PlanMotionState(entryId = 3, motionId = 5, title = "Push Press", sets = 4, repsPerSet = 4, intensity = 0.72)
+                    )
+                )
+            ),
+            debugCurrentPlanId = 2
         )
     }
 
-    private fun initialState(controller: HomeController = HomeController()): HomeState {
-        return controller.createInitialState(defaultHomeCatalog(sampleLabels()))
+    @After
+    fun tearDown() {
+        database.close()
+    }
+
+    private fun controller(nowProvider: () -> Long = { 123L }): HomeController {
+        return HomeController(
+            trainingPlanStore = trainingPlanStore,
+            shouldSeedDebugPlans = true,
+            nowProvider = nowProvider
+        )
+    }
+
+    private fun initialState(controller: HomeController): HomeState {
+        return runBlocking {
+            controller.loadState(seedCatalog)
+        }
     }
 
     @Test
-    fun createInitialState_loadsCatalogAndDefaults() {
-        val state = initialState()
+    fun loadState_readsDatabaseSeedAndDefaults() {
+        val state = initialState(controller())
 
         assertEquals(MainTab.Home, state.selectedTab)
         assertEquals(0, state.selectedTabIndex)
@@ -43,7 +124,7 @@ class HomeControllerTest {
 
     @Test
     fun selectTab_updatesSelectedMainTab() {
-        val controller = HomeController()
+        val controller = controller()
         val motionState = controller.selectTab(initialState(controller), 2)
         val settingsState = controller.selectTab(initialState(controller), 4)
 
@@ -55,7 +136,7 @@ class HomeControllerTest {
 
     @Test
     fun selectTab_withInvalidIndexFallsBackToHome() {
-        val controller = HomeController()
+        val controller = controller()
         val updatedState = controller.selectTab(initialState(controller), 99)
 
         assertEquals(MainTab.Home, updatedState.selectedTab)
@@ -63,20 +144,19 @@ class HomeControllerTest {
     }
 
     @Test
-    fun createPlan_appendsPlanAndOpensItsDetail() {
-        val controller = HomeController(nowProvider = { 900L })
+    fun createPlan_persistsPlanAndOpensItsDetail() = runBlocking {
+        val controller = controller(nowProvider = { 900L })
         val updatedState = controller.createPlan(initialState(controller), " New Plan ")
-        val createdPlan = updatedState.trainingPlans.last()
+        val createdPlan = updatedState.trainingPlans.first { it.name == "New Plan" }
 
-        assertEquals("New Plan", createdPlan.name)
         assertEquals(900L, createdPlan.lastAppliedAt)
         assertEquals(5, updatedState.trainingPlans.size)
         assertEquals(PlanDestination.Detail(createdPlan.id), updatedState.planDestination)
     }
 
     @Test
-    fun selectPlan_updatesCurrentPlanAndTimestamp() {
-        val controller = HomeController(nowProvider = { 777L })
+    fun selectPlan_updatesCurrentPlanAndTimestamp() = runBlocking {
+        val controller = controller(nowProvider = { 777L })
         val updatedState = controller.selectPlan(initialState(controller), 1)
 
         assertEquals(1, updatedState.currentPlanId)
@@ -84,8 +164,8 @@ class HomeControllerTest {
     }
 
     @Test
-    fun confirmPlanDeletion_removesPlanClearsDialogAndReturnsToList() {
-        val controller = HomeController()
+    fun confirmPlanDeletion_removesPlanClearsDialogAndReturnsToList() = runBlocking {
+        val controller = controller()
         val state = controller.requestPlanDeletion(initialState(controller), 2)
         val updatedState = controller.confirmPlanDeletion(state)
 
@@ -96,20 +176,28 @@ class HomeControllerTest {
     }
 
     @Test
-    fun addMotionToPlan_closesPickerAndOpensMotionDetail() {
-        val controller = HomeController()
+    fun addMotionToPlan_closesPickerAndOpensMotionDetail() = runBlocking {
+        val controller = controller()
         val state = controller.openAddMotionPicker(initialState(controller), 1)
-        val updatedState = controller.addMotionToPlan(state, 1, state.availableMotions.first())
+        val motion = state.availableMotions.first { it.title == "Snatch" }
+        val updatedState = controller.addMotionToPlan(state, 1, motion)
         val updatedPlan = updatedState.trainingPlans.first { it.id == 1 }
+        val addedMotionEntryId = updatedPlan.motions.last().entryId
 
         assertEquals(4, updatedPlan.motions.size)
+        assertEquals(1, updatedPlan.motions.last().sets)
+        assertEquals(1, updatedPlan.motions.last().repsPerSet)
+        assertEquals(0.0, updatedPlan.motions.last().intensity, 0.0)
         assertEquals(null, updatedState.addMotionPlanId)
-        assertEquals(PlanDestination.Motion(planId = 1, motionEntryId = 4), updatedState.planDestination)
+        assertEquals(
+            PlanDestination.Motion(planId = 1, motionEntryId = addedMotionEntryId),
+            updatedState.planDestination
+        )
     }
 
     @Test
-    fun confirmMotionDeletion_removesMotionAndReturnsToDetail() {
-        val controller = HomeController()
+    fun confirmMotionDeletion_removesMotionAndReturnsToDetail() = runBlocking {
+        val controller = controller()
         val state = controller.requestMotionDeletion(initialState(controller), 1, 2)
         val updatedState = controller.confirmMotionDeletion(state)
         val updatedPlan = updatedState.trainingPlans.first { it.id == 1 }

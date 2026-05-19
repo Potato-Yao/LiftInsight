@@ -22,7 +22,28 @@ data class PlanEntity(
     val id: Int = 0,
     val name: String,
     @ColumnInfo(name = "repeat_cycle")
-    val repeatCycle: Int
+    val repeatCycle: Int,
+    @ColumnInfo(name = "last_applied_at")
+    val lastAppliedAt: Long = 0L
+)
+
+@Entity(
+    tableName = "plan_selection",
+    foreignKeys = [
+        ForeignKey(
+            entity = PlanEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["current_plan_id"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ],
+    indices = [Index(value = ["current_plan_id"])]
+)
+data class PlanSelectionEntity(
+    @PrimaryKey
+    val id: Int = 1,
+    @ColumnInfo(name = "current_plan_id")
+    val currentPlanId: Int? = null
 )
 
 @Entity(
@@ -56,6 +77,7 @@ data class MetaPlanEntity(
     val motionId: Int,
     val sets: Int,
     val reps: Int,
+    val intensity: Double,
     val weight: Double,
     @ColumnInfo(name = "order_index")
     val orderIndex: Int
@@ -71,6 +93,7 @@ data class MetaPlanRow(
     val motionName: String,
     val sets: Int,
     val reps: Int,
+    val intensity: Double,
     val weight: Double,
     @ColumnInfo(name = "order_index")
     val orderIndex: Int
@@ -95,6 +118,7 @@ internal fun PlanEntity.toRecord(metaPlans: List<MetaPlanRow>): PlanRecord {
         id = id,
         name = name,
         repeatCycle = repeatCycle,
+        lastAppliedAt = lastAppliedAt,
         metaPlans = metaPlans.map { metaPlan -> metaPlan.toRecord() }
     )
 }
@@ -103,7 +127,8 @@ internal fun PlanRecord.toEntity(): PlanEntity {
     return PlanEntity(
         id = id,
         name = name,
-        repeatCycle = repeatCycle
+        repeatCycle = repeatCycle,
+        lastAppliedAt = lastAppliedAt
     )
 }
 
@@ -114,6 +139,7 @@ internal fun MetaPlanRow.toRecord(): MetaPlanRecord {
         motionName = motionName,
         sets = sets,
         reps = reps,
+        intensity = intensity,
         weight = weight,
         orderIndex = orderIndex
     )

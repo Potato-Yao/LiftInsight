@@ -12,14 +12,13 @@ data class PlanMotionState(
     val motionId: Int,
     val title: String,
     val sets: Int,
-    val repsPerSet: Int
+    val repsPerSet: Int,
+    val intensity: Double = 0.0
 )
 
 data class AvailableMotionState(
     val id: Int,
-    val title: String,
-    val defaultSets: Int,
-    val defaultRepsPerSet: Int
+    val title: String
 )
 
 data class TrainingPlanSelectionResult(
@@ -179,8 +178,9 @@ fun addMotionToPlan(
         entryId = createdMotionEntryId,
         motionId = motion.id,
         title = motion.title,
-        sets = motion.defaultSets.coerceAtLeast(1),
-        repsPerSet = motion.defaultRepsPerSet.coerceAtLeast(1)
+        sets = 1,
+        repsPerSet = 1,
+        intensity = 0.0
     )
 
     return AddMotionToPlanResult(

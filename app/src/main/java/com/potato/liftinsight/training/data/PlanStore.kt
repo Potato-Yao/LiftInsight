@@ -9,7 +9,8 @@ class PlanStore private constructor(
     fun createPlan(request: CreatePlanRequest): Int {
         val plan = PlanEntity(
             name = normalizeRequiredText(request.name, "Plan name"),
-            repeatCycle = validateRepeatCycle(request.repeatCycle)
+            repeatCycle = validateRepeatCycle(request.repeatCycle),
+            lastAppliedAt = validateLastAppliedAt(request.lastAppliedAt)
         )
         val metaPlans = prepareCreateMetaPlans(request.metaPlans)
 
@@ -42,7 +43,8 @@ class PlanStore private constructor(
 
         val updatedPlan = plan.copy(
             name = normalizeRequiredText(plan.name, "Plan name"),
-            repeatCycle = validateRepeatCycle(plan.repeatCycle)
+            repeatCycle = validateRepeatCycle(plan.repeatCycle),
+            lastAppliedAt = validateLastAppliedAt(plan.lastAppliedAt)
         )
         val metaPlans = prepareStoredMetaPlans(plan.metaPlans)
 
@@ -76,9 +78,11 @@ class PlanStore private constructor(
 }
 
 private data class PreparedMetaPlan(
+    val id: Int,
     val motionId: Int,
     val sets: Int,
     val reps: Int,
+    val intensity: Double,
     val weight: Double,
     val orderIndex: Int
 )
@@ -91,13 +95,23 @@ private fun validateRepeatCycle(repeatCycle: Int): Int {
     return repeatCycle
 }
 
+private fun validateLastAppliedAt(lastAppliedAt: Long): Long {
+    if (lastAppliedAt < 0L) {
+        throw IllegalArgumentException("Last applied time must be zero or greater.")
+    }
+
+    return lastAppliedAt
+}
+
 private fun prepareCreateMetaPlans(metaPlans: List<CreateMetaPlanRequest>): List<PreparedMetaPlan> {
     return preparePreparedMetaPlans(
         metaPlans.map { metaPlan ->
             PreparedMetaPlan(
+                id = 0,
                 motionId = metaPlan.motionId,
                 sets = metaPlan.sets,
                 reps = metaPlan.reps,
+                intensity = metaPlan.intensity,
                 weight = metaPlan.weight,
                 orderIndex = metaPlan.orderIndex
             )
@@ -109,9 +123,11 @@ private fun prepareStoredMetaPlans(metaPlans: List<MetaPlanRecord>): List<Prepar
     return preparePreparedMetaPlans(
         metaPlans.map { metaPlan ->
             PreparedMetaPlan(
+                id = metaPlan.id,
                 motionId = metaPlan.motionId,
                 sets = metaPlan.sets,
                 reps = metaPlan.reps,
+                intensity = metaPlan.intensity,
                 weight = metaPlan.weight,
                 orderIndex = metaPlan.orderIndex
             )
@@ -141,6 +157,10 @@ private fun preparePreparedMetaPlans(metaPlans: List<PreparedMetaPlan>): List<Pr
             throw IllegalArgumentException("Meta plan reps must be greater than zero.")
         }
 
+        if (metaPlan.intensity < 0.0) {
+            throw IllegalArgumentException("Meta plan intensity must be zero or greater.")
+        }
+
         if (metaPlan.weight < 0.0) {
             throw IllegalArgumentException("Meta plan weight must be zero or greater.")
         }
@@ -165,10 +185,12 @@ private fun preparePreparedMetaPlans(metaPlans: List<PreparedMetaPlan>): List<Pr
 
 private fun PreparedMetaPlan.toEntity(planId: Int): MetaPlanEntity {
     return MetaPlanEntity(
+        id = id,
         planId = planId,
         motionId = motionId,
         sets = sets,
         reps = reps,
+        intensity = intensity,
         weight = weight,
         orderIndex = orderIndex
     )

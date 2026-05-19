@@ -12,8 +12,8 @@ class TrainingPlanStateTest {
             name = "Base",
             lastAppliedAt = 100L,
             motions = listOf(
-                PlanMotionState(entryId = 1, motionId = 10, title = "Snatch", sets = 5, repsPerSet = 2),
-                PlanMotionState(entryId = 2, motionId = 11, title = "Front Squat", sets = 4, repsPerSet = 3)
+                PlanMotionState(entryId = 1, motionId = 10, title = "Snatch", sets = 5, repsPerSet = 2, intensity = 0.82),
+                PlanMotionState(entryId = 2, motionId = 11, title = "Front Squat", sets = 4, repsPerSet = 3, intensity = 0.78)
             )
         ),
         TrainingPlanState(
@@ -21,7 +21,7 @@ class TrainingPlanStateTest {
             name = "Peak",
             lastAppliedAt = 200L,
             motions = listOf(
-                PlanMotionState(entryId = 1, motionId = 12, title = "Clean & Jerk", sets = 6, repsPerSet = 1)
+                PlanMotionState(entryId = 1, motionId = 12, title = "Clean & Jerk", sets = 6, repsPerSet = 1, intensity = 0.9)
             )
         )
     )
@@ -105,15 +105,13 @@ class TrainingPlanStateTest {
     }
 
     @Test
-    fun addMotionToPlan_appendsMotionWithCatalogDefaults() {
+    fun addMotionToPlan_appendsMotionWithPlanDefaults() {
         val result = addMotionToPlan(
             plans = basePlans,
             planId = 1,
             motion = AvailableMotionState(
                 id = 20,
-                title = "Push Press",
-                defaultSets = 4,
-                defaultRepsPerSet = 4
+                title = "Push Press"
             )
         )
 
@@ -121,8 +119,9 @@ class TrainingPlanStateTest {
 
         assertEquals(3, result.motionEntryId)
         assertEquals("Push Press", addedMotion.title)
-        assertEquals(4, addedMotion.sets)
-        assertEquals(4, addedMotion.repsPerSet)
+        assertEquals(1, addedMotion.sets)
+        assertEquals(1, addedMotion.repsPerSet)
+        assertEquals(0.0, addedMotion.intensity, 0.0)
     }
 
     @Test

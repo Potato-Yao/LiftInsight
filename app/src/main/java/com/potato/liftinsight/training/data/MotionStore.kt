@@ -7,7 +7,9 @@ class MotionStore private constructor(
     private val motionDao: MotionDao
 ) {
     fun createMotion(request: CreateMotionRequest): Int {
-        val motion = MotionEntity(name = normalizeRequiredText(request.name, "Motion name"))
+        val motion = MotionEntity(
+            name = normalizeRequiredText(request.name, "Motion name")
+        )
 
         try {
             return motionDao.insertMotionEntity(motion).toInt()
@@ -64,6 +66,7 @@ class MotionStore private constructor(
         }
     }
 }
+
 
 internal fun normalizeRequiredText(
     value: String?,

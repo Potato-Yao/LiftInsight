@@ -2,6 +2,7 @@ package com.potato.liftinsight.training.data
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
@@ -32,6 +33,15 @@ abstract class PlanDao {
     @Query("SELECT COUNT(*) FROM metaplan WHERE plan_id = :planId")
     abstract fun countMetaPlansForPlan(planId: Int): Int
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract fun upsertPlanSelection(selection: PlanSelectionEntity)
+
+    @Query("SELECT * FROM plan_selection WHERE id = 1")
+    abstract fun getPlanSelection(): PlanSelectionEntity?
+
+    @Query("DELETE FROM plan_selection")
+    abstract fun clearPlanSelection()
+
     @Query(
         """
         SELECT
@@ -41,6 +51,7 @@ abstract class PlanDao {
             motion.name AS motion_name,
             metaplan.sets,
             metaplan.reps,
+            metaplan.intensity,
             metaplan.weight,
             metaplan.order_index
         FROM metaplan
@@ -60,6 +71,7 @@ abstract class PlanDao {
             motion.name AS motion_name,
             metaplan.sets,
             metaplan.reps,
+            metaplan.intensity,
             metaplan.weight,
             metaplan.order_index
         FROM metaplan
