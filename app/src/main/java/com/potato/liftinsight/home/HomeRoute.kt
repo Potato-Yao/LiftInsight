@@ -62,11 +62,13 @@ import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.data.defaultTrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.MotionDetailScreen
 import com.potato.liftinsight.plan.PlanDetailScreen
+import com.potato.liftinsight.plan.PlanPickerScreen
 import com.potato.liftinsight.plan.PlanScreen
 import com.potato.liftinsight.plan.model.planMotion
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.todaysPlanMotions
 import com.potato.liftinsight.plan.model.trainingPlan
 import com.potato.liftinsight.settings.SettingsScreen
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
@@ -149,9 +151,24 @@ fun HomeRoute(
         onBackToPlanList = {
             state = controller.showPlanList(state)
         },
+        onOpenPlanEditor = {
+            state = controller.showPlanList(state)
+        },
+        onBackToPlanOverview = {
+            state = controller.showPlanOverview(state)
+        },
         onRenamePlan = { planId, newName ->
             coroutineScope.launch {
                 state = controller.renamePlan(state, planId, newName)
+            }
+        },
+        onSelectPlanDay = { planId, dayIndex ->
+            coroutineScope.launch {
+                state = controller.updatePlanCurrentDay(
+                    state = state,
+                    planId = planId,
+                    dayIndex = dayIndex
+                )
             }
         },
         onMoveMotionUp = { planId, motionEntryId ->
@@ -263,7 +280,10 @@ private fun HomeScaffold(
     onSelectPlan: (Int) -> Unit,
     onOpenPlanDetail: (Int) -> Unit,
     onBackToPlanList: () -> Unit,
+    onOpenPlanEditor: () -> Unit,
+    onBackToPlanOverview: () -> Unit,
     onRenamePlan: (Int, String) -> Unit,
+    onSelectPlanDay: (Int, Int) -> Unit,
     onMoveMotionUp: (Int, Int) -> Unit,
     onMoveMotionDown: (Int, Int) -> Unit,
     onOpenMotionDetail: (Int, Int) -> Unit,
@@ -287,6 +307,8 @@ private fun HomeScaffold(
         floatingActionButton = {
             if (state.selectedTab == MainTab.Plan) {
                 when (val destination = state.planDestination) {
+                    PlanDestination.Overview -> Unit
+
                     PlanDestination.List -> {
                         FloatingActionButton(onClick = onCreatePlan) {
                             Icon(
@@ -452,11 +474,24 @@ private fun HomeScaffold(
                         label = "planPanels"
                     ) { destination ->
                         when (destination) {
+                            PlanDestination.Overview -> {
+                                val plan = trainingPlan(state.trainingPlans, state.currentPlanId)
+
+                                PlanOverviewPanel(
+                                    currentPlan = plan,
+                                    todayMotions = plan?.let(::todaysPlanMotions).orEmpty(),
+                                    onEditPlan = onOpenPlanEditor,
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            }
+
                             PlanDestination.List -> {
-                                PlanListPanel(
+                                PlanPickerPanel(
                                     trainingPlans = state.trainingPlans,
                                     currentPlanId = state.currentPlanId,
+                                    onBack = onBackToPlanOverview,
                                     onSelectPlan = onSelectPlan,
+                                    onSelectPlanDay = onSelectPlanDay,
                                     onEditPlan = onOpenPlanDetail,
                                     modifier = Modifier.padding(innerPadding)
                                 )
@@ -466,10 +501,12 @@ private fun HomeScaffold(
                                 val plan = trainingPlan(state.trainingPlans, destination.planId)
 
                                 if (plan == null) {
-                                    PlanListPanel(
+                                    PlanPickerPanel(
                                         trainingPlans = state.trainingPlans,
                                         currentPlanId = state.currentPlanId,
+                                        onBack = onBackToPlanOverview,
                                         onSelectPlan = onSelectPlan,
+                                        onSelectPlanDay = onSelectPlanDay,
                                         onEditPlan = onOpenPlanDetail,
                                         modifier = Modifier.padding(innerPadding)
                                     )
@@ -499,10 +536,12 @@ private fun HomeScaffold(
                                 val motion = plan?.let { planMotion(it, destination.motionEntryId) }
 
                                 if (plan == null || motion == null) {
-                                    PlanListPanel(
+                                    PlanPickerPanel(
                                         trainingPlans = state.trainingPlans,
                                         currentPlanId = state.currentPlanId,
+                                        onBack = onBackToPlanOverview,
                                         onSelectPlan = onSelectPlan,
+                                        onSelectPlanDay = onSelectPlanDay,
                                         onEditPlan = onOpenPlanDetail,
                                         modifier = Modifier.padding(innerPadding)
                                     )
@@ -658,17 +697,36 @@ private fun HomeScaffold(
 }
 
 @Composable
-private fun PlanListPanel(
-    trainingPlans: List<TrainingPlanState>,
-    currentPlanId: Int,
-    onSelectPlan: (Int) -> Unit,
-    onEditPlan: (Int) -> Unit,
+private fun PlanOverviewPanel(
+    currentPlan: TrainingPlanState?,
+    todayMotions: List<PlanMotionState>,
+    onEditPlan: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     PlanScreen(
+        currentPlan = currentPlan,
+        todayMotions = todayMotions,
+        onEditPlan = onEditPlan,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun PlanPickerPanel(
+    trainingPlans: List<TrainingPlanState>,
+    currentPlanId: Int,
+    onBack: () -> Unit,
+    onSelectPlan: (Int) -> Unit,
+    onSelectPlanDay: (Int, Int) -> Unit,
+    onEditPlan: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    PlanPickerScreen(
         plans = trainingPlans,
         currentPlanId = currentPlanId,
+        onBack = onBack,
         onSelectPlan = onSelectPlan,
+        onSelectPlanDay = onSelectPlanDay,
         onEditPlan = onEditPlan,
         modifier = modifier
     )
@@ -692,6 +750,7 @@ private fun HomeRoutePreview() {
                         id = 1,
                         name = "Strength Base",
                         lastAppliedAt = 1715600000000,
+                        currentIndex = 1,
                         motions = listOf(
                             PlanMotionState(
                                 entryId = 1,
@@ -699,7 +758,8 @@ private fun HomeRoutePreview() {
                                 title = "Snatch",
                                 sets = 5,
                                 repsPerSet = 2,
-                                intensity = 0.82
+                                intensity = 0.82,
+                                orderIndex = 1
                             )
                         )
                     )
@@ -713,7 +773,10 @@ private fun HomeRoutePreview() {
             onSelectPlan = {},
             onOpenPlanDetail = {},
             onBackToPlanList = {},
+            onOpenPlanEditor = {},
+            onBackToPlanOverview = {},
             onRenamePlan = { _, _ -> },
+            onSelectPlanDay = { _, _ -> },
             onMoveMotionUp = { _, _ -> },
             onMoveMotionDown = { _, _ -> },
             onOpenMotionDetail = { _, _ -> },

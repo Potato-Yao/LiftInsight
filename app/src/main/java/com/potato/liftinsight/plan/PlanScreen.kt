@@ -1,24 +1,17 @@
 package com.potato.liftinsight.plan
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +19,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,41 +33,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import com.potato.liftinsight.R
+import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
-import com.potato.liftinsight.plan.model.currentPlanName
-import com.potato.liftinsight.plan.model.sortPlansByLastApplied
+import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 
 @Composable
 internal fun PlanScreen(
-    plans: List<TrainingPlanState>,
-    currentPlanId: Int,
-    onSelectPlan: (planId: Int) -> Unit,
-    onEditPlan: (planId: Int) -> Unit,
+    currentPlan: TrainingPlanState?,
+    todayMotions: List<PlanMotionState>,
+    onEditPlan: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showContent by remember { mutableStateOf(false) }
-    val displayPlans = remember(plans, currentPlanId) {
-        val sortedPlans = sortPlansByLastApplied(plans)
-        val currentPlan = sortedPlans.firstOrNull { it.id == currentPlanId }
-
-        if (currentPlan == null) {
-            sortedPlans
-        } else {
-            buildList {
-                add(currentPlan)
-                addAll(sortedPlans.filterNot { it.id == currentPlanId })
-            }
-        }
-    }
-    val selectedPlanName = currentPlanName(plans, currentPlanId)
-        ?: stringResource(R.string.plan_no_current_plan_selected)
 
     LaunchedEffect(Unit) {
         showContent = true
@@ -83,7 +59,7 @@ internal fun PlanScreen(
         modifier = modifier
             .fillMaxSize()
             .fillMaxWidth(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+        contentPadding = PaddingValues(
             start = 24.dp,
             top = 12.dp,
             end = 24.dp,
@@ -111,61 +87,79 @@ internal fun PlanScreen(
                 enter = planSectionEnter(delayMillis = 50),
                 exit = ExitTransition.None
             ) {
-                CurrentPlanRow(
-                    currentPlanName = selectedPlanName,
+                CurrentPlanCard(
+                    currentPlan = currentPlan,
+                    onEditPlan = onEditPlan,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
 
-        if (displayPlans.isEmpty()) {
-            item(key = "emptyPlans") {
+        item(key = "todayTitle") {
+            AnimatedVisibility(
+                visible = showContent,
+                enter = planSectionEnter(delayMillis = 100),
+                exit = ExitTransition.None
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = stringResource(R.string.plan_today_section_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Text(
+                        text = stringResource(R.string.plan_today_section_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        if (currentPlan == null) {
+            item(key = "emptyCurrentPlan") {
                 AnimatedVisibility(
                     visible = showContent,
-                    enter = planSectionEnter(delayMillis = 100),
+                    enter = planSectionEnter(delayMillis = 135),
                     exit = ExitTransition.None
                 ) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        shape = RoundedCornerShape(28.dp),
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                        )
-                    ) {
-                        Text(
-                            text = stringResource(R.string.plan_no_plans_available),
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    EmptyPlanMessage(
+                        text = stringResource(R.string.plan_no_current_plan_summary),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        } else if (todayMotions.isEmpty()) {
+            item(key = "emptyToday") {
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = planSectionEnter(delayMillis = 135),
+                    exit = ExitTransition.None
+                ) {
+                    EmptyPlanMessage(
+                        text = stringResource(
+                            R.string.plan_no_motion_for_day,
+                            normalizedPlanCurrentIndex(currentPlan)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         } else {
             itemsIndexed(
-                items = displayPlans,
-                key = { _, plan -> plan.id }
-            ) { index, plan ->
+                items = todayMotions,
+                key = { _, motion -> motion.entryId }
+            ) { index, motion ->
                 AnimatedVisibility(
                     visible = showContent,
-                    enter = planSectionEnter(delayMillis = 100 + (index * 35)),
+                    enter = planSectionEnter(delayMillis = 135 + (index * 35)),
                     exit = ExitTransition.None
                 ) {
-                    PlanRow(
-                        plan = plan,
-                        isCurrent = plan.id == currentPlanId,
-                        onSelectPlan = { onSelectPlan(plan.id) },
-                        onEditPlan = { onEditPlan(plan.id) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateItem(
-                                placementSpec = tween(
-                                    durationMillis = LiftInsightMotion.LongDuration,
-                                    easing = LiftInsightMotion.EnterEasing
-                                )
-                            )
+                    TodayMotionCard(
+                        motion = motion,
+                        dayIndex = normalizedPlanCurrentIndex(currentPlan),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -174,10 +168,13 @@ internal fun PlanScreen(
 }
 
 @Composable
-private fun CurrentPlanRow(
-    currentPlanName: String,
+private fun CurrentPlanCard(
+    currentPlan: TrainingPlanState?,
+    onEditPlan: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val planName = currentPlan?.name ?: stringResource(R.string.plan_no_current_plan_selected)
+
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.primaryContainer,
@@ -191,185 +188,35 @@ private fun CurrentPlanRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = stringResource(R.string.plan_current_plan_label),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-
-            AnimatedContent(
-                targetState = currentPlanName,
-                transitionSpec = {
-                    (fadeIn(
-                        animationSpec = tween(
-                            durationMillis = LiftInsightMotion.MediumDuration,
-                            easing = LiftInsightMotion.EnterEasing
-                        )
-                    ) + slideInVertically(
-                        animationSpec = tween(
-                            durationMillis = LiftInsightMotion.MediumDuration,
-                            easing = LiftInsightMotion.EnterEasing
-                        ),
-                        initialOffsetY = { fullHeight -> fullHeight / 3 }
-                    )) togetherWith
-                        (fadeOut(
-                            animationSpec = tween(
-                                durationMillis = LiftInsightMotion.ShortDuration,
-                                easing = LiftInsightMotion.ExitEasing
-                            )
-                        ) + slideOutVertically(
-                            animationSpec = tween(
-                                durationMillis = LiftInsightMotion.ShortDuration,
-                                easing = LiftInsightMotion.ExitEasing
-                            ),
-                            targetOffsetY = { fullHeight -> -(fullHeight / 4) }
-                        ))
-                },
-                label = "currentPlanName"
-            ) { animatedPlanName ->
-                Text(
-                    text = animatedPlanName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlanRow(
-    plan: TrainingPlanState,
-    isCurrent: Boolean,
-    onSelectPlan: () -> Unit,
-    onEditPlan: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val containerColor by animateColorAsState(
-        targetValue = if (isCurrent) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainer
-        },
-        animationSpec = tween(
-            durationMillis = LiftInsightMotion.MediumDuration,
-            easing = LiftInsightMotion.EnterEasing
-        ),
-        label = "planRowContainer"
-    )
-    val borderColor by animateColorAsState(
-        targetValue = if (isCurrent) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-        } else {
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-        },
-        animationSpec = tween(
-            durationMillis = LiftInsightMotion.MediumDuration,
-            easing = LiftInsightMotion.EnterEasing
-        ),
-        label = "planRowBorder"
-    )
-    val titleColor by animateColorAsState(
-        targetValue = MaterialTheme.colorScheme.onSurface,
-        animationSpec = tween(
-            durationMillis = LiftInsightMotion.MediumDuration,
-            easing = LiftInsightMotion.EnterEasing
-        ),
-        label = "planRowTitle"
-    )
-    val iconTint by animateColorAsState(
-        targetValue = if (isCurrent) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
-        animationSpec = tween(
-            durationMillis = LiftInsightMotion.MediumDuration,
-            easing = LiftInsightMotion.EnterEasing
-        ),
-        label = "planRowIconTint"
-    )
-    val tonalElevation by animateDpAsState(
-        targetValue = if (isCurrent) 4.dp else 0.dp,
-        animationSpec = tween(
-            durationMillis = LiftInsightMotion.MediumDuration,
-            easing = LiftInsightMotion.EnterEasing
-        ),
-        label = "planRowElevation"
-    )
-    val liftProgress by animateFloatAsState(
-        targetValue = if (isCurrent) 1f else 0f,
-        animationSpec = tween(
-            durationMillis = LiftInsightMotion.MediumDuration,
-            easing = LiftInsightMotion.EnterEasing
-        ),
-        label = "planRowLiftProgress"
-    )
-
-    Surface(
-        modifier = modifier
-            .zIndex(if (isCurrent) 1f else 0f)
-            .graphicsLayer {
-                translationY = -12f * liftProgress
-                scaleX = 1f + (0.015f * liftProgress)
-                scaleY = 1f + (0.015f * liftProgress)
-            }
-            .clickable(onClick = onSelectPlan),
-        color = containerColor,
-        tonalElevation = tonalElevation,
-        shape = RoundedCornerShape(28.dp),
-        border = BorderStroke(
-            width = 1.dp,
-            color = borderColor
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, top = 14.dp, end = 8.dp, bottom = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    text = plan.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = titleColor
+                    text = stringResource(R.string.plan_current_plan_label),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
                 )
 
-                AnimatedVisibility(
-                    visible = isCurrent,
-                    enter = fadeIn(
-                        animationSpec = tween(
-                            durationMillis = LiftInsightMotion.MediumDuration,
-                            easing = LiftInsightMotion.EnterEasing
-                        )
-                    ) + slideInVertically(
-                        animationSpec = tween(
-                            durationMillis = LiftInsightMotion.MediumDuration,
-                            easing = LiftInsightMotion.EnterEasing
-                        ),
-                        initialOffsetY = { fullHeight -> fullHeight / 3 }
-                    ),
-                    exit = fadeOut(
-                        animationSpec = tween(
-                            durationMillis = LiftInsightMotion.ShortDuration,
-                            easing = LiftInsightMotion.ExitEasing
-                        )
-                    )
-                ) {
+                Text(
+                    text = planName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+
+                if (currentPlan != null) {
                     Text(
-                        text = stringResource(R.string.plan_current_badge),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        text = stringResource(
+                            R.string.plan_day_of_cycle,
+                            normalizedPlanCurrentIndex(currentPlan),
+                            currentPlan.cyclePeriod
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
                     )
                 }
             }
@@ -377,14 +224,101 @@ private fun PlanRow(
             IconButton(onClick = onEditPlan) {
                 Icon(
                     imageVector = Icons.Rounded.Edit,
-                    contentDescription = stringResource(
-                        R.string.plan_edit_content_description,
-                        plan.name
-                    ),
-                    tint = iconTint
+                    contentDescription = stringResource(R.string.plan_open_editor_content_description),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TodayMotionCard(
+    motion: PlanMotionState,
+    dayIndex: Int,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.FitnessCenter,
+                    contentDescription = null,
+                    modifier = Modifier.padding(12.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = motion.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = stringResource(
+                        R.string.plan_motion_summary,
+                        motion.sets,
+                        motion.repsPerSet
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = stringResource(
+                        R.string.plan_today_day_label,
+                        dayIndex
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyPlanMessage(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+        )
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

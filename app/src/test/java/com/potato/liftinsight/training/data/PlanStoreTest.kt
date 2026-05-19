@@ -46,7 +46,8 @@ class PlanStoreTest {
         val planId = planStore.createPlan(
             CreatePlanRequest(
                 name = "  Strength Base  ",
-                repeatCycle = 7,
+                cyclePeriod = 7,
+                currentIndex = 2,
                 lastAppliedAt = 1234L,
                 metaPlans = listOf(
                     CreateMetaPlanRequest(
@@ -55,7 +56,7 @@ class PlanStoreTest {
                         reps = 3,
                         intensity = 0.78,
                         weight = 105.0,
-                        orderIndex = 1
+                        orderIndex = 2
                     ),
                     CreateMetaPlanRequest(
                         motionId = snatchId,
@@ -63,7 +64,7 @@ class PlanStoreTest {
                         reps = 2,
                         intensity = 0.85,
                         weight = 72.5,
-                        orderIndex = 0
+                        orderIndex = 1
                     )
                 )
             )
@@ -72,9 +73,10 @@ class PlanStoreTest {
         val storedPlan = planStore.getPlan(planId)
 
         assertEquals("Strength Base", storedPlan?.name)
-        assertEquals(7, storedPlan?.repeatCycle)
+        assertEquals(7, storedPlan?.cyclePeriod)
+        assertEquals(2, storedPlan?.currentIndex)
         assertEquals(1234L, storedPlan?.lastAppliedAt)
-        assertEquals(listOf(0, 1), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.orderIndex })
+        assertEquals(listOf(1, 2), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.orderIndex })
         assertEquals(listOf("Snatch", "Front Squat"), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.motionName })
         assertEquals(2, planDao.countMetaPlansForPlan(planId))
         assertEquals(0.85, storedPlan?.metaPlans?.first()?.intensity ?: Double.NaN, 0.0)
@@ -88,7 +90,7 @@ class PlanStoreTest {
         planStore.createPlan(
             CreatePlanRequest(
                 name = "Technique Cycle",
-                repeatCycle = 10,
+                cyclePeriod = 10,
                 metaPlans = listOf(
                     CreateMetaPlanRequest(
                         motionId = snatchId,
@@ -96,7 +98,7 @@ class PlanStoreTest {
                         reps = 2,
                         intensity = 0.75,
                         weight = 75.0,
-                        orderIndex = 0
+                        orderIndex = 1
                     )
                 )
             )
@@ -104,7 +106,7 @@ class PlanStoreTest {
         planStore.createPlan(
             CreatePlanRequest(
                 name = "Competition Peak",
-                repeatCycle = 14
+                cyclePeriod = 14
             )
         )
 
@@ -121,7 +123,7 @@ class PlanStoreTest {
         val planId = planStore.createPlan(
             CreatePlanRequest(
                 name = "Pull Block",
-                repeatCycle = 7,
+                cyclePeriod = 7,
                 metaPlans = listOf(
                     CreateMetaPlanRequest(
                         motionId = cleanPullId,
@@ -129,7 +131,7 @@ class PlanStoreTest {
                         reps = 3,
                         intensity = 0.82,
                         weight = 120.0,
-                        orderIndex = 0
+                        orderIndex = 1
                     )
                 )
             )
@@ -139,7 +141,8 @@ class PlanStoreTest {
             PlanRecord(
                 id = planId,
                 name = "  Competition Peak  ",
-                repeatCycle = 14,
+                cyclePeriod = 14,
+                currentIndex = 4,
                 lastAppliedAt = 5678L,
                 metaPlans = listOf(
                     MetaPlanRecord(
@@ -150,7 +153,7 @@ class PlanStoreTest {
                         reps = 2,
                         intensity = 0.88,
                         weight = 82.5,
-                        orderIndex = 0
+                        orderIndex = 1
                     ),
                     MetaPlanRecord(
                         id = 0,
@@ -160,7 +163,7 @@ class PlanStoreTest {
                         reps = 3,
                         intensity = 0.8,
                         weight = 110.0,
-                        orderIndex = 1
+                        orderIndex = 2
                     )
                 )
             )
@@ -170,7 +173,8 @@ class PlanStoreTest {
 
         assertTrue(updated)
         assertEquals("Competition Peak", storedPlan?.name)
-        assertEquals(14, storedPlan?.repeatCycle)
+        assertEquals(14, storedPlan?.cyclePeriod)
+        assertEquals(4, storedPlan?.currentIndex)
         assertEquals(5678L, storedPlan?.lastAppliedAt)
         assertEquals(listOf("Snatch", "Front Squat"), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.motionName })
         assertEquals(0.8, storedPlan?.metaPlans?.last()?.intensity ?: Double.NaN, 0.0)
@@ -184,7 +188,7 @@ class PlanStoreTest {
         val planId = planStore.createPlan(
             CreatePlanRequest(
                 name = "Competition Peak",
-                repeatCycle = 7,
+                cyclePeriod = 7,
                 metaPlans = listOf(
                     CreateMetaPlanRequest(
                         motionId = snatchId,
@@ -192,7 +196,7 @@ class PlanStoreTest {
                         reps = 1,
                         intensity = 0.92,
                         weight = 85.0,
-                        orderIndex = 0
+                        orderIndex = 1
                     )
                 )
             )
@@ -214,7 +218,7 @@ class PlanStoreTest {
         planStore.createPlan(
             CreatePlanRequest(
                 name = "Duplicate Order",
-                repeatCycle = 7,
+                cyclePeriod = 7,
                 metaPlans = listOf(
                     CreateMetaPlanRequest(
                         motionId = snatchId,
@@ -222,7 +226,7 @@ class PlanStoreTest {
                         reps = 2,
                         intensity = 0.8,
                         weight = 80.0,
-                        orderIndex = 0
+                        orderIndex = 1
                     ),
                     CreateMetaPlanRequest(
                         motionId = cleanPullId,
@@ -230,7 +234,7 @@ class PlanStoreTest {
                         reps = 3,
                         intensity = 0.82,
                         weight = 110.0,
-                        orderIndex = 0
+                        orderIndex = 1
                     )
                 )
             )
@@ -242,7 +246,7 @@ class PlanStoreTest {
         planStore.createPlan(
             CreatePlanRequest(
                 name = "Missing Motion",
-                repeatCycle = 7,
+                cyclePeriod = 7,
                 metaPlans = listOf(
                     CreateMetaPlanRequest(
                         motionId = 999,
@@ -250,7 +254,7 @@ class PlanStoreTest {
                         reps = 2,
                         intensity = 0.8,
                         weight = 80.0,
-                        orderIndex = 0
+                        orderIndex = 1
                     )
                 )
             )
@@ -264,7 +268,7 @@ class PlanStoreTest {
         planStore.createPlan(
             CreatePlanRequest(
                 name = "Bad Intensity",
-                repeatCycle = 7,
+                cyclePeriod = 7,
                 metaPlans = listOf(
                     CreateMetaPlanRequest(
                         motionId = snatchId,
@@ -272,7 +276,7 @@ class PlanStoreTest {
                         reps = 2,
                         intensity = -0.1,
                         weight = 80.0,
-                        orderIndex = 0
+                        orderIndex = 1
                     )
                 )
             )
@@ -281,6 +285,60 @@ class PlanStoreTest {
 
     private fun createMotion(name: String): Int {
         return motionStore.createMotion(CreateMotionRequest(name = name))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun createPlan_rejectsOrderIndexGreaterThanCyclePeriod() {
+        val snatchId = createMotion("Snatch")
+
+        planStore.createPlan(
+            CreatePlanRequest(
+                name = "Cycle Overflow",
+                cyclePeriod = 2,
+                metaPlans = listOf(
+                    CreateMetaPlanRequest(
+                        motionId = snatchId,
+                        sets = 5,
+                        reps = 2,
+                        intensity = 0.8,
+                        weight = 80.0,
+                        orderIndex = 3
+                    )
+                )
+            )
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun updatePlan_rejectsCurrentIndexGreaterThanCyclePeriod() {
+        val planId = planStore.createPlan(
+            CreatePlanRequest(
+                name = "Strength Base",
+                cyclePeriod = 7,
+                currentIndex = 1
+            )
+        )
+
+        planStore.updatePlan(
+            PlanRecord(
+                id = planId,
+                name = "Strength Base",
+                cyclePeriod = 3,
+                currentIndex = 4,
+                lastAppliedAt = 0L
+            )
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun createPlan_rejectsZeroCurrentIndex() {
+        planStore.createPlan(
+            CreatePlanRequest(
+                name = "Bad Current Day",
+                cyclePeriod = 7,
+                currentIndex = 0
+            )
+        )
     }
 }
 

@@ -15,6 +15,7 @@ import com.potato.liftinsight.plan.model.sortPlansByLastApplied
 import com.potato.liftinsight.plan.model.trainingPlan
 import com.potato.liftinsight.plan.model.updateMotionRepsPerSet as applyMotionRepsPerSetUpdate
 import com.potato.liftinsight.plan.model.updateMotionSets as applyMotionSetsUpdate
+import com.potato.liftinsight.plan.model.updatePlanCurrentIndex as applyPlanCurrentIndexUpdate
 import com.potato.liftinsight.plan.model.updateTrainingPlanName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -39,7 +40,7 @@ data class HomeState(
     val availableMotions: List<AvailableMotionState>,
     val trainingPlans: List<TrainingPlanState>,
     val currentPlanId: Int,
-    val planDestination: PlanDestination = PlanDestination.List,
+    val planDestination: PlanDestination = PlanDestination.Overview,
     val planIdPendingDelete: Int? = null,
     val motionPendingDelete: MotionDeleteTarget? = null,
     val addMotionPlanId: Int? = null
@@ -49,6 +50,8 @@ data class HomeState(
 }
 
 sealed interface PlanDestination {
+    data object Overview : PlanDestination
+
     data object List : PlanDestination
 
     data class Detail(val planId: Int) : PlanDestination
@@ -63,9 +66,10 @@ data class MotionDeleteTarget(
 
 fun planDestinationDepth(destination: PlanDestination): Int {
     return when (destination) {
-        PlanDestination.List -> 0
-        is PlanDestination.Detail -> 1
-        is PlanDestination.Motion -> 2
+        PlanDestination.Overview -> 0
+        PlanDestination.List -> 1
+        is PlanDestination.Detail -> 2
+        is PlanDestination.Motion -> 3
     }
 }
 
@@ -103,7 +107,7 @@ class HomeController(
                 availableMotions = availableMotions,
                 trainingPlans = trainingPlans,
                 currentPlanId = currentPlanId,
-                requestedDestination = PlanDestination.List,
+                requestedDestination = PlanDestination.Overview,
                 planIdPendingDelete = null,
                 motionPendingDelete = null,
                 addMotionPlanId = null
@@ -180,6 +184,10 @@ class HomeController(
         return state.copy(planDestination = PlanDestination.List)
     }
 
+    fun showPlanOverview(state: HomeState): HomeState {
+        return state.copy(planDestination = PlanDestination.Overview)
+    }
+
     fun showPlanDetail(
         state: HomeState,
         planId: Int
@@ -229,6 +237,33 @@ class HomeController(
                 planId = planId,
                 newName = trimmedName
             ).first()
+
+            trainingPlanStore.updateTrainingPlan(updatedPlan)
+        }
+
+        if (!updateSucceeded) {
+            return state
+        }
+
+        return reloadState(state)
+    }
+
+    suspend fun updatePlanCurrentDay(
+        state: HomeState,
+        planId: Int,
+        dayIndex: Int
+    ): HomeState {
+        val updateSucceeded = withContext(Dispatchers.IO) {
+            val storedPlan = trainingPlanStore.getTrainingPlan(planId) ?: return@withContext false
+            val updatedPlan = applyPlanCurrentIndexUpdate(
+                plans = listOf(storedPlan),
+                planId = planId,
+                dayIndex = dayIndex
+            ).first()
+
+            if (updatedPlan == storedPlan) {
+                return@withContext false
+            }
 
             trainingPlanStore.updateTrainingPlan(updatedPlan)
         }
@@ -462,7 +497,8 @@ class HomeController(
                     title = motion.title,
                     sets = 1,
                     repsPerSet = 1,
-                    intensity = 0.0
+                    intensity = 0.0,
+                    orderIndex = storedPlan.motions.size + 1
                 )
             )
 
@@ -560,6 +596,8 @@ class HomeController(
         requestedDestination: PlanDestination
     ): PlanDestination {
         return when (requestedDestination) {
+            PlanDestination.Overview -> PlanDestination.Overview
+
             PlanDestination.List -> PlanDestination.List
 
             is PlanDestination.Detail -> {

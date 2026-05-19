@@ -32,14 +32,16 @@ data class CreateMetaPlanRequest(
 data class PlanRecord(
     val id: Int,
     val name: String,
-    val repeatCycle: Int,
+    val cyclePeriod: Int,
+    val currentIndex: Int = 1,
     val lastAppliedAt: Long = 0L,
     val metaPlans: List<MetaPlanRecord> = emptyList()
 )
 
 data class CreatePlanRequest(
     val name: String? = null,
-    val repeatCycle: Int,
+    val cyclePeriod: Int,
+    val currentIndex: Int = 1,
     val lastAppliedAt: Long = 0L,
     val metaPlans: List<CreateMetaPlanRequest> = emptyList()
 )

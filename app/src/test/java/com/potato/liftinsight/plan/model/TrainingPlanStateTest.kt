@@ -11,9 +11,10 @@ class TrainingPlanStateTest {
             id = 1,
             name = "Base",
             lastAppliedAt = 100L,
+            currentIndex = 2,
             motions = listOf(
-                PlanMotionState(entryId = 1, motionId = 10, title = "Snatch", sets = 5, repsPerSet = 2, intensity = 0.82),
-                PlanMotionState(entryId = 2, motionId = 11, title = "Front Squat", sets = 4, repsPerSet = 3, intensity = 0.78)
+                PlanMotionState(entryId = 1, motionId = 10, title = "Snatch", sets = 5, repsPerSet = 2, intensity = 0.82, orderIndex = 1),
+                PlanMotionState(entryId = 2, motionId = 11, title = "Front Squat", sets = 4, repsPerSet = 3, intensity = 0.78, orderIndex = 2)
             )
         ),
         TrainingPlanState(
@@ -21,7 +22,7 @@ class TrainingPlanStateTest {
             name = "Peak",
             lastAppliedAt = 200L,
             motions = listOf(
-                PlanMotionState(entryId = 1, motionId = 12, title = "Clean & Jerk", sets = 6, repsPerSet = 1, intensity = 0.9)
+                PlanMotionState(entryId = 1, motionId = 12, title = "Clean & Jerk", sets = 6, repsPerSet = 1, intensity = 0.9, orderIndex = 1)
             )
         )
     )
@@ -122,6 +123,7 @@ class TrainingPlanStateTest {
         assertEquals(1, addedMotion.sets)
         assertEquals(1, addedMotion.repsPerSet)
         assertEquals(0.0, addedMotion.intensity, 0.0)
+        assertEquals(3, addedMotion.orderIndex)
     }
 
     @Test
@@ -136,6 +138,10 @@ class TrainingPlanStateTest {
         assertEquals(
             listOf(2, 1),
             updatedPlans.first { it.id == 1 }.motions.map { it.entryId }
+        )
+        assertEquals(
+            listOf(1, 2),
+            updatedPlans.first { it.id == 1 }.motions.map { it.orderIndex }
         )
     }
 
@@ -170,5 +176,24 @@ class TrainingPlanStateTest {
 
         assertEquals(listOf(1), updatedPlan?.motions?.map { it.entryId })
         assertNull(updatedPlan?.let { planMotion(it, 2) })
+    }
+
+    @Test
+    fun todaysPlanMotions_returnsMotionsForNormalizedCurrentDay() {
+        val plan = TrainingPlanState(
+            id = 3,
+            name = "Cycle",
+            lastAppliedAt = 300L,
+            cyclePeriod = 7,
+            currentIndex = 0,
+            motions = listOf(
+                PlanMotionState(entryId = 1, motionId = 20, title = "Snatch", sets = 5, repsPerSet = 2, orderIndex = 1),
+                PlanMotionState(entryId = 2, motionId = 21, title = "Clean Pull", sets = 4, repsPerSet = 3, orderIndex = 2)
+            )
+        )
+
+        assertEquals(1, normalizedPlanCurrentIndex(plan))
+        assertEquals(listOf(1), todaysPlanMotions(plan).map { it.entryId })
+        assertEquals(listOf(2), motionsForPlanDay(plan, 2).map { it.entryId })
     }
 }

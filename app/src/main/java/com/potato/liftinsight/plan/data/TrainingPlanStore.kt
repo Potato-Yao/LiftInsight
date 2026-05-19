@@ -4,6 +4,7 @@ import android.content.Context
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.normalizePlanDayIndex
 import com.potato.liftinsight.plan.model.sortPlansByLastApplied
 import com.potato.liftinsight.training.data.CreateMotionRequest
 import com.potato.liftinsight.training.data.CreatePlanRequest
@@ -81,7 +82,8 @@ class TrainingPlanStore private constructor(
         return planStore.createPlan(
             CreatePlanRequest(
                 name = name,
-                repeatCycle = DEFAULT_REPEAT_CYCLE,
+                cyclePeriod = DEFAULT_CYCLE_PERIOD,
+                currentIndex = DEFAULT_CURRENT_INDEX,
                 lastAppliedAt = createdAt
             )
         )
@@ -132,7 +134,8 @@ class TrainingPlanStore private constructor(
     }
 
     companion object {
-        private const val DEFAULT_REPEAT_CYCLE = 7
+        private const val DEFAULT_CYCLE_PERIOD = 7
+        private const val DEFAULT_CURRENT_INDEX = 1
 
         fun from(context: Context): TrainingPlanStore {
             return fromDatabase(LiftInsightDatabase.from(context))
@@ -149,20 +152,27 @@ class TrainingPlanStore private constructor(
 }
 
 private fun PlanRecord.toState(): TrainingPlanState {
+    val sortedMetaPlans = metaPlans.sortedBy { metaPlan -> metaPlan.orderIndex }
+
     return TrainingPlanState(
         id = id,
         name = name,
         lastAppliedAt = lastAppliedAt,
-        motions = metaPlans
-            .sortedBy { metaPlan -> metaPlan.orderIndex }
-            .map { metaPlan ->
+        cyclePeriod = cyclePeriod,
+        currentIndex = normalizePlanDayIndex(
+            dayIndex = currentIndex,
+            cyclePeriod = cyclePeriod
+        ),
+        motions = sortedMetaPlans
+            .mapIndexed { index, metaPlan ->
                 PlanMotionState(
                     entryId = metaPlan.id,
                     motionId = metaPlan.motionId,
                     title = metaPlan.motionName,
                     sets = metaPlan.sets,
                     repsPerSet = metaPlan.reps,
-                    intensity = metaPlan.intensity
+                    intensity = metaPlan.intensity,
+                    orderIndex = index + 1
                 )
             }
     )
@@ -172,7 +182,11 @@ private fun TrainingPlanState.toRecord(): PlanRecord {
     return PlanRecord(
         id = id,
         name = name,
-        repeatCycle = 7,
+        cyclePeriod = cyclePeriod,
+        currentIndex = normalizePlanDayIndex(
+            dayIndex = currentIndex,
+            cyclePeriod = cyclePeriod
+        ),
         lastAppliedAt = lastAppliedAt,
         metaPlans = motions.mapIndexed { index, motion ->
             MetaPlanRecord(
@@ -183,7 +197,7 @@ private fun TrainingPlanState.toRecord(): PlanRecord {
                 reps = motion.repsPerSet,
                 intensity = motion.intensity,
                 weight = 0.0,
-                orderIndex = index
+                orderIndex = index + 1
             )
         }
     )

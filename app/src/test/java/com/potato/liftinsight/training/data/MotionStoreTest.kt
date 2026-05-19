@@ -122,7 +122,7 @@ class MotionStoreTest {
         planStore.createPlan(
             CreatePlanRequest(
                 name = "Competition Peak",
-                repeatCycle = 7,
+                cyclePeriod = 7,
                 metaPlans = listOf(
                     CreateMetaPlanRequest(
                         motionId = motionId,
@@ -130,7 +130,7 @@ class MotionStoreTest {
                         reps = 2,
                         intensity = 0.8,
                         weight = 80.0,
-                        orderIndex = 0
+                        orderIndex = 1
                     )
                 )
             )

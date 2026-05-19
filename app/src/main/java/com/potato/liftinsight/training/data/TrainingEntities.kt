@@ -21,8 +21,10 @@ data class PlanEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
     val name: String,
-    @ColumnInfo(name = "repeat_cycle")
-    val repeatCycle: Int,
+    @ColumnInfo(name = "cycle_period")
+    val cyclePeriod: Int,
+    @ColumnInfo(name = "current_index")
+    val currentIndex: Int = 0,
     @ColumnInfo(name = "last_applied_at")
     val lastAppliedAt: Long = 0L
 )
@@ -117,7 +119,8 @@ internal fun PlanEntity.toRecord(metaPlans: List<MetaPlanRow>): PlanRecord {
     return PlanRecord(
         id = id,
         name = name,
-        repeatCycle = repeatCycle,
+        cyclePeriod = cyclePeriod,
+        currentIndex = currentIndex,
         lastAppliedAt = lastAppliedAt,
         metaPlans = metaPlans.map { metaPlan -> metaPlan.toRecord() }
     )
@@ -127,7 +130,8 @@ internal fun PlanRecord.toEntity(): PlanEntity {
     return PlanEntity(
         id = id,
         name = name,
-        repeatCycle = repeatCycle,
+        cyclePeriod = cyclePeriod,
+        currentIndex = currentIndex,
         lastAppliedAt = lastAppliedAt
     )
 }

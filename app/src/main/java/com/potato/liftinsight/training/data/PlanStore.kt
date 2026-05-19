@@ -7,12 +7,20 @@ class PlanStore private constructor(
     private val planDao: PlanDao
 ) {
     fun createPlan(request: CreatePlanRequest): Int {
+        val cyclePeriod = validateCyclePeriod(request.cyclePeriod)
         val plan = PlanEntity(
             name = normalizeRequiredText(request.name, "Plan name"),
-            repeatCycle = validateRepeatCycle(request.repeatCycle),
+            cyclePeriod = cyclePeriod,
+            currentIndex = validateCurrentIndex(
+                currentIndex = request.currentIndex,
+                cyclePeriod = cyclePeriod
+            ),
             lastAppliedAt = validateLastAppliedAt(request.lastAppliedAt)
         )
-        val metaPlans = prepareCreateMetaPlans(request.metaPlans)
+        val metaPlans = prepareCreateMetaPlans(
+            metaPlans = request.metaPlans,
+            cyclePeriod = cyclePeriod
+        )
 
         try {
             return planDao.createPlan(
@@ -41,12 +49,20 @@ class PlanStore private constructor(
             return false
         }
 
+        val cyclePeriod = validateCyclePeriod(plan.cyclePeriod)
         val updatedPlan = plan.copy(
             name = normalizeRequiredText(plan.name, "Plan name"),
-            repeatCycle = validateRepeatCycle(plan.repeatCycle),
+            cyclePeriod = cyclePeriod,
+            currentIndex = validateCurrentIndex(
+                currentIndex = plan.currentIndex,
+                cyclePeriod = cyclePeriod
+            ),
             lastAppliedAt = validateLastAppliedAt(plan.lastAppliedAt)
         )
-        val metaPlans = prepareStoredMetaPlans(plan.metaPlans)
+        val metaPlans = prepareStoredMetaPlans(
+            metaPlans = plan.metaPlans,
+            cyclePeriod = cyclePeriod
+        )
 
         try {
             return planDao.updatePlan(
@@ -87,12 +103,27 @@ private data class PreparedMetaPlan(
     val orderIndex: Int
 )
 
-private fun validateRepeatCycle(repeatCycle: Int): Int {
-    if (repeatCycle <= 0) {
-        throw IllegalArgumentException("Repeat cycle must be greater than zero.")
+private fun validateCyclePeriod(cyclePeriod: Int): Int {
+    if (cyclePeriod <= 0) {
+        throw IllegalArgumentException("Cycle period must be greater than zero.")
     }
 
-    return repeatCycle
+    return cyclePeriod
+}
+
+private fun validateCurrentIndex(
+    currentIndex: Int,
+    cyclePeriod: Int
+): Int {
+    if (currentIndex <= 0) {
+        throw IllegalArgumentException("Current index must be greater than zero.")
+    }
+
+    if (currentIndex > cyclePeriod) {
+        throw IllegalArgumentException("Current index must not be greater than the cycle period.")
+    }
+
+    return currentIndex
 }
 
 private fun validateLastAppliedAt(lastAppliedAt: Long): Long {
@@ -103,7 +134,10 @@ private fun validateLastAppliedAt(lastAppliedAt: Long): Long {
     return lastAppliedAt
 }
 
-private fun prepareCreateMetaPlans(metaPlans: List<CreateMetaPlanRequest>): List<PreparedMetaPlan> {
+private fun prepareCreateMetaPlans(
+    metaPlans: List<CreateMetaPlanRequest>,
+    cyclePeriod: Int
+): List<PreparedMetaPlan> {
     return preparePreparedMetaPlans(
         metaPlans.map { metaPlan ->
             PreparedMetaPlan(
@@ -115,11 +149,15 @@ private fun prepareCreateMetaPlans(metaPlans: List<CreateMetaPlanRequest>): List
                 weight = metaPlan.weight,
                 orderIndex = metaPlan.orderIndex
             )
-        }
+        },
+        cyclePeriod = cyclePeriod
     )
 }
 
-private fun prepareStoredMetaPlans(metaPlans: List<MetaPlanRecord>): List<PreparedMetaPlan> {
+private fun prepareStoredMetaPlans(
+    metaPlans: List<MetaPlanRecord>,
+    cyclePeriod: Int
+): List<PreparedMetaPlan> {
     return preparePreparedMetaPlans(
         metaPlans.map { metaPlan ->
             PreparedMetaPlan(
@@ -131,11 +169,15 @@ private fun prepareStoredMetaPlans(metaPlans: List<MetaPlanRecord>): List<Prepar
                 weight = metaPlan.weight,
                 orderIndex = metaPlan.orderIndex
             )
-        }
+        },
+        cyclePeriod = cyclePeriod
     )
 }
 
-private fun preparePreparedMetaPlans(metaPlans: List<PreparedMetaPlan>): List<PreparedMetaPlan> {
+private fun preparePreparedMetaPlans(
+    metaPlans: List<PreparedMetaPlan>,
+    cyclePeriod: Int
+): List<PreparedMetaPlan> {
     if (metaPlans.isEmpty()) {
         return emptyList()
     }
@@ -165,8 +207,12 @@ private fun preparePreparedMetaPlans(metaPlans: List<PreparedMetaPlan>): List<Pr
             throw IllegalArgumentException("Meta plan weight must be zero or greater.")
         }
 
-        if (metaPlan.orderIndex < 0) {
-            throw IllegalArgumentException("Meta plan order index must be zero or greater.")
+        if (metaPlan.orderIndex <= 0) {
+            throw IllegalArgumentException("Meta plan order index must be greater than zero.")
+        }
+
+        if (metaPlan.orderIndex > cyclePeriod) {
+            throw IllegalArgumentException("Meta plan order index must not be greater than the plan cycle period.")
         }
 
         if (index == 0) {

@@ -71,16 +71,18 @@ class TrainingPlanStoreTest {
                     id = 10,
                     name = "Strength Base",
                     lastAppliedAt = 100L,
+                    currentIndex = 1,
                     motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 1, title = "Snatch", sets = 5, repsPerSet = 2, intensity = 0.82)
+                        PlanMotionState(entryId = 1, motionId = 1, title = "Snatch", sets = 5, repsPerSet = 2, intensity = 0.82, orderIndex = 1)
                     )
                 ),
                 TrainingPlanState(
                     id = 20,
                     name = "Competition Peak",
                     lastAppliedAt = 200L,
+                    currentIndex = 1,
                     motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 2, title = "Clean & Jerk", sets = 6, repsPerSet = 1, intensity = 0.9)
+                        PlanMotionState(entryId = 1, motionId = 2, title = "Clean & Jerk", sets = 6, repsPerSet = 1, intensity = 0.9, orderIndex = 1)
                     )
                 )
             ),
@@ -92,6 +94,9 @@ class TrainingPlanStoreTest {
         assertEquals(listOf("Competition Peak", "Strength Base"), plans.map { it.name })
         assertEquals("Clean & Jerk", plans.first().motions.single().title)
         assertEquals(0.9, plans.first().motions.single().intensity, 0.0)
+        assertEquals(7, plans.first().cyclePeriod)
+        assertEquals(1, plans.first().currentIndex)
+        assertEquals(1, plans.first().motions.single().orderIndex)
         assertEquals(plans.first().id, trainingPlanStore.getCurrentPlanId())
     }
 
@@ -110,6 +115,8 @@ class TrainingPlanStoreTest {
             id = createdPlanId,
             name = "Strength Base",
             lastAppliedAt = 300L,
+            cyclePeriod = 10,
+            currentIndex = 2,
             motions = listOf(
                 PlanMotionState(
                     entryId = 1,
@@ -117,7 +124,8 @@ class TrainingPlanStoreTest {
                     title = "Snatch",
                     sets = 5,
                     repsPerSet = 2,
-                    intensity = 0.8
+                    intensity = 0.8,
+                    orderIndex = 1
                 ),
                 PlanMotionState(
                     entryId = 2,
@@ -125,7 +133,8 @@ class TrainingPlanStoreTest {
                     title = "Front Squat",
                     sets = 4,
                     repsPerSet = 3,
-                    intensity = 0.78
+                    intensity = 0.78,
+                    orderIndex = 2
                 )
             )
         )
@@ -141,7 +150,8 @@ class TrainingPlanStoreTest {
                     title = "Snatch",
                     sets = 3,
                     repsPerSet = 3,
-                    intensity = 0.7
+                    intensity = 0.7,
+                    orderIndex = 3
                 )
             )
         )
@@ -151,6 +161,9 @@ class TrainingPlanStoreTest {
 
         assertTrue(updated)
         assertEquals(listOf(2, 1, 3), reloadedPlan?.motions?.map { motion -> motion.entryId })
+        assertEquals(listOf(1, 2, 3), reloadedPlan?.motions?.map { motion -> motion.orderIndex })
+        assertEquals(10, reloadedPlan?.cyclePeriod)
+        assertEquals(2, reloadedPlan?.currentIndex)
         assertEquals(6, reloadedPlan?.motions?.get(1)?.sets)
         assertEquals(0.7, reloadedPlan?.motions?.get(2)?.intensity ?: Double.NaN, 0.0)
     }

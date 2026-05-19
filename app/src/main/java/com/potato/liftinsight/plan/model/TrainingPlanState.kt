@@ -4,6 +4,8 @@ data class TrainingPlanState(
     val id: Int,
     val name: String,
     val lastAppliedAt: Long,
+    val cyclePeriod: Int = 7,
+    val currentIndex: Int = 1,
     val motions: List<PlanMotionState> = emptyList()
 )
 
@@ -13,7 +15,8 @@ data class PlanMotionState(
     val title: String,
     val sets: Int,
     val repsPerSet: Int,
-    val intensity: Double = 0.0
+    val intensity: Double = 0.0,
+    val orderIndex: Int = 1
 )
 
 data class AvailableMotionState(
@@ -69,6 +72,51 @@ fun planMotion(
     return plan.motions.firstOrNull { it.entryId == motionEntryId }
 }
 
+fun normalizedPlanCurrentIndex(plan: TrainingPlanState): Int {
+    return normalizePlanDayIndex(
+        dayIndex = plan.currentIndex,
+        cyclePeriod = plan.cyclePeriod
+    )
+}
+
+fun normalizePlanDayIndex(
+    dayIndex: Int,
+    cyclePeriod: Int
+): Int {
+    if (cyclePeriod <= 0) {
+        return 1
+    }
+
+    if (dayIndex <= 0) {
+        return 1
+    }
+
+    if (dayIndex > cyclePeriod) {
+        return cyclePeriod
+    }
+
+    return dayIndex
+}
+
+fun motionsForPlanDay(
+    plan: TrainingPlanState,
+    dayIndex: Int
+): List<PlanMotionState> {
+    val normalizedDayIndex = normalizePlanDayIndex(
+        dayIndex = dayIndex,
+        cyclePeriod = plan.cyclePeriod
+    )
+
+    return plan.motions.filter { motion -> motion.orderIndex == normalizedDayIndex }
+}
+
+fun todaysPlanMotions(plan: TrainingPlanState): List<PlanMotionState> {
+    return motionsForPlanDay(
+        plan = plan,
+        dayIndex = normalizedPlanCurrentIndex(plan)
+    )
+}
+
 fun selectTrainingPlan(
     plans: List<TrainingPlanState>,
     currentPlanId: Int,
@@ -105,7 +153,8 @@ fun createTrainingPlan(
     val createdPlan = TrainingPlanState(
         id = createdPlanId,
         name = name.trim(),
-        lastAppliedAt = createdAt
+        lastAppliedAt = createdAt,
+        currentIndex = 1
     )
 
     return CreateTrainingPlanResult(
@@ -180,13 +229,14 @@ fun addMotionToPlan(
         title = motion.title,
         sets = 1,
         repsPerSet = 1,
-        intensity = 0.0
+        intensity = 0.0,
+        orderIndex = targetPlan.motions.size + 1
     )
 
     return AddMotionToPlanResult(
         plans = plans.map { plan ->
             if (plan.id == planId) {
-                plan.copy(motions = plan.motions + createdMotion)
+                plan.copy(motions = reindexPlanMotions(plan.motions + createdMotion))
             } else {
                 plan
             }
@@ -222,7 +272,7 @@ fun movePlanMotion(
         val currentMotion = updatedMotions.removeAt(currentIndex)
         updatedMotions.add(targetIndex, currentMotion)
 
-        plan.copy(motions = updatedMotions)
+        plan.copy(motions = reindexPlanMotions(updatedMotions))
     }
 }
 
@@ -279,10 +329,39 @@ fun deletePlanMotion(
 ): List<TrainingPlanState> {
     return plans.map { plan ->
         if (plan.id == planId) {
-            plan.copy(motions = plan.motions.filterNot { it.entryId == motionEntryId })
+            plan.copy(
+                motions = reindexPlanMotions(
+                    plan.motions.filterNot { it.entryId == motionEntryId }
+                )
+            )
         } else {
             plan
         }
+    }
+}
+
+fun updatePlanCurrentIndex(
+    plans: List<TrainingPlanState>,
+    planId: Int,
+    dayIndex: Int
+): List<TrainingPlanState> {
+    return plans.map { plan ->
+        if (plan.id != planId) {
+            return@map plan
+        }
+
+        plan.copy(
+            currentIndex = normalizePlanDayIndex(
+                dayIndex = dayIndex,
+                cyclePeriod = plan.cyclePeriod
+            )
+        )
+    }
+}
+
+private fun reindexPlanMotions(motions: List<PlanMotionState>): List<PlanMotionState> {
+    return motions.mapIndexed { index, motion ->
+        motion.copy(orderIndex = index + 1)
     }
 }
 

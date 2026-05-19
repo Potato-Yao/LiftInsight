@@ -2,6 +2,8 @@ package com.potato.liftinsight.plan
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +47,122 @@ import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
+import com.potato.liftinsight.plan.model.sortPlansByLastApplied
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+internal fun PlanPickerScreen(
+    plans: List<TrainingPlanState>,
+    currentPlanId: Int,
+    onBack: () -> Unit,
+    onSelectPlan: (Int) -> Unit,
+    onSelectPlanDay: (Int, Int) -> Unit,
+    onEditPlan: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showContent by remember { mutableStateOf(false) }
+    val displayPlans = remember(plans, currentPlanId) {
+        val sortedPlans = sortPlansByLastApplied(plans)
+        val currentPlan = sortedPlans.firstOrNull { plan -> plan.id == currentPlanId }
+
+        if (currentPlan == null) {
+            sortedPlans
+        } else {
+            buildList {
+                add(currentPlan)
+                addAll(sortedPlans.filterNot { plan -> plan.id == currentPlanId })
+            }
+        }
+    }
+    val currentPlan = remember(plans, currentPlanId) {
+        plans.firstOrNull { plan -> plan.id == currentPlanId }
+    }
+
+    LaunchedEffect(Unit) {
+        showContent = true
+    }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(text = stringResource(R.string.plan_manage_top_bar_title))
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 24.dp,
+                top = innerPadding.calculateTopPadding() + 12.dp,
+                end = 24.dp,
+                bottom = 120.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item(key = "selectedPlan") {
+                AnimatedPlanSection(visible = showContent) {
+                    SelectedPlanDayCard(
+                        plan = currentPlan,
+                        onSelectDay = { dayIndex ->
+                            if (currentPlan != null) {
+                                onSelectPlanDay(currentPlan.id, dayIndex)
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (displayPlans.isEmpty()) {
+                item(key = "emptyPlans") {
+                    AnimatedPlanSection(visible = showContent) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            shape = RoundedCornerShape(28.dp),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                            )
+                        ) {
+                            Text(
+                                text = stringResource(R.string.plan_no_plans_available),
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            } else {
+                itemsIndexed(
+                    items = displayPlans,
+                    key = { _, plan -> plan.id }
+                ) { _, plan ->
+                    AnimatedPlanSection(visible = showContent) {
+                        PlanChoiceRow(
+                            plan = plan,
+                            isCurrent = plan.id == currentPlanId,
+                            onSelectPlan = { onSelectPlan(plan.id) },
+                            onEditPlan = { onEditPlan(plan.id) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -319,6 +438,187 @@ private fun PlanTitleRow(
 }
 
 @Composable
+private fun AnimatedPlanSection(
+    visible: Boolean,
+    content: @Composable () -> Unit
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically(),
+        exit = androidx.compose.animation.ExitTransition.None
+    ) {
+        content()
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SelectedPlanDayCard(
+    plan: TrainingPlanState?,
+    onSelectDay: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = RoundedCornerShape(32.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.plan_current_plan_label),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+            )
+
+            Text(
+                text = plan?.name ?: stringResource(R.string.plan_no_current_plan_selected),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+
+            if (plan == null) {
+                Text(
+                    text = stringResource(R.string.plan_select_plan_to_set_day),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = stringResource(
+                            R.string.plan_day_of_cycle,
+                            normalizedPlanCurrentIndex(plan),
+                            plan.cyclePeriod
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
+                    )
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (dayIndex in 1..plan.cyclePeriod) {
+                            val isSelected = dayIndex == normalizedPlanCurrentIndex(plan)
+
+                            Surface(
+                                modifier = Modifier.clickable { onSelectDay(dayIndex) },
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (isSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                                    }
+                                )
+                            ) {
+                                Text(
+                                    text = dayIndex.toString(),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isSelected) {
+                                        MaterialTheme.colorScheme.onPrimary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanChoiceRow(
+    plan: TrainingPlanState,
+    isCurrent: Boolean,
+    onSelectPlan: () -> Unit,
+    onEditPlan: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSelectPlan),
+        color = if (isCurrent) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        },
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isCurrent) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+            } else {
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, top = 16.dp, end = 8.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = plan.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = stringResource(
+                        R.string.plan_day_of_cycle,
+                        normalizedPlanCurrentIndex(plan),
+                        plan.cyclePeriod
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isCurrent) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
+
+            IconButton(onClick = onEditPlan) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = stringResource(
+                        R.string.plan_edit_content_description,
+                        plan.name
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun PlanMotionRow(
     motion: PlanMotionState,
     isMoveUpEnabled: Boolean,
@@ -384,7 +684,8 @@ private fun PlanMotionRow(
 
                 Text(
                     text = stringResource(
-                        R.string.plan_motion_summary,
+                        R.string.plan_motion_day_summary,
+                        motion.orderIndex,
                         motion.sets,
                         motion.repsPerSet
                     ),
