@@ -159,6 +159,42 @@ class HomeControllerTest {
         assertEquals(900L, createdPlan.lastAppliedAt)
         assertEquals(5, updatedState.trainingPlans.size)
         assertEquals(PlanDestination.Detail(createdPlan.id), updatedState.planDestination)
+        assertEquals(createdPlan.id, updatedState.draftPlanId)
+    }
+
+    @Test
+    fun handlePlanBack_discardsNewDraftPlanAndReturnsToList() = runBlocking {
+        val controller = controller(nowProvider = { 900L })
+        val createdState = controller.createPlan(initialState(controller), "New Plan")
+        val draftPlanId = createdState.draftPlanId ?: error("Expected a draft plan id.")
+
+        val renamedState = controller.renamePlan(createdState, draftPlanId, "Temporary Draft")
+        val updatedState = controller.handlePlanBack(renamedState)
+
+        assertFalse(updatedState.trainingPlans.any { it.id == draftPlanId })
+        assertFalse(updatedState.trainingPlans.any { it.name == "Temporary Draft" })
+        assertEquals(PlanDestination.List, updatedState.planDestination)
+        assertEquals(null, updatedState.draftPlanId)
+    }
+
+    @Test
+    fun handlePlanBack_fromMotionReturnsToPlanDetail() = runBlocking {
+        val controller = controller()
+        val state = controller.showMotionDetail(initialState(controller), 1, 2)
+
+        val updatedState = controller.handlePlanBack(state)
+
+        assertEquals(PlanDestination.Detail(1), updatedState.planDestination)
+    }
+
+    @Test
+    fun handlePlanBack_fromPlanListReturnsToOverview() = runBlocking {
+        val controller = controller()
+        val state = controller.showPlanList(initialState(controller))
+
+        val updatedState = controller.handlePlanBack(state)
+
+        assertEquals(PlanDestination.Overview, updatedState.planDestination)
     }
 
     @Test

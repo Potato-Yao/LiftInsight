@@ -43,7 +43,8 @@ data class HomeState(
     val planDestination: PlanDestination = PlanDestination.Overview,
     val planIdPendingDelete: Int? = null,
     val motionPendingDelete: MotionDeleteTarget? = null,
-    val addMotionPlanId: Int? = null
+    val addMotionPlanId: Int? = null,
+    val draftPlanId: Int? = null
 ) {
     val selectedTabIndex: Int
         get() = selectedTab.ordinal
@@ -110,7 +111,8 @@ class HomeController(
                 requestedDestination = PlanDestination.Overview,
                 planIdPendingDelete = null,
                 motionPendingDelete = null,
-                addMotionPlanId = null
+                addMotionPlanId = null,
+                draftPlanId = null
             )
         }
     }
@@ -152,7 +154,8 @@ class HomeController(
 
         return reloadState(
             state = state,
-            requestedDestination = PlanDestination.Detail(createdPlanId)
+            requestedDestination = PlanDestination.Detail(createdPlanId),
+            draftPlanId = createdPlanId
         )
     }
 
@@ -217,6 +220,37 @@ class HomeController(
                 motionEntryId = motionEntryId
             )
         )
+    }
+
+    suspend fun handlePlanBack(state: HomeState): HomeState {
+        return when (val destination = state.planDestination) {
+            PlanDestination.Overview -> state
+
+            PlanDestination.List -> state.copy(
+                planDestination = PlanDestination.Overview,
+                planIdPendingDelete = null,
+                motionPendingDelete = null,
+                addMotionPlanId = null
+            )
+
+            is PlanDestination.Detail -> {
+                if (state.draftPlanId == destination.planId) {
+                    discardDraftPlan(state, destination.planId)
+                } else {
+                    state.copy(
+                        planDestination = PlanDestination.List,
+                        planIdPendingDelete = null,
+                        motionPendingDelete = null,
+                        addMotionPlanId = null
+                    )
+                }
+            }
+
+            is PlanDestination.Motion -> state.copy(
+                planDestination = PlanDestination.Detail(destination.planId),
+                motionPendingDelete = null
+            )
+        }
     }
 
     suspend fun renamePlan(
@@ -380,29 +414,7 @@ class HomeController(
     suspend fun confirmPlanDeletion(state: HomeState): HomeState {
         val pendingPlanId = state.planIdPendingDelete ?: return state
         val deleteSucceeded = withContext(Dispatchers.IO) {
-            val wasCurrentPlan = trainingPlanStore.getCurrentPlanId() == pendingPlanId
-            val deleted = trainingPlanStore.deleteTrainingPlan(pendingPlanId)
-
-            if (!deleted) {
-                return@withContext false
-            }
-
-            if (!wasCurrentPlan) {
-                return@withContext true
-            }
-
-            val fallbackPlanId = sortPlansByLastApplied(trainingPlanStore.getTrainingPlans())
-                .firstOrNull()
-                ?.id
-                ?: -1
-
-            if (fallbackPlanId == -1) {
-                trainingPlanStore.clearCurrentPlan()
-            } else {
-                trainingPlanStore.setCurrentPlan(fallbackPlanId)
-            }
-
-            true
+            deleteTrainingPlanAndUpdateSelection(pendingPlanId)
         }
 
         if (!deleteSucceeded) {
@@ -414,7 +426,8 @@ class HomeController(
             requestedDestination = PlanDestination.List,
             planIdPendingDelete = null,
             motionPendingDelete = null,
-            addMotionPlanId = null
+            addMotionPlanId = null,
+            draftPlanId = state.draftPlanId?.takeUnless { it == pendingPlanId }
         )
     }
 
@@ -543,7 +556,8 @@ class HomeController(
         requestedDestination: PlanDestination = state.planDestination,
         planIdPendingDelete: Int? = state.planIdPendingDelete,
         motionPendingDelete: MotionDeleteTarget? = state.motionPendingDelete,
-        addMotionPlanId: Int? = state.addMotionPlanId
+        addMotionPlanId: Int? = state.addMotionPlanId,
+        draftPlanId: Int? = state.draftPlanId
     ): HomeState {
         return withContext(Dispatchers.IO) {
             val availableMotions = trainingPlanStore.getAvailableMotions()
@@ -558,7 +572,8 @@ class HomeController(
                 requestedDestination = requestedDestination,
                 planIdPendingDelete = planIdPendingDelete,
                 motionPendingDelete = motionPendingDelete,
-                addMotionPlanId = addMotionPlanId
+                addMotionPlanId = addMotionPlanId,
+                draftPlanId = draftPlanId
             )
         }
     }
@@ -571,7 +586,8 @@ class HomeController(
         requestedDestination: PlanDestination,
         planIdPendingDelete: Int?,
         motionPendingDelete: MotionDeleteTarget?,
-        addMotionPlanId: Int?
+        addMotionPlanId: Int?,
+        draftPlanId: Int?
     ): HomeState {
         return state.copy(
             availableMotions = availableMotions,
@@ -591,7 +607,38 @@ class HomeController(
             },
             addMotionPlanId = addMotionPlanId?.takeIf { planId ->
                 trainingPlan(trainingPlans, planId) != null
+            },
+            draftPlanId = draftPlanId?.takeIf { planId ->
+                trainingPlan(trainingPlans, planId) != null
             }
+        )
+    }
+
+    private suspend fun discardDraftPlan(
+        state: HomeState,
+        planId: Int
+    ): HomeState {
+        val discardSucceeded = withContext(Dispatchers.IO) {
+            val storedPlan = trainingPlanStore.getTrainingPlan(planId)
+
+            if (storedPlan == null) {
+                return@withContext true
+            }
+
+            deleteTrainingPlanAndUpdateSelection(planId)
+        }
+
+        if (!discardSucceeded) {
+            return state
+        }
+
+        return reloadState(
+            state = state,
+            requestedDestination = PlanDestination.List,
+            planIdPendingDelete = null,
+            motionPendingDelete = null,
+            addMotionPlanId = null,
+            draftPlanId = null
         )
     }
 
@@ -645,6 +692,32 @@ class HomeController(
         }
 
         return fallbackPlanId
+    }
+
+    private fun deleteTrainingPlanAndUpdateSelection(planId: Int): Boolean {
+        val wasCurrentPlan = trainingPlanStore.getCurrentPlanId() == planId
+        val deleted = trainingPlanStore.deleteTrainingPlan(planId)
+
+        if (!deleted) {
+            return false
+        }
+
+        if (!wasCurrentPlan) {
+            return true
+        }
+
+        val fallbackPlanId = sortPlansByLastApplied(trainingPlanStore.getTrainingPlans())
+            .firstOrNull()
+            ?.id
+            ?: -1
+
+        if (fallbackPlanId == -1) {
+            trainingPlanStore.clearCurrentPlan()
+        } else {
+            trainingPlanStore.setCurrentPlan(fallbackPlanId)
+        }
+
+        return true
     }
 }
 

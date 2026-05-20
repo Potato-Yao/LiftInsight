@@ -1,5 +1,6 @@
 package com.potato.liftinsight.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -107,6 +108,18 @@ fun HomeRoute(
     }
 
     val nextPlanName = stringResource(R.string.plan_name_new_default, state.trainingPlans.size + 1)
+    val shouldHandlePlanBack =
+        state.selectedTab == MainTab.Plan &&
+            state.planDestination != PlanDestination.Overview &&
+            state.planIdPendingDelete == null &&
+            state.motionPendingDelete == null &&
+            state.addMotionPlanId == null
+
+    BackHandler(enabled = shouldHandlePlanBack) {
+        coroutineScope.launch {
+            state = controller.handlePlanBack(state)
+        }
+    }
 
     val bottomBarItems = listOf(
         BottomBarItem(
@@ -159,14 +172,13 @@ fun HomeRoute(
         onOpenPlanDetail = { planId ->
             state = controller.showPlanDetail(state, planId)
         },
-        onBackToPlanList = {
-            state = controller.showPlanList(state)
-        },
         onOpenPlanEditor = {
             state = controller.showPlanList(state)
         },
-        onBackToPlanOverview = {
-            state = controller.showPlanOverview(state)
+        onBackInPlan = {
+            coroutineScope.launch {
+                state = controller.handlePlanBack(state)
+            }
         },
         onRenamePlan = { planId, newName ->
             coroutineScope.launch {
@@ -323,9 +335,8 @@ private fun HomeScaffold(
     onCreatePlan: () -> Unit,
     onSelectPlan: (Int) -> Unit,
     onOpenPlanDetail: (Int) -> Unit,
-    onBackToPlanList: () -> Unit,
     onOpenPlanEditor: () -> Unit,
-    onBackToPlanOverview: () -> Unit,
+    onBackInPlan: () -> Unit,
     onRenamePlan: (Int, String) -> Unit,
     onSelectPlanDay: (Int, Int) -> Unit,
     onMoveMotionUp: (Int, Int) -> Unit,
@@ -548,7 +559,7 @@ private fun HomeScaffold(
                                 PlanPickerPanel(
                                     trainingPlans = state.trainingPlans,
                                     currentPlanId = state.currentPlanId,
-                                    onBack = onBackToPlanOverview,
+                                    onBack = onBackInPlan,
                                     onSelectPlan = onSelectPlan,
                                     onSelectPlanDay = onSelectPlanDay,
                                     onEditPlan = onOpenPlanDetail,
@@ -563,7 +574,7 @@ private fun HomeScaffold(
                                     PlanPickerPanel(
                                         trainingPlans = state.trainingPlans,
                                         currentPlanId = state.currentPlanId,
-                                        onBack = onBackToPlanOverview,
+                                        onBack = onBackInPlan,
                                         onSelectPlan = onSelectPlan,
                                         onSelectPlanDay = onSelectPlanDay,
                                         onEditPlan = onOpenPlanDetail,
@@ -572,7 +583,7 @@ private fun HomeScaffold(
                                 } else {
                                     PlanDetailScreen(
                                         plan = plan,
-                                        onBack = onBackToPlanList,
+                                        onBack = onBackInPlan,
                                         onRenamePlan = { updatedName ->
                                             onRenamePlan(destination.planId, updatedName)
                                         },
@@ -598,7 +609,7 @@ private fun HomeScaffold(
                                     PlanPickerPanel(
                                         trainingPlans = state.trainingPlans,
                                         currentPlanId = state.currentPlanId,
-                                        onBack = onBackToPlanOverview,
+                                        onBack = onBackInPlan,
                                         onSelectPlan = onSelectPlan,
                                         onSelectPlanDay = onSelectPlanDay,
                                         onEditPlan = onOpenPlanDetail,
@@ -608,9 +619,7 @@ private fun HomeScaffold(
                                     MotionDetailScreen(
                                         planName = plan.name,
                                         motion = motion,
-                                        onBack = {
-                                            onOpenPlanDetail(destination.planId)
-                                        },
+                                        onBack = onBackInPlan,
                                         onDecreaseSets = {
                                             onDecreaseMotionSets(
                                                 destination.planId,
@@ -833,9 +842,8 @@ private fun HomeRoutePreview() {
             onCreatePlan = {},
             onSelectPlan = {},
             onOpenPlanDetail = {},
-            onBackToPlanList = {},
             onOpenPlanEditor = {},
-            onBackToPlanOverview = {},
+            onBackInPlan = {},
             onRenamePlan = { _, _ -> },
             onSelectPlanDay = { _, _ -> },
             onMoveMotionUp = { _, _ -> },
