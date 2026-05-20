@@ -94,6 +94,7 @@ class TrainingPlanStoreTest {
         assertEquals(listOf("Competition Peak", "Strength Base"), plans.map { it.name })
         assertEquals("Clean & Jerk", plans.first().motions.single().title)
         assertEquals(0.9, plans.first().motions.single().intensity, 0.0)
+        assertEquals(0.0, plans.first().motions.single().weight, 0.0)
         assertEquals(7, plans.first().cyclePeriod)
         assertEquals(1, plans.first().currentIndex)
         assertEquals(1, plans.first().motions.single().orderIndex)
@@ -134,6 +135,7 @@ class TrainingPlanStoreTest {
                     sets = 5,
                     repsPerSet = 2,
                     intensity = 0.8,
+                    weight = 82.5,
                     orderIndex = 1
                 ),
                 PlanMotionState(
@@ -144,6 +146,7 @@ class TrainingPlanStoreTest {
                     sets = 4,
                     repsPerSet = 3,
                     intensity = 0.78,
+                    weight = 105.0,
                     orderIndex = 2
                 )
             )
@@ -162,6 +165,7 @@ class TrainingPlanStoreTest {
                     sets = 3,
                     repsPerSet = 3,
                     intensity = 0.7,
+                    weight = 90.0,
                     orderIndex = 3
                 )
             )
@@ -171,12 +175,14 @@ class TrainingPlanStoreTest {
         val reloadedPlan = trainingPlanStore.getTrainingPlan(createdPlanId)
 
         assertTrue(updated)
-        assertEquals(listOf(2, 1, 3), reloadedPlan?.motions?.map { motion -> motion.entryId })
+        assertEquals(listOf(1, 2, 3), reloadedPlan?.motions?.map { motion -> motion.entryId })
         assertEquals(listOf(1, 2, 3), reloadedPlan?.motions?.map { motion -> motion.orderIndex })
         assertEquals(10, reloadedPlan?.cyclePeriod)
         assertEquals(2, reloadedPlan?.currentIndex)
-        assertEquals(6, reloadedPlan?.motions?.get(1)?.sets)
-        assertEquals(0.7, reloadedPlan?.motions?.get(2)?.intensity ?: Double.NaN, 0.0)
+        assertEquals(6, reloadedPlan?.motions?.first { motion -> motion.entryId == 1 }?.sets)
+        assertEquals(82.5, reloadedPlan?.motions?.first { motion -> motion.entryId == 1 }?.weight ?: Double.NaN, 0.0)
+        assertEquals(0.7, reloadedPlan?.motions?.first { motion -> motion.entryId == 3 }?.intensity ?: Double.NaN, 0.0)
+        assertEquals(90.0, reloadedPlan?.motions?.first { motion -> motion.entryId == 3 }?.weight ?: Double.NaN, 0.0)
     }
 }
 

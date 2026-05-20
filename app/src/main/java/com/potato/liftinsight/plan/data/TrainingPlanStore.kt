@@ -98,7 +98,7 @@ class TrainingPlanStore private constructor(
                         sets = motion.sets,
                         reps = motion.repsPerSet,
                         intensity = motion.intensity,
-                        weight = 0.0,
+                        weight = motion.weight,
                         orderIndex = motion.orderIndex
                     )
                 }
@@ -189,6 +189,7 @@ private fun PlanRecord.toState(): TrainingPlanState {
                     sets = metaPlan.sets,
                     repsPerSet = metaPlan.reps,
                     intensity = metaPlan.intensity,
+                    weight = metaPlan.weight,
                     orderIndex = metaPlan.orderIndex
                 )
             }
@@ -217,7 +218,7 @@ private fun TrainingPlanState.toRecord(): PlanRecord {
                 sets = motion.sets,
                 reps = motion.repsPerSet,
                 intensity = motion.intensity,
-                weight = 0.0,
+                weight = motion.weight,
                 orderIndex = motion.orderIndex
             )
         }

@@ -44,6 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
 import com.potato.liftinsight.home.controller.PlanEditorState
@@ -409,9 +411,84 @@ internal fun MotionDetailScreen(
     onIncreaseSets: () -> Unit,
     onDecreaseRepsPerSet: () -> Unit,
     onIncreaseRepsPerSet: () -> Unit,
+    onUpdateWeight: (Double) -> Unit,
     onDeleteMotion: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showWeightDialog by remember(motion.entryId, motion.weight) { mutableStateOf(false) }
+    var draftWeightText by remember(motion.entryId, motion.weight) {
+        mutableStateOf(formatMotionWeightInput(motion.weight))
+    }
+    var weightError by remember(motion.entryId) { mutableStateOf(false) }
+
+    if (showWeightDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showWeightDialog = false
+                weightError = false
+            },
+            title = {
+                Text(text = stringResource(R.string.motion_detail_weight_dialog_title))
+            },
+            text = {
+                OutlinedTextField(
+                    value = draftWeightText,
+                    onValueChange = { typed ->
+                        draftWeightText = sanitizeDecimalInput(typed)
+                        weightError = false
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = weightError,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    label = {
+                        Text(text = stringResource(R.string.motion_detail_weight_label))
+                    },
+                    supportingText = {
+                        if (weightError) {
+                            Text(text = stringResource(R.string.motion_detail_weight_invalid_error))
+                        }
+                    },
+                    suffix = {
+                        Text(text = stringResource(R.string.body_unit_kg))
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val normalizedWeight = draftWeightText
+                            .trim()
+                            .takeIf { value -> value.isNotEmpty() }
+                            ?.toDoubleOrNull()
+                            ?: 0.0
+
+                        if (normalizedWeight < 0.0) {
+                            weightError = true
+                            return@TextButton
+                        }
+
+                        onUpdateWeight(normalizedWeight)
+                        showWeightDialog = false
+                        weightError = false
+                    }
+                ) {
+                    Text(text = stringResource(R.string.common_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showWeightDialog = false
+                        weightError = false
+                    }
+                ) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -488,10 +565,79 @@ internal fun MotionDetailScreen(
                 )
             }
 
+            item(key = "weight") {
+                MotionWeightRow(
+                    label = stringResource(R.string.motion_detail_weight_label),
+                    value = if (motion.weight <= 0.0) {
+                        stringResource(R.string.motion_detail_weight_not_set)
+                    } else {
+                        stringResource(
+                            R.string.motion_detail_weight_value,
+                            formatMotionWeightDisplay(motion.weight)
+                        )
+                    },
+                    onEdit = {
+                        draftWeightText = formatMotionWeightInput(motion.weight)
+                        weightError = false
+                        showWeightDialog = true
+                    }
+                )
+            }
+
             item(key = "delete") {
                 DeleteRow(
                     label = stringResource(R.string.motion_detail_delete_label),
                     onClick = onDeleteMotion
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MotionWeightRow(
+    label: String,
+    value: String,
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, top = 16.dp, end = 8.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
+                )
+
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = stringResource(R.string.motion_detail_edit_weight_content_description)
                 )
             }
         }
@@ -1135,6 +1281,48 @@ private fun PlanEditorEmptyMessage(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+private fun formatMotionWeightInput(weight: Double): String {
+    if (weight <= 0.0) {
+        return ""
+    }
+
+    return formatMotionWeightDisplay(weight)
+}
+
+private fun formatMotionWeightDisplay(weight: Double): String {
+    val roundedWeight = ((weight * 100.0).toInt()) / 100.0
+
+    if (roundedWeight == roundedWeight.toInt().toDouble()) {
+        return roundedWeight.toInt().toString()
+    }
+
+    return roundedWeight.toString().trimEnd('0').trimEnd('.')
+}
+
+private fun sanitizeDecimalInput(input: String): String {
+    val normalizedInput = input.replace(',', '.')
+    val builder = StringBuilder()
+    var hasDecimalSeparator = false
+
+    normalizedInput.forEach { character ->
+        if (character.isDigit()) {
+            builder.append(character)
+            return@forEach
+        }
+
+        if (character == '.' && !hasDecimalSeparator) {
+            if (builder.isEmpty()) {
+                builder.append('0')
+            }
+
+            builder.append(character)
+            hasDecimalSeparator = true
+        }
+    }
+
+    return builder.toString()
 }
 
 

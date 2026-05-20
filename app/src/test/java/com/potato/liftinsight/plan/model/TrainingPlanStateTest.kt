@@ -125,25 +125,34 @@ class TrainingPlanStateTest {
         assertEquals(1, addedMotion.sets)
         assertEquals(1, addedMotion.repsPerSet)
         assertEquals(0.0, addedMotion.intensity, 0.0)
+        assertEquals(0.0, addedMotion.weight, 0.0)
         assertEquals(2, addedMotion.dayIndex)
         assertEquals(2, addedMotion.orderIndex)
     }
 
     @Test
     fun movePlanMotion_swapsMotionWithPreviousPosition() {
+        val sameDayPlans = listOf(
+            basePlans.first().copy(
+                motions = listOf(
+                    basePlans.first().motions[0],
+                    basePlans.first().motions[1].copy(dayIndex = 1, orderIndex = 2)
+                )
+            )
+        )
         val updatedPlans = movePlanMotion(
-            plans = basePlans,
+            plans = sameDayPlans,
             planId = 1,
             motionEntryId = 2,
             direction = -1
         )
 
         assertEquals(
-            listOf(2, 1),
+            listOf(1, 2),
             updatedPlans.first { it.id == 1 }.motions.map { it.entryId }
         )
         assertEquals(
-            listOf(1, 2),
+            listOf(2, 1),
             updatedPlans.first { it.id == 1 }.motions.map { it.orderIndex }
         )
     }

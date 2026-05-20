@@ -255,6 +255,15 @@ fun HomeRoute(
                 )
             }
         },
+        onUpdateMotionWeight = { motionEntryId, weight ->
+            coroutineScope.launch {
+                state = controller.updateMotionWeight(
+                    state = state,
+                    motionEntryId = motionEntryId,
+                    weight = weight
+                )
+            }
+        },
         onRequestPlanDeletion = { planId ->
             state = controller.requestPlanDeletion(state, planId)
         },
@@ -351,6 +360,7 @@ private fun HomeScaffold(
     onIncreaseMotionSets: (Int, Int) -> Unit,
     onDecreaseMotionReps: (Int, Int) -> Unit,
     onIncreaseMotionReps: (Int, Int) -> Unit,
+    onUpdateMotionWeight: (Int, Double) -> Unit,
     onRequestPlanDeletion: (Int) -> Unit,
     onDismissPlanDeletion: () -> Unit,
     onConfirmPlanDeletion: () -> Unit,
@@ -680,6 +690,9 @@ private fun HomeScaffold(
                                         onIncreaseRepsPerSet = {
                                             onIncreaseMotionReps(destination.motionEntryId, motion.repsPerSet)
                                         },
+                                        onUpdateWeight = { weight ->
+                                            onUpdateMotionWeight(destination.motionEntryId, weight)
+                                        },
                                         onDeleteMotion = {
                                             onRequestMotionDeletion(destination.motionEntryId)
                                         },
@@ -857,6 +870,7 @@ private fun HomeRoutePreview() {
             onIncreaseMotionSets = { _, _ -> },
             onDecreaseMotionReps = { _, _ -> },
             onIncreaseMotionReps = { _, _ -> },
+            onUpdateMotionWeight = { _, _ -> },
             onRequestPlanDeletion = {},
             onDismissPlanDeletion = {},
             onConfirmPlanDeletion = {},

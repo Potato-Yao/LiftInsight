@@ -17,6 +17,7 @@ data class PlanMotionState(
     val sets: Int,
     val repsPerSet: Int,
     val intensity: Double = 0.0,
+    val weight: Double = 0.0,
     val orderIndex: Int = 1
 )
 
@@ -264,6 +265,7 @@ fun addMotionToPlan(
         sets = 1,
         repsPerSet = 1,
         intensity = 0.0,
+        weight = 0.0,
         orderIndex = nextOrderIndex
     )
 

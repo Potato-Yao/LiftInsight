@@ -13,7 +13,7 @@ data class MetaPlanRecord(
     val id: Int,
     val motionId: Int,
     val motionName: String,
-    val dayIndex: Int,
+    val dayIndex: Int = 1,
     val sets: Int,
     val reps: Int,
     val intensity: Double,
@@ -23,7 +23,7 @@ data class MetaPlanRecord(
 
 data class CreateMetaPlanRequest(
     val motionId: Int,
-    val dayIndex: Int,
+    val dayIndex: Int = 1,
     val sets: Int,
     val reps: Int,
     val intensity: Double,

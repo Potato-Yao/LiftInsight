@@ -74,7 +74,6 @@ internal fun BodyMetricCard(
         title = title,
         subtitle = stringResource(R.string.body_updated_at_value, updatedAt),
         modifier = modifier,
-        highlighted = isEdited,
         options = listOf(
             MetricCardOption(
                 id = "clear",

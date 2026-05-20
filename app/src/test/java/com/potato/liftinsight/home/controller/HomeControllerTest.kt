@@ -257,7 +257,7 @@ class HomeControllerTest {
     }
 
     @Test
-    fun addMotionToPlan_persistsMotionForSelectedDayAndReturnsToEditor() = runBlocking {
+    fun addMotionToPlan_persistsMotionForSelectedDayAndOpensMotionDetail() = runBlocking {
         val controller = controller()
         val detailState = controller.showPlanDetail(initialState(controller), 1)
         val pickerState = controller.openAddMotionPicker(detailState)
@@ -265,19 +265,42 @@ class HomeControllerTest {
 
         val updatedState = controller.addMotionToPlan(pickerState, motion)
         val updatedPlan = updatedState.trainingPlans.first { it.id == 1 }
-        val addedMotionEntryId = updatedPlan.motions.last().entryId
+        val destination = updatedState.planDestination as PlanDestination.Motion
+        val addedMotion = updatedState.planEditor
+            ?.motions
+            ?.firstOrNull { planMotion -> planMotion.entryId == destination.motionEntryId }
 
         assertEquals(4, updatedPlan.motions.size)
-        assertEquals(1, updatedPlan.motions.last().sets)
-        assertEquals(1, updatedPlan.motions.last().repsPerSet)
-        assertEquals(0.0, updatedPlan.motions.last().intensity, 0.0)
-        assertEquals(1, updatedPlan.motions.last().dayIndex)
-        assertEquals(PlanDestination.Editor, updatedState.planDestination)
+        assertEquals(2, updatedPlan.motions.count { planMotion -> planMotion.title == "Snatch" })
+        assertEquals(1, addedMotion?.sets)
+        assertEquals(1, addedMotion?.repsPerSet)
+        assertEquals(0.0, addedMotion?.intensity ?: Double.NaN, 0.0)
+        assertEquals(0.0, addedMotion?.weight ?: Double.NaN, 0.0)
+        assertEquals(1, addedMotion?.dayIndex)
+        assertEquals(PlanDestination.Motion(motionEntryId = destination.motionEntryId), updatedState.planDestination)
         assertEquals(1, updatedState.planEditor?.selectedDayIndex)
-        assertEquals(
-            addedMotionEntryId,
-            updatedState.planEditor?.motions?.last()?.entryId
+    }
+
+    @Test
+    fun updateMotionWeight_persistsWeightAndClampsNegativeValues() = runBlocking {
+        val controller = controller()
+        val detailState = controller.showPlanDetail(initialState(controller), 1)
+
+        val weightedState = controller.updateMotionWeight(
+            state = detailState,
+            motionEntryId = 1,
+            weight = 92.5
         )
+        val clampedState = controller.updateMotionWeight(
+            state = weightedState,
+            motionEntryId = 1,
+            weight = -3.0
+        )
+
+        assertEquals(92.5, weightedState.trainingPlans.first { it.id == 1 }.motions.first().weight, 0.0)
+        assertEquals(92.5, weightedState.planEditor?.motions?.first()?.weight ?: Double.NaN, 0.0)
+        assertEquals(0.0, clampedState.trainingPlans.first { it.id == 1 }.motions.first().weight, 0.0)
+        assertEquals(0.0, clampedState.planEditor?.motions?.first()?.weight ?: Double.NaN, 0.0)
     }
 
     @Test

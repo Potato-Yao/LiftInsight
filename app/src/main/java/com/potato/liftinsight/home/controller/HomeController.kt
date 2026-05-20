@@ -429,6 +429,33 @@ class HomeController(
         return persistEditorPlan(state, updatedEditor) ?: state
     }
 
+    suspend fun updateMotionWeight(
+        state: HomeState,
+        motionEntryId: Int,
+        weight: Double
+    ): HomeState {
+        val editor = state.planEditor ?: return state
+        val updatedEditor = editor.copy(
+            motions = editor.motions.map { motion ->
+                if (motion.entryId == motionEntryId) {
+                    motion.copy(weight = weight.coerceAtLeast(0.0))
+                } else {
+                    motion
+                }
+            }
+        )
+
+        if (updatedEditor == editor) {
+            return state
+        }
+
+        if (updatedEditor.isNewPlan) {
+            return state.copy(planEditor = updatedEditor)
+        }
+
+        return persistEditorPlan(state, updatedEditor) ?: state
+    }
+
     fun requestPlanDeletion(
         state: HomeState,
         planId: Int
@@ -533,6 +560,7 @@ class HomeController(
     ): HomeState {
         val editor = state.planEditor ?: return state
         val selectedDayIndex = editor.selectedDayIndex ?: return state
+        val addedMotionEntryId = editor.nextTemporaryMotionEntryId
         val nextOrderIndex = editor.motions
             .filter { existingMotion -> existingMotion.dayIndex == selectedDayIndex }
             .maxOfOrNull { existingMotion -> existingMotion.orderIndex }
@@ -541,13 +569,14 @@ class HomeController(
         val updatedEditor = editor.copy(
             motions = normalizeEditorMotions(
                 motions = editor.motions + PlanMotionState(
-                    entryId = editor.nextTemporaryMotionEntryId,
+                    entryId = addedMotionEntryId,
                     motionId = motion.id,
                     title = motion.title,
                     dayIndex = selectedDayIndex,
                     sets = 1,
                     repsPerSet = 1,
                     intensity = 0.0,
+                    weight = 0.0,
                     orderIndex = nextOrderIndex
                 ),
                 cyclePeriod = editor.cyclePeriod
@@ -557,7 +586,7 @@ class HomeController(
 
         if (updatedEditor.isNewPlan) {
             return state.copy(
-                planDestination = PlanDestination.Editor,
+                planDestination = PlanDestination.Motion(motionEntryId = addedMotionEntryId),
                 planEditor = updatedEditor
             )
         }
@@ -565,7 +594,7 @@ class HomeController(
         return persistEditorPlan(
             state = state,
             editor = updatedEditor,
-            requestedDestination = PlanDestination.Editor
+            requestedDestination = PlanDestination.Motion(motionEntryId = addedMotionEntryId)
         ) ?: state
     }
 

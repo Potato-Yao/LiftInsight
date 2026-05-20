@@ -96,6 +96,12 @@
     <string name="motion_detail_title_label">Motion title</string>
     <string name="motion_detail_sets_label">Sets</string>
     <string name="motion_detail_reps_per_set_label">Reps per set</string>
+    <string name="motion_detail_weight_label">Target weight</string>
+    <string name="motion_detail_weight_not_set">Not set</string>
+    <string name="motion_detail_weight_value">%1$s kg</string>
+    <string name="motion_detail_weight_dialog_title">Set target weight</string>
+    <string name="motion_detail_weight_invalid_error">Enter a valid weight.</string>
+    <string name="motion_detail_edit_weight_content_description">Edit target weight</string>
     <string name="motion_detail_delete_label">Delete motion</string>
     <string name="motion_detail_decrease_value_content_description">Decrease %1$s</string>
     <string name="motion_detail_increase_value_content_description">Increase %1$s</string>
