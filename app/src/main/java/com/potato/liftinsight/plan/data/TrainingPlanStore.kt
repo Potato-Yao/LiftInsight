@@ -7,6 +7,7 @@ import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.normalizePlanDayIndex
 import com.potato.liftinsight.plan.model.sortPlansByLastApplied
 import com.potato.liftinsight.training.data.CreateMotionRequest
+import com.potato.liftinsight.training.data.CreateMetaPlanRequest
 import com.potato.liftinsight.training.data.CreatePlanRequest
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.MetaPlanRecord
@@ -76,15 +77,31 @@ class TrainingPlanStore private constructor(
     }
 
     fun createTrainingPlan(
-        name: String,
-        createdAt: Long
+        plan: TrainingPlanState
     ): Int {
         return planStore.createPlan(
             CreatePlanRequest(
-                name = name,
-                cyclePeriod = DEFAULT_CYCLE_PERIOD,
-                currentIndex = DEFAULT_CURRENT_INDEX,
-                lastAppliedAt = createdAt
+                name = plan.name,
+                cyclePeriod = plan.cyclePeriod,
+                currentIndex = normalizePlanDayIndex(
+                    dayIndex = plan.currentIndex,
+                    cyclePeriod = plan.cyclePeriod
+                ),
+                lastAppliedAt = plan.lastAppliedAt,
+                metaPlans = plan.motions.map { motion ->
+                    CreateMetaPlanRequest(
+                        motionId = motion.motionId,
+                        dayIndex = normalizePlanDayIndex(
+                            dayIndex = motion.dayIndex,
+                            cyclePeriod = plan.cyclePeriod
+                        ),
+                        sets = motion.sets,
+                        reps = motion.repsPerSet,
+                        intensity = motion.intensity,
+                        weight = 0.0,
+                        orderIndex = motion.orderIndex
+                    )
+                }
             )
         )
     }
@@ -110,8 +127,10 @@ class TrainingPlanStore private constructor(
 
         plans.forEach { plan ->
             val createdPlanId = createTrainingPlan(
-                name = plan.name,
-                createdAt = plan.lastAppliedAt
+                plan = plan.copy(
+                    id = 0,
+                    motions = emptyList()
+                )
             )
             createdPlanIds[plan.id] = createdPlanId
 
@@ -134,9 +153,6 @@ class TrainingPlanStore private constructor(
     }
 
     companion object {
-        private const val DEFAULT_CYCLE_PERIOD = 7
-        private const val DEFAULT_CURRENT_INDEX = 1
-
         fun from(context: Context): TrainingPlanStore {
             return fromDatabase(LiftInsightDatabase.from(context))
         }
@@ -164,15 +180,16 @@ private fun PlanRecord.toState(): TrainingPlanState {
             cyclePeriod = cyclePeriod
         ),
         motions = sortedMetaPlans
-            .mapIndexed { index, metaPlan ->
+            .map { metaPlan ->
                 PlanMotionState(
                     entryId = metaPlan.id,
                     motionId = metaPlan.motionId,
                     title = metaPlan.motionName,
+                    dayIndex = metaPlan.dayIndex,
                     sets = metaPlan.sets,
                     repsPerSet = metaPlan.reps,
                     intensity = metaPlan.intensity,
-                    orderIndex = index + 1
+                    orderIndex = metaPlan.orderIndex
                 )
             }
     )
@@ -188,16 +205,20 @@ private fun TrainingPlanState.toRecord(): PlanRecord {
             cyclePeriod = cyclePeriod
         ),
         lastAppliedAt = lastAppliedAt,
-        metaPlans = motions.mapIndexed { index, motion ->
+        metaPlans = motions.map { motion ->
             MetaPlanRecord(
                 id = motion.entryId,
                 motionId = motion.motionId,
                 motionName = motion.title,
+                dayIndex = normalizePlanDayIndex(
+                    dayIndex = motion.dayIndex,
+                    cyclePeriod = cyclePeriod
+                ),
                 sets = motion.sets,
                 reps = motion.repsPerSet,
                 intensity = motion.intensity,
                 weight = 0.0,
-                orderIndex = index + 1
+                orderIndex = motion.orderIndex
             )
         }
     )

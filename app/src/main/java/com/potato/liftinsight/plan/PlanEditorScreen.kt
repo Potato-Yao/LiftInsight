@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
@@ -45,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
+import com.potato.liftinsight.home.controller.PlanEditorState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
@@ -164,19 +166,34 @@ internal fun PlanPickerScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-internal fun PlanDetailScreen(
-    plan: TrainingPlanState,
+internal fun PlanEditorScreen(
+    editor: PlanEditorState,
     onBack: () -> Unit,
-    onRenamePlan: (String) -> Unit,
+    onUpdateTitle: (String) -> Unit,
+    onUpdateCyclePeriod: (Int?) -> Unit,
+    onSelectDay: (Int) -> Unit,
     onMoveMotionUp: (motionEntryId: Int) -> Unit,
     onMoveMotionDown: (motionEntryId: Int) -> Unit,
     onEditMotion: (motionEntryId: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showRenameDialog by remember { mutableStateOf(false) }
-    var draftPlanName by remember(plan.id, plan.name) { mutableStateOf(plan.name) }
+    var draftPlanName by remember(editor.planId, editor.title) { mutableStateOf(editor.title) }
+    var showCyclePeriodDialog by remember { mutableStateOf(false) }
+    var draftCyclePeriodText by remember(editor.planId, editor.cyclePeriod) {
+        mutableStateOf(editor.cyclePeriod?.toString().orEmpty())
+    }
+    val motionsForSelectedDay = remember(editor.selectedDayIndex, editor.motions) {
+        val selectedDayIndex = editor.selectedDayIndex
+
+        if (selectedDayIndex == null) {
+            emptyList()
+        } else {
+            editor.motions.filter { motion -> motion.dayIndex == selectedDayIndex }
+        }
+    }
 
     if (showRenameDialog) {
         AlertDialog(
@@ -190,6 +207,7 @@ internal fun PlanDetailScreen(
                     onValueChange = { draftPlanName = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    isError = editor.titleError,
                     label = {
                         Text(text = stringResource(R.string.plan_title_label))
                     }
@@ -198,7 +216,7 @@ internal fun PlanDetailScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        onRenamePlan(draftPlanName)
+                        onUpdateTitle(draftPlanName)
                         showRenameDialog = false
                     }
                 ) {
@@ -213,13 +231,59 @@ internal fun PlanDetailScreen(
         )
     }
 
+    if (showCyclePeriodDialog) {
+        AlertDialog(
+            onDismissRequest = { showCyclePeriodDialog = false },
+            title = {
+                Text(text = stringResource(R.string.plan_cycle_period_label))
+            },
+            text = {
+                OutlinedTextField(
+                    value = draftCyclePeriodText,
+                    onValueChange = { value ->
+                        draftCyclePeriodText = value.filter { character -> character.isDigit() }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = editor.cyclePeriodError,
+                    label = {
+                        Text(text = stringResource(R.string.plan_cycle_period_label))
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onUpdateCyclePeriod(draftCyclePeriodText.toIntOrNull())
+                        showCyclePeriodDialog = false
+                    }
+                ) {
+                    Text(text = stringResource(R.string.common_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCyclePeriodDialog = false }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
-                    Text(text = stringResource(R.string.plan_detail_top_bar_title))
+                    Text(
+                        text = stringResource(
+                            if (editor.isNewPlan) {
+                                R.string.plan_create_top_bar_title
+                            } else {
+                                R.string.plan_detail_top_bar_title
+                            }
+                        )
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -244,41 +308,87 @@ internal fun PlanDetailScreen(
         ) {
             item(key = "planTitle") {
                 PlanTitleRow(
-                    title = plan.name,
+                    title = editor.title,
+                    placeholder = stringResource(R.string.plan_title_placeholder),
+                    isError = editor.titleError,
+                    errorText = stringResource(R.string.plan_title_required_error),
                     onEdit = {
-                        draftPlanName = plan.name
+                        draftPlanName = editor.title
                         showRenameDialog = true
                     }
                 )
             }
 
-            if (plan.motions.isEmpty()) {
-                item(key = "emptyMotions") {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        shape = RoundedCornerShape(28.dp),
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                        )
-                    ) {
-                        Text(
-                            text = stringResource(R.string.plan_detail_empty_motions),
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+            item(key = "cyclePeriod") {
+                PlanCyclePeriodRow(
+                    cyclePeriod = editor.cyclePeriod,
+                    isError = editor.cyclePeriodError,
+                    onEdit = {
+                        draftCyclePeriodText = editor.cyclePeriod?.toString().orEmpty()
+                        showCyclePeriodDialog = true
                     }
+                )
+            }
+
+            if (editor.cyclePeriod != null) {
+                item(key = "daySelector") {
+                    PlanDaySelectorCard(
+                        cyclePeriod = editor.cyclePeriod,
+                        selectedDayIndex = editor.selectedDayIndex,
+                        onSelectDay = onSelectDay
+                    )
+                }
+            }
+
+            item(key = "motionsTitle") {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = stringResource(R.string.plan_detail_motions_section_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Text(
+                        text = stringResource(R.string.plan_detail_motions_section_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (editor.cyclePeriod == null) {
+                item(key = "missingCycle") {
+                    PlanEditorEmptyMessage(
+                        text = stringResource(R.string.plan_set_cycle_period_first),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            } else if (editor.selectedDayIndex == null) {
+                item(key = "missingDay") {
+                    PlanEditorEmptyMessage(
+                        text = stringResource(R.string.plan_select_day_to_manage_motions),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            } else if (motionsForSelectedDay.isEmpty()) {
+                item(key = "emptyMotions") {
+                    PlanEditorEmptyMessage(
+                        text = stringResource(
+                            R.string.plan_detail_empty_motions_for_day,
+                            editor.selectedDayIndex
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             } else {
                 itemsIndexed(
-                    items = plan.motions,
+                    items = motionsForSelectedDay,
                     key = { _, motion -> motion.entryId }
                 ) { index, motion ->
                     PlanMotionRow(
                         motion = motion,
                         isMoveUpEnabled = index > 0,
-                        isMoveDownEnabled = index < plan.motions.lastIndex,
+                        isMoveDownEnabled = index < motionsForSelectedDay.lastIndex,
                         onMoveUp = { onMoveMotionUp(motion.entryId) },
                         onMoveDown = { onMoveMotionDown(motion.entryId) },
                         onEdit = { onEditMotion(motion.entryId) }
@@ -391,47 +501,236 @@ internal fun MotionDetailScreen(
 @Composable
 private fun PlanTitleRow(
     title: String,
+    placeholder: String,
+    isError: Boolean,
+    errorText: String,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val borderColor = if (isError) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+    }
+
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(28.dp),
         border = BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+            color = borderColor
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, top = 18.dp, end = 8.dp, bottom = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, top = 18.dp, end = 8.dp, bottom = if (isError) 8.dp else 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.plan_title_label),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.plan_title_label),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (isError) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
 
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
+                    Text(
+                        text = title.ifBlank { placeholder },
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (title.isBlank()) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        }
+                    )
+                }
+
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = stringResource(R.string.plan_edit_title_content_description)
+                    )
+                }
             }
 
-            IconButton(onClick = onEdit) {
-                Icon(
-                    imageVector = Icons.Rounded.Edit,
-                    contentDescription = stringResource(R.string.plan_edit_title_content_description)
+            if (isError) {
+                Text(
+                    text = errorText,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanCyclePeriodRow(
+    cyclePeriod: Int?,
+    isError: Boolean,
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (isError) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = borderColor
+        )
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, top = 18.dp, end = 8.dp, bottom = if (isError) 8.dp else 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.plan_cycle_period_label),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (isError) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+
+                    Text(
+                        text = if (cyclePeriod == null) {
+                            stringResource(R.string.plan_cycle_period_placeholder)
+                        } else {
+                            stringResource(R.string.plan_cycle_period_value, cyclePeriod)
+                        },
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (cyclePeriod == null) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        }
+                    )
+                }
+
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        imageVector = Icons.Rounded.EventRepeat,
+                        contentDescription = stringResource(R.string.plan_edit_cycle_period_content_description)
+                    )
+                }
+            }
+
+            if (isError) {
+                Text(
+                    text = stringResource(R.string.plan_cycle_period_required_error),
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PlanDaySelectorCard(
+    cyclePeriod: Int,
+    selectedDayIndex: Int?,
+    onSelectDay: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = RoundedCornerShape(32.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.plan_day_picker_label),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+            )
+
+            Text(
+                text = if (selectedDayIndex == null) {
+                    stringResource(R.string.plan_day_picker_placeholder)
+                } else {
+                    stringResource(R.string.plan_today_day_label, selectedDayIndex)
+                },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (dayIndex in 1..cyclePeriod) {
+                    val isSelected = dayIndex == selectedDayIndex
+
+                    Surface(
+                        modifier = Modifier.clickable { onSelectDay(dayIndex) },
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                            }
+                        )
+                    ) {
+                        Text(
+                            text = dayIndex.toString(),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -685,7 +984,7 @@ private fun PlanMotionRow(
                 Text(
                     text = stringResource(
                         R.string.plan_motion_day_summary,
-                        motion.orderIndex,
+                        motion.dayIndex,
                         motion.sets,
                         motion.repsPerSet
                     ),
@@ -812,6 +1111,29 @@ private fun DeleteRow(
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
         }
+    }
+}
+
+@Composable
+private fun PlanEditorEmptyMessage(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+        )
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

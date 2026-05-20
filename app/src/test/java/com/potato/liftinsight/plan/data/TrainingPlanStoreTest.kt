@@ -73,7 +73,7 @@ class TrainingPlanStoreTest {
                     lastAppliedAt = 100L,
                     currentIndex = 1,
                     motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 1, title = "Snatch", sets = 5, repsPerSet = 2, intensity = 0.82, orderIndex = 1)
+                        PlanMotionState(entryId = 1, motionId = 1, title = "Snatch", dayIndex = 1, sets = 5, repsPerSet = 2, intensity = 0.82, orderIndex = 1)
                     )
                 ),
                 TrainingPlanState(
@@ -82,7 +82,7 @@ class TrainingPlanStoreTest {
                     lastAppliedAt = 200L,
                     currentIndex = 1,
                     motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 2, title = "Clean & Jerk", sets = 6, repsPerSet = 1, intensity = 0.9, orderIndex = 1)
+                        PlanMotionState(entryId = 1, motionId = 2, title = "Clean & Jerk", dayIndex = 1, sets = 6, repsPerSet = 1, intensity = 0.9, orderIndex = 1)
                     )
                 )
             ),
@@ -109,7 +109,15 @@ class TrainingPlanStoreTest {
             )
         )
         val storedMotions = trainingPlanStore.getAvailableMotions().associateBy { motion -> motion.title }
-        val createdPlanId = trainingPlanStore.createTrainingPlan("Strength Base", 300L)
+        val createdPlanId = trainingPlanStore.createTrainingPlan(
+            TrainingPlanState(
+                id = 0,
+                name = "Strength Base",
+                lastAppliedAt = 300L,
+                cyclePeriod = 10,
+                currentIndex = 2
+            )
+        )
 
         val initialPlan = TrainingPlanState(
             id = createdPlanId,
@@ -122,6 +130,7 @@ class TrainingPlanStoreTest {
                     entryId = 1,
                     motionId = storedMotions.getValue("Snatch").id,
                     title = "Snatch",
+                    dayIndex = 1,
                     sets = 5,
                     repsPerSet = 2,
                     intensity = 0.8,
@@ -131,6 +140,7 @@ class TrainingPlanStoreTest {
                     entryId = 2,
                     motionId = storedMotions.getValue("Front Squat").id,
                     title = "Front Squat",
+                    dayIndex = 1,
                     sets = 4,
                     repsPerSet = 3,
                     intensity = 0.78,
@@ -148,6 +158,7 @@ class TrainingPlanStoreTest {
                     entryId = 3,
                     motionId = storedMotions.getValue("Snatch").id,
                     title = "Snatch",
+                    dayIndex = 1,
                     sets = 3,
                     repsPerSet = 3,
                     intensity = 0.7,

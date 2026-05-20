@@ -66,11 +66,46 @@ internal fun MotionScreen(
     onMotionNameChange: (String) -> Unit,
     onSubmitMotion: () -> Unit,
     onDeleteMotion: () -> Unit,
+    selectionTitle: String? = null,
+    onBackFromSelection: (() -> Unit)? = null,
+    onSelectMotion: ((Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val editor = state.editor
 
     if (editor == null) {
+        if (selectionTitle != null && onBackFromSelection != null && onSelectMotion != null) {
+            Scaffold(
+                modifier = modifier.fillMaxSize(),
+                containerColor = MaterialTheme.colorScheme.background,
+                topBar = {
+                    TopAppBar(
+                        title = {
+                            Text(text = selectionTitle)
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onBackFromSelection) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = stringResource(R.string.common_back)
+                                )
+                            }
+                        }
+                    )
+                }
+            ) { innerPadding ->
+                MotionLibraryList(
+                    sections = state.sections,
+                    onEditMotion = onEditMotion,
+                    onSelectMotion = onSelectMotion,
+                    isSelectionMode = true,
+                    modifier = Modifier.padding(innerPadding)
+                )
+            }
+
+            return
+        }
+
         Scaffold(
             modifier = modifier.fillMaxSize(),
             containerColor = MaterialTheme.colorScheme.background,
@@ -86,6 +121,8 @@ internal fun MotionScreen(
             MotionLibraryList(
                 sections = state.sections,
                 onEditMotion = onEditMotion,
+                onSelectMotion = null,
+                isSelectionMode = false,
                 modifier = Modifier.padding(innerPadding)
             )
         }
@@ -134,6 +171,8 @@ internal fun MotionScreen(
 private fun MotionLibraryList(
     sections: List<MotionSectionState>,
     onEditMotion: (Int) -> Unit,
+    onSelectMotion: ((Int) -> Unit)?,
+    isSelectionMode: Boolean,
     modifier: Modifier = Modifier
 ) {
     var showContent by remember { mutableStateOf(false) }
@@ -250,7 +289,13 @@ private fun MotionLibraryList(
                 ) {
                     MotionRow(
                         motion = motion,
-                        onEdit = { onEditMotion(motion.id) }
+                        onEdit = { onEditMotion(motion.id) },
+                        onSelect = if (onSelectMotion == null) {
+                            null
+                        } else {
+                            { onSelectMotion(motion.id) }
+                        },
+                        isSelectionMode = isSelectionMode
                     )
                 }
 
@@ -324,10 +369,14 @@ private fun MotionSummaryCard(
 private fun MotionRow(
     motion: MotionRowState,
     onEdit: () -> Unit,
+    onSelect: (() -> Unit)?,
+    isSelectionMode: Boolean,
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(enabled = onSelect != null, onClick = { onSelect?.invoke() }),
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(28.dp),
         border = BorderStroke(
@@ -361,14 +410,23 @@ private fun MotionRow(
                 fontWeight = FontWeight.SemiBold
             )
 
-            IconButton(onClick = onEdit) {
-                Icon(
-                    imageVector = Icons.Rounded.Edit,
-                    contentDescription = stringResource(
-                        R.string.motion_edit_content_description,
-                        motion.name
-                    )
+            if (isSelectionMode) {
+                Text(
+                    text = stringResource(R.string.motion_choose_action),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
                 )
+            } else {
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = stringResource(
+                            R.string.motion_edit_content_description,
+                            motion.name
+                        )
+                    )
+                }
             }
         }
     }

@@ -14,6 +14,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -54,9 +56,9 @@ class HomeControllerTest {
                     lastAppliedAt = 1715600000000,
                     currentIndex = 1,
                     motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 1, title = "Snatch", sets = 5, repsPerSet = 2, intensity = 0.82, orderIndex = 1),
-                        PlanMotionState(entryId = 2, motionId = 6, title = "Front Squat", sets = 5, repsPerSet = 3, intensity = 0.78, orderIndex = 2),
-                        PlanMotionState(entryId = 3, motionId = 3, title = "Snatch Pull", sets = 4, repsPerSet = 3, intensity = 0.9, orderIndex = 3)
+                        PlanMotionState(entryId = 1, motionId = 1, title = "Snatch", dayIndex = 1, sets = 5, repsPerSet = 2, intensity = 0.82, orderIndex = 1),
+                        PlanMotionState(entryId = 2, motionId = 6, title = "Front Squat", dayIndex = 2, sets = 5, repsPerSet = 3, intensity = 0.78, orderIndex = 1),
+                        PlanMotionState(entryId = 3, motionId = 3, title = "Snatch Pull", dayIndex = 3, sets = 4, repsPerSet = 3, intensity = 0.9, orderIndex = 1)
                     )
                 ),
                 TrainingPlanState(
@@ -65,9 +67,9 @@ class HomeControllerTest {
                     lastAppliedAt = 1715800000000,
                     currentIndex = 1,
                     motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 2, title = "Clean & Jerk", sets = 6, repsPerSet = 1, intensity = 0.92, orderIndex = 1),
-                        PlanMotionState(entryId = 2, motionId = 1, title = "Snatch", sets = 5, repsPerSet = 1, intensity = 0.88, orderIndex = 2),
-                        PlanMotionState(entryId = 3, motionId = 5, title = "Push Press", sets = 4, repsPerSet = 3, intensity = 0.8, orderIndex = 3)
+                        PlanMotionState(entryId = 1, motionId = 2, title = "Clean & Jerk", dayIndex = 1, sets = 6, repsPerSet = 1, intensity = 0.92, orderIndex = 1),
+                        PlanMotionState(entryId = 2, motionId = 1, title = "Snatch", dayIndex = 2, sets = 5, repsPerSet = 1, intensity = 0.88, orderIndex = 1),
+                        PlanMotionState(entryId = 3, motionId = 5, title = "Push Press", dayIndex = 3, sets = 4, repsPerSet = 3, intensity = 0.8, orderIndex = 1)
                     )
                 ),
                 TrainingPlanState(
@@ -76,9 +78,9 @@ class HomeControllerTest {
                     lastAppliedAt = 1715400000000,
                     currentIndex = 1,
                     motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 1, title = "Snatch", sets = 6, repsPerSet = 2, intensity = 0.74, orderIndex = 1),
-                        PlanMotionState(entryId = 2, motionId = 2, title = "Clean & Jerk", sets = 5, repsPerSet = 2, intensity = 0.76, orderIndex = 2),
-                        PlanMotionState(entryId = 3, motionId = 4, title = "Clean Pull", sets = 4, repsPerSet = 3, intensity = 0.84, orderIndex = 3)
+                        PlanMotionState(entryId = 1, motionId = 1, title = "Snatch", dayIndex = 1, sets = 6, repsPerSet = 2, intensity = 0.74, orderIndex = 1),
+                        PlanMotionState(entryId = 2, motionId = 2, title = "Clean & Jerk", dayIndex = 2, sets = 5, repsPerSet = 2, intensity = 0.76, orderIndex = 1),
+                        PlanMotionState(entryId = 3, motionId = 4, title = "Clean Pull", dayIndex = 3, sets = 4, repsPerSet = 3, intensity = 0.84, orderIndex = 1)
                     )
                 ),
                 TrainingPlanState(
@@ -87,9 +89,9 @@ class HomeControllerTest {
                     lastAppliedAt = 1715200000000,
                     currentIndex = 1,
                     motions = listOf(
-                        PlanMotionState(entryId = 1, motionId = 4, title = "Clean Pull", sets = 5, repsPerSet = 3, intensity = 0.86, orderIndex = 1),
-                        PlanMotionState(entryId = 2, motionId = 7, title = "Back Squat", sets = 5, repsPerSet = 5, intensity = 0.8, orderIndex = 2),
-                        PlanMotionState(entryId = 3, motionId = 5, title = "Push Press", sets = 4, repsPerSet = 4, intensity = 0.72, orderIndex = 3)
+                        PlanMotionState(entryId = 1, motionId = 4, title = "Clean Pull", dayIndex = 1, sets = 5, repsPerSet = 3, intensity = 0.86, orderIndex = 1),
+                        PlanMotionState(entryId = 2, motionId = 7, title = "Back Squat", dayIndex = 2, sets = 5, repsPerSet = 5, intensity = 0.8, orderIndex = 1),
+                        PlanMotionState(entryId = 3, motionId = 5, title = "Push Press", dayIndex = 3, sets = 4, repsPerSet = 4, intensity = 0.72, orderIndex = 1)
                     )
                 )
             ),
@@ -151,40 +153,64 @@ class HomeControllerTest {
     }
 
     @Test
-    fun createPlan_persistsPlanAndOpensItsDetail() = runBlocking {
+    fun createPlan_opensDraftEditorWithoutPersisting() = runBlocking {
         val controller = controller(nowProvider = { 900L })
-        val updatedState = controller.createPlan(initialState(controller), " New Plan ")
+        val initialState = initialState(controller)
+
+        val updatedState = controller.createPlan(initialState)
+
+        assertEquals(initialState.trainingPlans.size, updatedState.trainingPlans.size)
+        assertEquals(PlanDestination.Editor, updatedState.planDestination)
+        assertNotNull(updatedState.planEditor)
+        assertTrue(updatedState.planEditor?.isNewPlan == true)
+        assertEquals("", updatedState.planEditor?.title)
+        assertNull(updatedState.planEditor?.cyclePeriod)
+    }
+
+    @Test
+    fun submitPlanEditor_persistsNewPlanAndKeepsEditorOpen() = runBlocking {
+        val controller = controller(nowProvider = { 900L })
+        val createdState = controller.createPlan(initialState(controller))
+        val titledState = controller.updatePlanEditorTitle(createdState, " New Plan ")
+        val configuredState = controller.updatePlanEditorCyclePeriod(titledState, 9)
+
+        val updatedState = controller.submitPlanEditor(configuredState)
         val createdPlan = updatedState.trainingPlans.first { it.name == "New Plan" }
 
         assertEquals(900L, createdPlan.lastAppliedAt)
         assertEquals(5, updatedState.trainingPlans.size)
-        assertEquals(PlanDestination.Detail(createdPlan.id), updatedState.planDestination)
-        assertEquals(createdPlan.id, updatedState.draftPlanId)
+        assertEquals(PlanDestination.Editor, updatedState.planDestination)
+        assertEquals(createdPlan.id, updatedState.planEditor?.planId)
+        assertEquals("New Plan", updatedState.planEditor?.title)
+        assertEquals(9, updatedState.planEditor?.cyclePeriod)
+        assertFalse(updatedState.planEditor?.isNewPlan ?: true)
     }
 
     @Test
-    fun handlePlanBack_discardsNewDraftPlanAndReturnsToList() = runBlocking {
+    fun handlePlanBack_closesNewDraftEditorAndReturnsToList() = runBlocking {
         val controller = controller(nowProvider = { 900L })
-        val createdState = controller.createPlan(initialState(controller), "New Plan")
-        val draftPlanId = createdState.draftPlanId ?: error("Expected a draft plan id.")
+        val initialState = initialState(controller)
+        val createdState = controller.createPlan(initialState)
+        val renamedState = controller.updatePlanEditorTitle(createdState, "Temporary Draft")
 
-        val renamedState = controller.renamePlan(createdState, draftPlanId, "Temporary Draft")
         val updatedState = controller.handlePlanBack(renamedState)
 
-        assertFalse(updatedState.trainingPlans.any { it.id == draftPlanId })
         assertFalse(updatedState.trainingPlans.any { it.name == "Temporary Draft" })
         assertEquals(PlanDestination.List, updatedState.planDestination)
-        assertEquals(null, updatedState.draftPlanId)
+        assertNull(updatedState.planEditor)
+        assertEquals(initialState.trainingPlans.size, updatedState.trainingPlans.size)
     }
 
     @Test
-    fun handlePlanBack_fromMotionReturnsToPlanDetail() = runBlocking {
+    fun handlePlanBack_fromMotionReturnsToEditor() = runBlocking {
         val controller = controller()
-        val state = controller.showMotionDetail(initialState(controller), 1, 2)
+        val detailState = controller.showPlanDetail(initialState(controller), 1)
+        val state = controller.showMotionDetail(detailState, 2)
 
         val updatedState = controller.handlePlanBack(state)
 
-        assertEquals(PlanDestination.Detail(1), updatedState.planDestination)
+        assertEquals(PlanDestination.Editor, updatedState.planDestination)
+        assertEquals(1, updatedState.planEditor?.planId)
     }
 
     @Test
@@ -231,11 +257,13 @@ class HomeControllerTest {
     }
 
     @Test
-    fun addMotionToPlan_closesPickerAndOpensMotionDetail() = runBlocking {
+    fun addMotionToPlan_persistsMotionForSelectedDayAndReturnsToEditor() = runBlocking {
         val controller = controller()
-        val state = controller.openAddMotionPicker(initialState(controller), 1)
-        val motion = state.availableMotions.first { it.title == "Snatch" }
-        val updatedState = controller.addMotionToPlan(state, 1, motion)
+        val detailState = controller.showPlanDetail(initialState(controller), 1)
+        val pickerState = controller.openAddMotionPicker(detailState)
+        val motion = pickerState.availableMotions.first { it.title == "Snatch" }
+
+        val updatedState = controller.addMotionToPlan(pickerState, motion)
         val updatedPlan = updatedState.trainingPlans.first { it.id == 1 }
         val addedMotionEntryId = updatedPlan.motions.last().entryId
 
@@ -243,23 +271,27 @@ class HomeControllerTest {
         assertEquals(1, updatedPlan.motions.last().sets)
         assertEquals(1, updatedPlan.motions.last().repsPerSet)
         assertEquals(0.0, updatedPlan.motions.last().intensity, 0.0)
-        assertEquals(null, updatedState.addMotionPlanId)
+        assertEquals(1, updatedPlan.motions.last().dayIndex)
+        assertEquals(PlanDestination.Editor, updatedState.planDestination)
+        assertEquals(1, updatedState.planEditor?.selectedDayIndex)
         assertEquals(
-            PlanDestination.Motion(planId = 1, motionEntryId = addedMotionEntryId),
-            updatedState.planDestination
+            addedMotionEntryId,
+            updatedState.planEditor?.motions?.last()?.entryId
         )
     }
 
     @Test
-    fun confirmMotionDeletion_removesMotionAndReturnsToDetail() = runBlocking {
+    fun confirmMotionDeletion_removesMotionAndReturnsToEditor() = runBlocking {
         val controller = controller()
-        val state = controller.requestMotionDeletion(initialState(controller), 1, 2)
+        val detailState = controller.showPlanDetail(initialState(controller), 1)
+        val state = controller.requestMotionDeletion(detailState, 2)
         val updatedState = controller.confirmMotionDeletion(state)
         val updatedPlan = updatedState.trainingPlans.first { it.id == 1 }
 
         assertEquals(listOf(1, 3), updatedPlan.motions.map { it.entryId })
-        assertEquals(PlanDestination.Detail(1), updatedState.planDestination)
-        assertEquals(null, updatedState.motionPendingDelete)
+        assertEquals(PlanDestination.Editor, updatedState.planDestination)
+        assertNull(updatedState.motionPendingDelete)
+        assertEquals(listOf(1, 3), updatedState.planEditor?.motions?.map { it.entryId })
     }
 
     @Test

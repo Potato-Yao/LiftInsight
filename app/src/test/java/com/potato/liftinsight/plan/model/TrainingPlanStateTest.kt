@@ -13,8 +13,8 @@ class TrainingPlanStateTest {
             lastAppliedAt = 100L,
             currentIndex = 2,
             motions = listOf(
-                PlanMotionState(entryId = 1, motionId = 10, title = "Snatch", sets = 5, repsPerSet = 2, intensity = 0.82, orderIndex = 1),
-                PlanMotionState(entryId = 2, motionId = 11, title = "Front Squat", sets = 4, repsPerSet = 3, intensity = 0.78, orderIndex = 2)
+                PlanMotionState(entryId = 1, motionId = 10, title = "Snatch", dayIndex = 1, sets = 5, repsPerSet = 2, intensity = 0.82, orderIndex = 1),
+                PlanMotionState(entryId = 2, motionId = 11, title = "Front Squat", dayIndex = 2, sets = 4, repsPerSet = 3, intensity = 0.78, orderIndex = 1)
             )
         ),
         TrainingPlanState(
@@ -22,7 +22,7 @@ class TrainingPlanStateTest {
             name = "Peak",
             lastAppliedAt = 200L,
             motions = listOf(
-                PlanMotionState(entryId = 1, motionId = 12, title = "Clean & Jerk", sets = 6, repsPerSet = 1, intensity = 0.9, orderIndex = 1)
+                PlanMotionState(entryId = 1, motionId = 12, title = "Clean & Jerk", dayIndex = 1, sets = 6, repsPerSet = 1, intensity = 0.9, orderIndex = 1)
             )
         )
     )
@@ -72,6 +72,7 @@ class TrainingPlanStateTest {
         val result = createTrainingPlan(
             plans = basePlans,
             name = "Technique",
+            cyclePeriod = 7,
             createdAt = 300L
         )
 
@@ -110,6 +111,7 @@ class TrainingPlanStateTest {
         val result = addMotionToPlan(
             plans = basePlans,
             planId = 1,
+            dayIndex = 2,
             motion = AvailableMotionState(
                 id = 20,
                 title = "Push Press"
@@ -123,7 +125,8 @@ class TrainingPlanStateTest {
         assertEquals(1, addedMotion.sets)
         assertEquals(1, addedMotion.repsPerSet)
         assertEquals(0.0, addedMotion.intensity, 0.0)
-        assertEquals(3, addedMotion.orderIndex)
+        assertEquals(2, addedMotion.dayIndex)
+        assertEquals(2, addedMotion.orderIndex)
     }
 
     @Test
@@ -187,8 +190,8 @@ class TrainingPlanStateTest {
             cyclePeriod = 7,
             currentIndex = 0,
             motions = listOf(
-                PlanMotionState(entryId = 1, motionId = 20, title = "Snatch", sets = 5, repsPerSet = 2, orderIndex = 1),
-                PlanMotionState(entryId = 2, motionId = 21, title = "Clean Pull", sets = 4, repsPerSet = 3, orderIndex = 2)
+                PlanMotionState(entryId = 1, motionId = 20, title = "Snatch", dayIndex = 1, sets = 5, repsPerSet = 2, orderIndex = 1),
+                PlanMotionState(entryId = 2, motionId = 21, title = "Clean Pull", dayIndex = 2, sets = 4, repsPerSet = 3, orderIndex = 1)
             )
         )
 

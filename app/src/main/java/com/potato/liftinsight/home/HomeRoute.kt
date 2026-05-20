@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Settings
@@ -64,10 +65,9 @@ import com.potato.liftinsight.motion.model.MotionState
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.data.defaultTrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.MotionDetailScreen
-import com.potato.liftinsight.plan.PlanDetailScreen
+import com.potato.liftinsight.plan.PlanEditorScreen
 import com.potato.liftinsight.plan.PlanPickerScreen
 import com.potato.liftinsight.plan.PlanScreen
-import com.potato.liftinsight.plan.model.planMotion
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
@@ -107,13 +107,11 @@ fun HomeRoute(
         motionState = motionController.loadState()
     }
 
-    val nextPlanName = stringResource(R.string.plan_name_new_default, state.trainingPlans.size + 1)
     val shouldHandlePlanBack =
         state.selectedTab == MainTab.Plan &&
             state.planDestination != PlanDestination.Overview &&
             state.planIdPendingDelete == null &&
-            state.motionPendingDelete == null &&
-            state.addMotionPlanId == null
+            state.motionPendingDelete == null
 
     BackHandler(enabled = shouldHandlePlanBack) {
         coroutineScope.launch {
@@ -160,9 +158,7 @@ fun HomeRoute(
             state = controller.updateBodyMetric(state, metricId, newValue)
         },
         onCreatePlan = {
-            coroutineScope.launch {
-                state = controller.createPlan(state, nextPlanName)
-            }
+            state = controller.createPlan(state)
         },
         onSelectPlan = { planId ->
             coroutineScope.launch {
@@ -180,10 +176,18 @@ fun HomeRoute(
                 state = controller.handlePlanBack(state)
             }
         },
-        onRenamePlan = { planId, newName ->
+        onRenamePlan = { newName ->
             coroutineScope.launch {
-                state = controller.renamePlan(state, planId, newName)
+                state = controller.updatePlanEditorTitle(state, newName)
             }
+        },
+        onUpdatePlanCyclePeriod = { cyclePeriod ->
+            coroutineScope.launch {
+                state = controller.updatePlanEditorCyclePeriod(state, cyclePeriod)
+            }
+        },
+        onSelectPlanEditorDay = { dayIndex ->
+            state = controller.selectPlanEditorDay(state, dayIndex)
         },
         onSelectPlanDay = { planId, dayIndex ->
             coroutineScope.launch {
@@ -194,64 +198,58 @@ fun HomeRoute(
                 )
             }
         },
-        onMoveMotionUp = { planId, motionEntryId ->
+        onMoveMotionUp = { motionEntryId ->
             coroutineScope.launch {
                 state = controller.movePlanMotion(
                     state = state,
-                    planId = planId,
                     motionEntryId = motionEntryId,
                     direction = -1
                 )
             }
         },
-        onMoveMotionDown = { planId, motionEntryId ->
+        onMoveMotionDown = { motionEntryId ->
             coroutineScope.launch {
                 state = controller.movePlanMotion(
                     state = state,
-                    planId = planId,
                     motionEntryId = motionEntryId,
                     direction = 1
                 )
             }
         },
-        onOpenMotionDetail = { planId, motionEntryId ->
-            state = controller.showMotionDetail(state, planId, motionEntryId)
+        onOpenMotionDetail = { motionEntryId ->
+            state = controller.showMotionDetail(state, motionEntryId)
         },
-        onDecreaseMotionSets = { planId, motionEntryId, sets ->
+        onDecreaseMotionSets = { motionEntryId, sets ->
             coroutineScope.launch {
                 state = controller.updateMotionSets(
                     state = state,
-                    planId = planId,
                     motionEntryId = motionEntryId,
                     sets = sets - 1
                 )
             }
         },
-        onIncreaseMotionSets = { planId, motionEntryId, sets ->
+        onIncreaseMotionSets = { motionEntryId, sets ->
             coroutineScope.launch {
                 state = controller.updateMotionSets(
                     state = state,
-                    planId = planId,
                     motionEntryId = motionEntryId,
                     sets = sets + 1
                 )
             }
         },
-        onDecreaseMotionReps = { planId, motionEntryId, repsPerSet ->
+        onDecreaseMotionReps = { motionEntryId, repsPerSet ->
             coroutineScope.launch {
                 state = controller.updateMotionRepsPerSet(
                     state = state,
-                    planId = planId,
                     motionEntryId = motionEntryId,
                     repsPerSet = repsPerSet - 1
                 )
             }
         },
-        onIncreaseMotionReps = { planId, motionEntryId, repsPerSet ->
+        onIncreaseMotionReps = { motionEntryId, repsPerSet ->
             coroutineScope.launch {
                 state = controller.updateMotionRepsPerSet(
                     state = state,
-                    planId = planId,
                     motionEntryId = motionEntryId,
                     repsPerSet = repsPerSet + 1
                 )
@@ -268,8 +266,8 @@ fun HomeRoute(
                 state = controller.confirmPlanDeletion(state)
             }
         },
-        onRequestMotionDeletion = { planId, motionEntryId ->
-            state = controller.requestMotionDeletion(state, planId, motionEntryId)
+        onRequestMotionDeletion = { motionEntryId ->
+            state = controller.requestMotionDeletion(state, motionEntryId)
         },
         onDismissMotionDeletion = {
             state = controller.cancelMotionDeletion(state)
@@ -279,15 +277,20 @@ fun HomeRoute(
                 state = controller.confirmMotionDeletion(state)
             }
         },
-        onOpenAddMotionPicker = { planId ->
-            state = controller.openAddMotionPicker(state, planId)
+        onOpenAddMotionPicker = {
+            state = controller.openAddMotionPicker(state)
         },
         onDismissAddMotionPicker = {
             state = controller.closeAddMotionPicker(state)
         },
-        onAddMotionToPlan = { planId, motion ->
+        onAddMotionToPlan = { motion ->
             coroutineScope.launch {
-                state = controller.addMotionToPlan(state, planId, motion)
+                state = controller.addMotionToPlan(state, motion)
+            }
+        },
+        onSubmitPlan = {
+            coroutineScope.launch {
+                state = controller.submitPlanEditor(state)
             }
         },
         onAddMotion = {
@@ -337,24 +340,27 @@ private fun HomeScaffold(
     onOpenPlanDetail: (Int) -> Unit,
     onOpenPlanEditor: () -> Unit,
     onBackInPlan: () -> Unit,
-    onRenamePlan: (Int, String) -> Unit,
+    onRenamePlan: (String) -> Unit,
+    onUpdatePlanCyclePeriod: (Int?) -> Unit,
+    onSelectPlanEditorDay: (Int) -> Unit,
     onSelectPlanDay: (Int, Int) -> Unit,
-    onMoveMotionUp: (Int, Int) -> Unit,
-    onMoveMotionDown: (Int, Int) -> Unit,
-    onOpenMotionDetail: (Int, Int) -> Unit,
-    onDecreaseMotionSets: (Int, Int, Int) -> Unit,
-    onIncreaseMotionSets: (Int, Int, Int) -> Unit,
-    onDecreaseMotionReps: (Int, Int, Int) -> Unit,
-    onIncreaseMotionReps: (Int, Int, Int) -> Unit,
+    onMoveMotionUp: (Int) -> Unit,
+    onMoveMotionDown: (Int) -> Unit,
+    onOpenMotionDetail: (Int) -> Unit,
+    onDecreaseMotionSets: (Int, Int) -> Unit,
+    onIncreaseMotionSets: (Int, Int) -> Unit,
+    onDecreaseMotionReps: (Int, Int) -> Unit,
+    onIncreaseMotionReps: (Int, Int) -> Unit,
     onRequestPlanDeletion: (Int) -> Unit,
     onDismissPlanDeletion: () -> Unit,
     onConfirmPlanDeletion: () -> Unit,
-    onRequestMotionDeletion: (Int, Int) -> Unit,
+    onRequestMotionDeletion: (Int) -> Unit,
     onDismissMotionDeletion: () -> Unit,
     onConfirmMotionDeletion: () -> Unit,
-    onOpenAddMotionPicker: (Int) -> Unit,
+    onOpenAddMotionPicker: () -> Unit,
     onDismissAddMotionPicker: () -> Unit,
-    onAddMotionToPlan: (Int, AvailableMotionState) -> Unit,
+    onAddMotionToPlan: (AvailableMotionState) -> Unit,
+    onSubmitPlan: () -> Unit,
     onAddMotion: () -> Unit,
     onEditMotionLibraryEntry: (Int) -> Unit,
     onBackFromMotionEditor: () -> Unit,
@@ -367,7 +373,7 @@ private fun HomeScaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             if (state.selectedTab == MainTab.Plan) {
-                when (val destination = state.planDestination) {
+                when (state.planDestination) {
                     PlanDestination.Overview -> Unit
 
                     PlanDestination.List -> {
@@ -379,33 +385,47 @@ private fun HomeScaffold(
                         }
                     }
 
-                    is PlanDestination.Detail -> {
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            SmallFloatingActionButton(
-                                onClick = { onRequestPlanDeletion(destination.planId) },
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Delete,
-                                    contentDescription = stringResource(R.string.plan_delete_plan_content_description)
-                                )
-                            }
+                    PlanDestination.Editor -> {
+                        val editor = state.planEditor
 
-                            FloatingActionButton(
-                                onClick = { onOpenAddMotionPicker(destination.planId) }
+                        if (editor != null) {
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Add,
-                                    contentDescription = stringResource(R.string.plan_add_motion_content_description)
-                                )
+                                if (editor.isNewPlan) {
+                                    SmallFloatingActionButton(onClick = onSubmitPlan) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Check,
+                                            contentDescription = stringResource(R.string.plan_submit_plan_content_description)
+                                        )
+                                    }
+                                } else if (editor.planId != null) {
+                                    SmallFloatingActionButton(
+                                        onClick = { onRequestPlanDeletion(editor.planId) },
+                                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Delete,
+                                            contentDescription = stringResource(R.string.plan_delete_plan_content_description)
+                                        )
+                                    }
+                                }
+
+                                FloatingActionButton(
+                                    onClick = onOpenAddMotionPicker
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Add,
+                                        contentDescription = stringResource(R.string.plan_add_motion_content_description)
+                                    )
+                                }
                             }
                         }
                     }
 
+                    PlanDestination.MotionPicker,
                     is PlanDestination.Motion -> Unit
                 }
             }
@@ -567,10 +587,10 @@ private fun HomeScaffold(
                                 )
                             }
 
-                            is PlanDestination.Detail -> {
-                                val plan = trainingPlan(state.trainingPlans, destination.planId)
+                            PlanDestination.Editor -> {
+                                val editor = state.planEditor
 
-                                if (plan == null) {
+                                if (editor == null) {
                                     PlanPickerPanel(
                                         trainingPlans = state.trainingPlans,
                                         currentPlanId = state.currentPlanId,
@@ -581,31 +601,57 @@ private fun HomeScaffold(
                                         modifier = Modifier.padding(innerPadding)
                                     )
                                 } else {
-                                    PlanDetailScreen(
-                                        plan = plan,
+                                    PlanEditorScreen(
+                                        editor = editor,
                                         onBack = onBackInPlan,
-                                        onRenamePlan = { updatedName ->
-                                            onRenamePlan(destination.planId, updatedName)
-                                        },
+                                        onUpdateTitle = onRenamePlan,
+                                        onUpdateCyclePeriod = onUpdatePlanCyclePeriod,
+                                        onSelectDay = onSelectPlanEditorDay,
                                         onMoveMotionUp = { motionEntryId ->
-                                            onMoveMotionUp(destination.planId, motionEntryId)
+                                            onMoveMotionUp(motionEntryId)
                                         },
                                         onMoveMotionDown = { motionEntryId ->
-                                            onMoveMotionDown(destination.planId, motionEntryId)
+                                            onMoveMotionDown(motionEntryId)
                                         },
                                         onEditMotion = { motionEntryId ->
-                                            onOpenMotionDetail(destination.planId, motionEntryId)
+                                            onOpenMotionDetail(motionEntryId)
                                         },
                                         modifier = Modifier.padding(innerPadding)
                                     )
                                 }
                             }
 
-                            is PlanDestination.Motion -> {
-                                val plan = trainingPlan(state.trainingPlans, destination.planId)
-                                val motion = plan?.let { planMotion(it, destination.motionEntryId) }
+                            PlanDestination.MotionPicker -> {
+                                MotionScreen(
+                                    state = motionState,
+                                    onAddMotion = onAddMotion,
+                                    onEditMotion = onEditMotionLibraryEntry,
+                                    onBackFromEditor = onBackFromMotionEditor,
+                                    onMotionNameChange = onMotionNameChange,
+                                    onSubmitMotion = onSubmitMotion,
+                                    onDeleteMotion = onDeleteMotionFromLibrary,
+                                    selectionTitle = stringResource(R.string.plan_add_motion_dialog_title),
+                                    onBackFromSelection = onDismissAddMotionPicker,
+                                    onSelectMotion = { motionId ->
+                                        val selectedMotion = state.availableMotions.firstOrNull { motion ->
+                                            motion.id == motionId
+                                        }
 
-                                if (plan == null || motion == null) {
+                                        if (selectedMotion != null) {
+                                            onAddMotionToPlan(selectedMotion)
+                                        }
+                                    },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            }
+
+                            is PlanDestination.Motion -> {
+                                val editor = state.planEditor
+                                val motion = editor?.motions?.firstOrNull { planMotion ->
+                                    planMotion.entryId == destination.motionEntryId
+                                }
+
+                                if (editor == null || motion == null) {
                                     PlanPickerPanel(
                                         trainingPlans = state.trainingPlans,
                                         currentPlanId = state.currentPlanId,
@@ -617,42 +663,25 @@ private fun HomeScaffold(
                                     )
                                 } else {
                                     MotionDetailScreen(
-                                        planName = plan.name,
+                                        planName = editor.title.ifBlank {
+                                            stringResource(R.string.plan_title_placeholder)
+                                        },
                                         motion = motion,
                                         onBack = onBackInPlan,
                                         onDecreaseSets = {
-                                            onDecreaseMotionSets(
-                                                destination.planId,
-                                                destination.motionEntryId,
-                                                motion.sets
-                                            )
+                                            onDecreaseMotionSets(destination.motionEntryId, motion.sets)
                                         },
                                         onIncreaseSets = {
-                                            onIncreaseMotionSets(
-                                                destination.planId,
-                                                destination.motionEntryId,
-                                                motion.sets
-                                            )
+                                            onIncreaseMotionSets(destination.motionEntryId, motion.sets)
                                         },
                                         onDecreaseRepsPerSet = {
-                                            onDecreaseMotionReps(
-                                                destination.planId,
-                                                destination.motionEntryId,
-                                                motion.repsPerSet
-                                            )
+                                            onDecreaseMotionReps(destination.motionEntryId, motion.repsPerSet)
                                         },
                                         onIncreaseRepsPerSet = {
-                                            onIncreaseMotionReps(
-                                                destination.planId,
-                                                destination.motionEntryId,
-                                                motion.repsPerSet
-                                            )
+                                            onIncreaseMotionReps(destination.motionEntryId, motion.repsPerSet)
                                         },
                                         onDeleteMotion = {
-                                            onRequestMotionDeletion(
-                                                destination.planId,
-                                                destination.motionEntryId
-                                            )
+                                            onRequestMotionDeletion(destination.motionEntryId)
                                         },
                                         modifier = Modifier.padding(innerPadding)
                                     )
@@ -699,10 +728,12 @@ private fun HomeScaffold(
 
     val pendingMotionDelete = state.motionPendingDelete
     if (pendingMotionDelete != null) {
-        val plan = trainingPlan(state.trainingPlans, pendingMotionDelete.planId)
-        val motion = plan?.let { planMotion(it, pendingMotionDelete.motionEntryId) }
+        val editor = state.planEditor
+        val motion = editor?.motions?.firstOrNull { planMotion ->
+            planMotion.entryId == pendingMotionDelete.motionEntryId
+        }
 
-        if (plan != null && motion != null) {
+        if (editor != null && motion != null) {
             AlertDialog(
                 onDismissRequest = onDismissMotionDeletion,
                 title = {
@@ -713,7 +744,9 @@ private fun HomeScaffold(
                         text = stringResource(
                             R.string.motion_delete_dialog_message,
                             motion.title,
-                            plan.name
+                            editor.title.ifBlank {
+                                stringResource(R.string.plan_title_placeholder)
+                            }
                         )
                     )
                 },
@@ -729,38 +762,6 @@ private fun HomeScaffold(
                 }
             )
         }
-    }
-
-    val motionPickerPlan = state.addMotionPlanId?.let { planId ->
-        trainingPlan(state.trainingPlans, planId)
-    }
-    if (motionPickerPlan != null) {
-        AlertDialog(
-            onDismissRequest = onDismissAddMotionPicker,
-            title = {
-                Text(text = stringResource(R.string.plan_add_motion_dialog_title))
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    state.availableMotions.forEach { motion ->
-                        TextButton(
-                            onClick = {
-                                onAddMotionToPlan(motionPickerPlan.id, motion)
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(text = motion.title)
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = onDismissAddMotionPicker) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-            }
-        )
     }
 }
 
@@ -825,6 +826,7 @@ private fun HomeRoutePreview() {
                                 entryId = 1,
                                 motionId = 1,
                                 title = "Snatch",
+                                dayIndex = 1,
                                 sets = 5,
                                 repsPerSet = 2,
                                 intensity = 0.82,
@@ -844,24 +846,27 @@ private fun HomeRoutePreview() {
             onOpenPlanDetail = {},
             onOpenPlanEditor = {},
             onBackInPlan = {},
-            onRenamePlan = { _, _ -> },
+            onRenamePlan = {},
+            onUpdatePlanCyclePeriod = {},
+            onSelectPlanEditorDay = {},
             onSelectPlanDay = { _, _ -> },
-            onMoveMotionUp = { _, _ -> },
-            onMoveMotionDown = { _, _ -> },
-            onOpenMotionDetail = { _, _ -> },
-            onDecreaseMotionSets = { _, _, _ -> },
-            onIncreaseMotionSets = { _, _, _ -> },
-            onDecreaseMotionReps = { _, _, _ -> },
-            onIncreaseMotionReps = { _, _, _ -> },
+            onMoveMotionUp = {},
+            onMoveMotionDown = {},
+            onOpenMotionDetail = {},
+            onDecreaseMotionSets = { _, _ -> },
+            onIncreaseMotionSets = { _, _ -> },
+            onDecreaseMotionReps = { _, _ -> },
+            onIncreaseMotionReps = { _, _ -> },
             onRequestPlanDeletion = {},
             onDismissPlanDeletion = {},
             onConfirmPlanDeletion = {},
-            onRequestMotionDeletion = { _, _ -> },
+            onRequestMotionDeletion = {},
             onDismissMotionDeletion = {},
             onConfirmMotionDeletion = {},
             onOpenAddMotionPicker = {},
             onDismissAddMotionPicker = {},
-            onAddMotionToPlan = { _, _ -> },
+            onAddMotionToPlan = {},
+            onSubmitPlan = {},
             onAddMotion = {},
             onEditMotionLibraryEntry = {},
             onBackFromMotionEditor = {},

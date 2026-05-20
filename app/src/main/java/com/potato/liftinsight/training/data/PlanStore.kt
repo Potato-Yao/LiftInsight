@@ -96,6 +96,7 @@ class PlanStore private constructor(
 private data class PreparedMetaPlan(
     val id: Int,
     val motionId: Int,
+    val dayIndex: Int,
     val sets: Int,
     val reps: Int,
     val intensity: Double,
@@ -143,6 +144,7 @@ private fun prepareCreateMetaPlans(
             PreparedMetaPlan(
                 id = 0,
                 motionId = metaPlan.motionId,
+                dayIndex = metaPlan.dayIndex,
                 sets = metaPlan.sets,
                 reps = metaPlan.reps,
                 intensity = metaPlan.intensity,
@@ -163,6 +165,7 @@ private fun prepareStoredMetaPlans(
             PreparedMetaPlan(
                 id = metaPlan.id,
                 motionId = metaPlan.motionId,
+                dayIndex = metaPlan.dayIndex,
                 sets = metaPlan.sets,
                 reps = metaPlan.reps,
                 intensity = metaPlan.intensity,
@@ -182,7 +185,10 @@ private fun preparePreparedMetaPlans(
         return emptyList()
     }
 
-    val sortedMetaPlans = metaPlans.sortedBy { metaPlan -> metaPlan.orderIndex }
+    val sortedMetaPlans = metaPlans.sortedWith(
+        compareBy<PreparedMetaPlan> { metaPlan -> metaPlan.dayIndex }
+            .thenBy { metaPlan -> metaPlan.orderIndex }
+    )
 
     for (index in sortedMetaPlans.indices) {
         val metaPlan = sortedMetaPlans[index]
@@ -193,6 +199,14 @@ private fun preparePreparedMetaPlans(
 
         if (metaPlan.sets <= 0) {
             throw IllegalArgumentException("Meta plan sets must be greater than zero.")
+        }
+
+        if (metaPlan.dayIndex <= 0) {
+            throw IllegalArgumentException("Meta plan day index must be greater than zero.")
+        }
+
+        if (metaPlan.dayIndex > cyclePeriod) {
+            throw IllegalArgumentException("Meta plan day index must not be greater than the plan cycle period.")
         }
 
         if (metaPlan.reps <= 0) {
@@ -221,8 +235,11 @@ private fun preparePreparedMetaPlans(
 
         val previousMetaPlan = sortedMetaPlans[index - 1]
 
-        if (previousMetaPlan.orderIndex == metaPlan.orderIndex) {
-            throw IllegalArgumentException("Meta plan order indexes must be unique within one plan.")
+        if (
+            previousMetaPlan.dayIndex == metaPlan.dayIndex &&
+            previousMetaPlan.orderIndex == metaPlan.orderIndex
+        ) {
+            throw IllegalArgumentException("Meta plan order indexes must be unique within one day.")
         }
     }
 
@@ -234,6 +251,7 @@ private fun PreparedMetaPlan.toEntity(planId: Int): MetaPlanEntity {
         id = id,
         planId = planId,
         motionId = motionId,
+        dayIndex = dayIndex,
         sets = sets,
         reps = reps,
         intensity = intensity,
@@ -249,8 +267,8 @@ private fun planConstraintError(error: SQLiteConstraintException): IllegalArgume
         return IllegalArgumentException("Meta plans must reference an existing motion.")
     }
 
-    if (message.contains("plan_id") && message.contains("order_index")) {
-        return IllegalArgumentException("Meta plan order indexes must be unique within one plan.")
+    if (message.contains("plan_id") && message.contains("day_index") && message.contains("order_index")) {
+        return IllegalArgumentException("Meta plan order indexes must be unique within one day.")
     }
 
     return IllegalArgumentException("Plan could not be saved because it violates a database constraint.")

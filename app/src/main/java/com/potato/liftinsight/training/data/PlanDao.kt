@@ -49,6 +49,7 @@ abstract class PlanDao {
             metaplan.plan_id,
             metaplan.motion_id,
             motion.name AS motion_name,
+            metaplan.day_index,
             metaplan.sets,
             metaplan.reps,
             metaplan.intensity,
@@ -57,7 +58,7 @@ abstract class PlanDao {
         FROM metaplan
         INNER JOIN motion ON motion.id = metaplan.motion_id
         WHERE metaplan.plan_id = :planId
-        ORDER BY metaplan.order_index ASC, metaplan.id ASC
+        ORDER BY metaplan.day_index ASC, metaplan.order_index ASC, metaplan.id ASC
         """
     )
     protected abstract fun getMetaPlanRowsForPlan(planId: Int): List<MetaPlanRow>
@@ -69,6 +70,7 @@ abstract class PlanDao {
             metaplan.plan_id,
             metaplan.motion_id,
             motion.name AS motion_name,
+            metaplan.day_index,
             metaplan.sets,
             metaplan.reps,
             metaplan.intensity,
@@ -77,7 +79,7 @@ abstract class PlanDao {
         FROM metaplan
         INNER JOIN motion ON motion.id = metaplan.motion_id
         WHERE metaplan.plan_id IN (:planIds)
-        ORDER BY metaplan.plan_id ASC, metaplan.order_index ASC, metaplan.id ASC
+        ORDER BY metaplan.plan_id ASC, metaplan.day_index ASC, metaplan.order_index ASC, metaplan.id ASC
         """
     )
     protected abstract fun getMetaPlanRowsForPlans(planIds: List<Int>): List<MetaPlanRow>

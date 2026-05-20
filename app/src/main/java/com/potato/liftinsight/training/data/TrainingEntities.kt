@@ -67,7 +67,7 @@ data class PlanSelectionEntity(
     indices = [
         Index(value = ["plan_id"]),
         Index(value = ["motion_id"]),
-        Index(value = ["plan_id", "order_index"], unique = true)
+        Index(value = ["plan_id", "day_index", "order_index"], unique = true)
     ]
 )
 data class MetaPlanEntity(
@@ -77,6 +77,8 @@ data class MetaPlanEntity(
     val planId: Int,
     @ColumnInfo(name = "motion_id")
     val motionId: Int,
+    @ColumnInfo(name = "day_index")
+    val dayIndex: Int,
     val sets: Int,
     val reps: Int,
     val intensity: Double,
@@ -93,6 +95,8 @@ data class MetaPlanRow(
     val motionId: Int,
     @ColumnInfo(name = "motion_name")
     val motionName: String,
+    @ColumnInfo(name = "day_index")
+    val dayIndex: Int,
     val sets: Int,
     val reps: Int,
     val intensity: Double,
@@ -141,6 +145,7 @@ internal fun MetaPlanRow.toRecord(): MetaPlanRecord {
         id = id,
         motionId = motionId,
         motionName = motionName,
+        dayIndex = dayIndex,
         sets = sets,
         reps = reps,
         intensity = intensity,
