@@ -27,7 +27,7 @@
     <string name="plan_add_plan_content_description">Add plan</string>
     <string name="plan_delete_plan_content_description">Delete plan</string>
     <string name="plan_add_motion_content_description">Add motion</string>
-    <string name="plan_today_section_title">Today’s motions</string>
+    <string name="plan_today_section_title">Today\'s motions</string>
     <string name="plan_today_section_subtitle">LiftInsight shows the motion assigned to the current day in your active cycle.</string>
     <string name="plan_today_day_label">Day %1$d</string>
     <string name="plan_day_of_cycle">Day %1$d of %2$d</string>
