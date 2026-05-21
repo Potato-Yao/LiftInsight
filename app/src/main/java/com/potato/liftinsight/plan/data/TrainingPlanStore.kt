@@ -1,6 +1,8 @@
 package com.potato.liftinsight.plan.data
 
 import android.content.Context
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
@@ -19,7 +21,8 @@ import com.potato.liftinsight.training.data.PlanRecord
 class TrainingPlanStore private constructor(
     private val motionStore: MotionStore,
     private val planStore: PlanStore,
-    private val database: LiftInsightDatabase
+    private val database: LiftInsightDatabase,
+    private val logger: AppLogger
 ) {
     fun getAvailableMotions(): List<AvailableMotionState> {
         return motionStore.getMotions().map { motion ->
@@ -60,20 +63,36 @@ class TrainingPlanStore private constructor(
     }
 
     fun getCurrentPlanId(): Int {
-        return database.planDao().getPlanSelection()?.currentPlanId ?: -1
+        val currentPlanId = database.planDao().getPlanSelection()?.currentPlanId ?: -1
+
+        logTrace("getCurrentPlanId result: currentPlanId=$currentPlanId")
+
+        return currentPlanId
     }
 
     fun setCurrentPlan(planId: Int): Boolean {
+        logTrace("setCurrentPlan start: planId=$planId")
+
         if (planStore.getPlan(planId) == null) {
+            logTrace("setCurrentPlan result: planId=$planId, updated=false")
             return false
         }
 
         database.planDao().upsertPlanSelection(PlanSelectionEntity(currentPlanId = planId))
+
+        logger.info(TAG, "Updated current training plan selection: planId=$planId")
+        logTrace("setCurrentPlan result: planId=$planId, updated=true")
+
         return true
     }
 
     fun clearCurrentPlan() {
+        logTrace("clearCurrentPlan start")
+
         database.planDao().clearPlanSelection()
+
+        logger.info(TAG, "Cleared current training plan selection")
+        logTrace("clearCurrentPlan result: cleared=true")
     }
 
     fun createTrainingPlan(
@@ -153,17 +172,27 @@ class TrainingPlanStore private constructor(
     }
 
     companion object {
+        private const val TAG = "TrainingPlanStore"
+
         fun from(context: Context): TrainingPlanStore {
             return fromDatabase(LiftInsightDatabase.from(context))
         }
 
-        internal fun fromDatabase(database: LiftInsightDatabase): TrainingPlanStore {
+        internal fun fromDatabase(
+            database: LiftInsightDatabase,
+            logger: AppLogger = AndroidAppLogger
+        ): TrainingPlanStore {
             return TrainingPlanStore(
-                motionStore = MotionStore.fromDatabase(database),
-                planStore = PlanStore.fromDatabase(database),
-                database = database
+                motionStore = MotionStore.fromDatabase(database, logger),
+                planStore = PlanStore.fromDatabase(database, logger),
+                database = database,
+                logger = logger
             )
         }
+    }
+
+    private fun logTrace(message: String) {
+        logger.trace(TAG, message)
     }
 }
 

@@ -3,6 +3,7 @@ package com.potato.liftinsight.plan.data
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.potato.liftinsight.common.logging.RecordingAppLogger
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
@@ -21,6 +22,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class TrainingPlanStoreTest {
     private lateinit var database: LiftInsightDatabase
+    private lateinit var logger: RecordingAppLogger
     private lateinit var trainingPlanStore: TrainingPlanStore
 
     @Before
@@ -29,7 +31,8 @@ class TrainingPlanStoreTest {
         database = Room.inMemoryDatabaseBuilder(context, LiftInsightDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        trainingPlanStore = TrainingPlanStore.fromDatabase(database)
+        logger = RecordingAppLogger()
+        trainingPlanStore = TrainingPlanStore.fromDatabase(database, logger)
     }
 
     @After
@@ -186,6 +189,52 @@ class TrainingPlanStoreTest {
         assertEquals(listOf(6, 4, 3), reloadedPlan?.motions?.map { motion -> motion.sets })
         assertEquals(listOf(82.5, 105.0, 90.0), reloadedPlan?.motions?.map { motion -> motion.weight })
         assertEquals(listOf(0.8, 0.78, 0.7), reloadedPlan?.motions?.map { motion -> motion.intensity })
+    }
+
+    @Test
+    fun currentPlanSelection_emitsTraceAndInfoLogs() {
+        trainingPlanStore.ensureAvailableMotions(listOf(AvailableMotionState(id = 1, title = "Snatch")))
+        val snatch = trainingPlanStore.getAvailableMotions().single()
+        val planId = trainingPlanStore.createTrainingPlan(
+            TrainingPlanState(
+                id = 0,
+                name = "Selection Test",
+                lastAppliedAt = 0L,
+                cyclePeriod = 7,
+                currentIndex = 1,
+                motions = listOf(
+                    PlanMotionState(
+                        entryId = 0,
+                        motionId = snatch.id,
+                        title = snatch.title,
+                        dayIndex = 1,
+                        sets = 5,
+                        repsPerSet = 2,
+                        intensity = 0.8,
+                        weight = 80.0,
+                        orderIndex = 1
+                    )
+                )
+            )
+        )
+
+        assertTrue(trainingPlanStore.setCurrentPlan(planId))
+        assertEquals(planId, trainingPlanStore.getCurrentPlanId())
+
+        trainingPlanStore.clearCurrentPlan()
+
+        assertEquals(-1, trainingPlanStore.getCurrentPlanId())
+
+        val entries = logger.entries().filter { entry -> entry.tag == "TrainingPlanStore" }
+
+        assertTrue(entries.any { entry -> entry.level == "trace" && entry.message.contains("setCurrentPlan start") && entry.message.contains("planId=$planId") })
+        assertTrue(entries.any { entry -> entry.level == "trace" && entry.message.contains("setCurrentPlan result") && entry.message.contains("updated=true") })
+        assertTrue(entries.any { entry -> entry.level == "trace" && entry.message.contains("getCurrentPlanId result") && entry.message.contains("currentPlanId=$planId") })
+        assertTrue(entries.any { entry -> entry.level == "trace" && entry.message.contains("clearCurrentPlan start") })
+        assertTrue(entries.any { entry -> entry.level == "trace" && entry.message.contains("clearCurrentPlan result") })
+        assertTrue(entries.any { entry -> entry.level == "trace" && entry.message.contains("getCurrentPlanId result") && entry.message.contains("currentPlanId=-1") })
+        assertTrue(entries.any { entry -> entry.level == "info" && entry.message.contains("Updated current training plan selection") })
+        assertTrue(entries.any { entry -> entry.level == "info" && entry.message.contains("Cleared current training plan selection") })
     }
 }
 

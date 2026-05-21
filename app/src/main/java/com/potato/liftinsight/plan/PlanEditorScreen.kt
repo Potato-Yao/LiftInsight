@@ -514,7 +514,7 @@ internal fun MotionDetailScreen(
                 start = 24.dp,
                 top = innerPadding.calculateTopPadding() + 12.dp,
                 end = 24.dp,
-                bottom = 32.dp
+                bottom = 120.dp
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -584,12 +584,6 @@ internal fun MotionDetailScreen(
                 )
             }
 
-            item(key = "delete") {
-                DeleteRow(
-                    label = stringResource(R.string.motion_detail_delete_label),
-                    onClick = onDeleteMotion
-                )
-            }
         }
     }
 }

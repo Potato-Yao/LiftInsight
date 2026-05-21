@@ -2,11 +2,18 @@ package com.potato.liftinsight.training.data
 
 import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 
 class PlanStore private constructor(
-    private val planDao: PlanDao
+    private val planDao: PlanDao,
+    private val logger: AppLogger
 ) {
     fun createPlan(request: CreatePlanRequest): Int {
+        logTrace(
+            "createPlan start: requestedName=${request.name.orEmpty().trim()}, cyclePeriod=${request.cyclePeriod}, metaPlanCount=${request.metaPlans.size}"
+        )
+
         val cyclePeriod = validateCyclePeriod(request.cyclePeriod)
         val plan = PlanEntity(
             name = normalizeRequiredText(request.name, "Plan name"),
@@ -23,29 +30,48 @@ class PlanStore private constructor(
         )
 
         try {
-            return planDao.createPlan(
+            val planId = planDao.createPlan(
                 plan = plan,
                 metaPlans = metaPlans.map { metaPlan -> metaPlan.toEntity(planId = 0) }
             )
+
+            logTrace("createPlan result: planId=$planId, metaPlanCount=${metaPlans.size}")
+
+            return planId
         } catch (error: SQLiteConstraintException) {
+            logTrace("createPlan constraint violation: requestedName=${plan.name}, metaPlanCount=${metaPlans.size}")
             throw planConstraintError(error)
         }
     }
 
     fun getPlan(planId: Int): PlanRecord? {
         if (planId <= 0) {
+            logTrace("getPlan skipped: planId=$planId")
             return null
         }
 
-        return planDao.getPlanRecord(planId)
+        val plan = planDao.getPlanRecord(planId)
+
+        logTrace("getPlan result: planId=$planId, found=${plan != null}")
+
+        return plan
     }
 
     fun getPlans(): List<PlanRecord> {
-        return planDao.getPlanRecords()
+        val plans = planDao.getPlanRecords()
+
+        logTrace("getPlans result: count=${plans.size}")
+
+        return plans
     }
 
     fun updatePlan(plan: PlanRecord): Boolean {
+        logTrace(
+            "updatePlan start: planId=${plan.id}, requestedName=${plan.name.trim()}, cyclePeriod=${plan.cyclePeriod}, metaPlanCount=${plan.metaPlans.size}"
+        )
+
         if (plan.id <= 0) {
+            logTrace("updatePlan skipped: planId=${plan.id}")
             return false
         }
 
@@ -65,30 +91,54 @@ class PlanStore private constructor(
         )
 
         try {
-            return planDao.updatePlan(
+            val updated = planDao.updatePlan(
                 plan = updatedPlan.toEntity(),
                 metaPlans = metaPlans.map { metaPlan -> metaPlan.toEntity(planId = plan.id) }
             )
+
+            logTrace("updatePlan result: planId=${plan.id}, updated=$updated, metaPlanCount=${metaPlans.size}")
+
+            return updated
         } catch (error: SQLiteConstraintException) {
+            logTrace("updatePlan constraint violation: planId=${plan.id}, requestedName=${updatedPlan.name}")
             throw planConstraintError(error)
         }
     }
 
     fun deletePlan(planId: Int): Boolean {
+        logTrace("deletePlan start: planId=$planId")
+
         if (planId <= 0) {
+            logTrace("deletePlan skipped: planId=$planId")
             return false
         }
 
-        return planDao.deletePlan(planId) > 0
+        val deleted = planDao.deletePlan(planId) > 0
+
+        logTrace("deletePlan result: planId=$planId, deleted=$deleted")
+
+        return deleted
+    }
+
+    private fun logTrace(message: String) {
+        logger.trace(TAG, message)
     }
 
     companion object {
+        private const val TAG = "PlanStore"
+
         fun from(context: Context): PlanStore {
-            return PlanStore(LiftInsightDatabase.from(context).planDao())
+            return PlanStore(
+                planDao = LiftInsightDatabase.from(context).planDao(),
+                logger = AndroidAppLogger
+            )
         }
 
-        internal fun fromDatabase(database: LiftInsightDatabase): PlanStore {
-            return PlanStore(database.planDao())
+        internal fun fromDatabase(
+            database: LiftInsightDatabase,
+            logger: AppLogger = AndroidAppLogger
+        ): PlanStore {
+            return PlanStore(database.planDao(), logger)
         }
     }
 }

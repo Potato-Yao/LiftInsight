@@ -13,7 +13,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Assignment
@@ -383,6 +382,8 @@ private fun HomeScaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             if (state.selectedTab == MainTab.Plan) {
+                val editor = state.planEditor
+
                 when (state.planDestination) {
                     PlanDestination.Overview -> Unit
 
@@ -396,47 +397,34 @@ private fun HomeScaffold(
                     }
 
                     PlanDestination.Editor -> {
-                        val editor = state.planEditor
-
                         if (editor != null) {
-                            Column(
-                                horizontalAlignment = Alignment.End,
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                if (editor.isNewPlan) {
-                                    SmallFloatingActionButton(onClick = onSubmitPlan) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = stringResource(R.string.plan_submit_plan_content_description)
-                                        )
-                                    }
-                                } else if (editor.planId != null) {
-                                    SmallFloatingActionButton(
-                                        onClick = { onRequestPlanDeletion(editor.planId) },
-                                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Delete,
-                                            contentDescription = stringResource(R.string.plan_delete_plan_content_description)
-                                        )
-                                    }
+                            PlanEditorActionButtons(
+                                showSubmitButton = editor.isNewPlan,
+                                onSubmitPlan = onSubmitPlan,
+                                onOpenAddMotionPicker = onOpenAddMotionPicker,
+                                onRequestDeletePlan = editor.planId?.let { planId ->
+                                    { onRequestPlanDeletion(planId) }
                                 }
-
-                                FloatingActionButton(
-                                    onClick = onOpenAddMotionPicker
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Add,
-                                        contentDescription = stringResource(R.string.plan_add_motion_content_description)
-                                    )
-                                }
-                            }
+                            )
                         }
                     }
 
-                    PlanDestination.MotionPicker,
-                    is PlanDestination.Motion -> Unit
+                    PlanDestination.MotionPicker -> Unit
+
+                    is PlanDestination.Motion -> {
+                        val motionEntryId = state.planDestination.motionEntryId
+
+                        if (editor != null) {
+                            PlanMotionDetailActionButtons(
+                                showSubmitButton = editor.isNewPlan,
+                                onSubmitPlan = onSubmitPlan,
+                                onOpenAddMotionPicker = onOpenAddMotionPicker,
+                                onRequestDeleteMotion = {
+                                    onRequestMotionDeletion(motionEntryId)
+                                }
+                            )
+                        }
+                    }
                 }
             }
         },
@@ -773,6 +761,86 @@ private fun HomeScaffold(
                         Text(text = stringResource(R.string.common_cancel))
                     }
                 }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlanEditorActionButtons(
+    showSubmitButton: Boolean,
+    onSubmitPlan: () -> Unit,
+    onOpenAddMotionPicker: () -> Unit,
+    onRequestDeletePlan: (() -> Unit)? = null
+) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (showSubmitButton) {
+            SmallFloatingActionButton(onClick = onSubmitPlan) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = stringResource(R.string.plan_submit_plan_content_description)
+                )
+            }
+        } else if (onRequestDeletePlan != null) {
+            SmallFloatingActionButton(
+                onClick = onRequestDeletePlan,
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = stringResource(R.string.plan_delete_plan_content_description)
+                )
+            }
+        }
+
+        FloatingActionButton(onClick = onOpenAddMotionPicker) {
+            Icon(
+                imageVector = Icons.Rounded.Add,
+                contentDescription = stringResource(R.string.plan_add_motion_content_description)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlanMotionDetailActionButtons(
+    showSubmitButton: Boolean,
+    onSubmitPlan: () -> Unit,
+    onOpenAddMotionPicker: () -> Unit,
+    onRequestDeleteMotion: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SmallFloatingActionButton(
+            onClick = onRequestDeleteMotion,
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Delete,
+                contentDescription = stringResource(R.string.motion_detail_delete_label)
+            )
+        }
+
+        if (showSubmitButton) {
+            SmallFloatingActionButton(onClick = onSubmitPlan) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = stringResource(R.string.plan_submit_plan_content_description)
+                )
+            }
+        }
+
+        FloatingActionButton(onClick = onOpenAddMotionPicker) {
+            Icon(
+                imageVector = Icons.Rounded.Add,
+                contentDescription = stringResource(R.string.plan_add_motion_content_description)
             )
         }
     }

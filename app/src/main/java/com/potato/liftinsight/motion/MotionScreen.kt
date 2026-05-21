@@ -44,6 +44,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -66,10 +67,10 @@ internal fun MotionScreen(
     onMotionNameChange: (String) -> Unit,
     onSubmitMotion: () -> Unit,
     onDeleteMotion: () -> Unit,
+    modifier: Modifier = Modifier,
     selectionTitle: String? = null,
     onBackFromSelection: (() -> Unit)? = null,
-    onSelectMotion: ((Int) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onSelectMotion: ((Int) -> Unit)? = null
 ) {
     val editor = state.editor
 
@@ -133,6 +134,13 @@ internal fun MotionScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButton = {
+            MotionEditorActionButtons(
+                isNewMotion = editor.isNewMotion,
+                onSubmitMotion = onSubmitMotion,
+                onDeleteMotion = onDeleteMotion
+            )
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -160,10 +168,40 @@ internal fun MotionScreen(
         MotionEditorContent(
             editor = editor,
             onMotionNameChange = onMotionNameChange,
-            onSubmitMotion = onSubmitMotion,
-            onDeleteMotion = onDeleteMotion,
             modifier = Modifier.padding(innerPadding)
         )
+    }
+}
+
+@Composable
+private fun MotionEditorActionButtons(
+    isNewMotion: Boolean,
+    onSubmitMotion: () -> Unit,
+    onDeleteMotion: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (!isNewMotion) {
+            SmallFloatingActionButton(
+                onClick = onDeleteMotion,
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = stringResource(R.string.motion_delete_action)
+                )
+            }
+        }
+
+        FloatingActionButton(onClick = onSubmitMotion) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = stringResource(R.string.motion_submit_action)
+            )
+        }
     }
 }
 
@@ -436,8 +474,6 @@ private fun MotionRow(
 private fun MotionEditorContent(
     editor: MotionEditorState,
     onMotionNameChange: (String) -> Unit,
-    onSubmitMotion: () -> Unit,
-    onDeleteMotion: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showContent by remember { mutableStateOf(false) }
@@ -452,7 +488,7 @@ private fun MotionEditorContent(
             start = 24.dp,
             top = 12.dp,
             end = 24.dp,
-            bottom = 32.dp
+            bottom = 120.dp
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -528,107 +564,6 @@ private fun MotionEditorContent(
             }
         }
 
-        item(key = "actions") {
-            AnimatedVisibility(
-                visible = showContent,
-                enter = motionSectionEnter(delayMillis = 100),
-                exit = ExitTransition.None
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MotionActionRow(
-                        label = stringResource(R.string.motion_submit_action),
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        },
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                        onClick = onSubmitMotion
-                    )
-
-                    MotionActionRow(
-                        label = stringResource(R.string.motion_delete_action),
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Rounded.Delete,
-                                contentDescription = null,
-                                tint = if (editor.isNewMotion) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.onErrorContainer
-                                }
-                            )
-                        },
-                        containerColor = if (editor.isNewMotion) {
-                            MaterialTheme.colorScheme.surfaceContainer
-                        } else {
-                            MaterialTheme.colorScheme.errorContainer
-                        },
-                        contentColor = if (editor.isNewMotion) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        },
-                        borderColor = if (editor.isNewMotion) {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                        } else {
-                            MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
-                        },
-                        onClick = onDeleteMotion,
-                        enabled = !editor.isNewMotion,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MotionActionRow(
-    label: String,
-    icon: @Composable () -> Unit,
-    containerColor: androidx.compose.ui.graphics.Color,
-    contentColor: androidx.compose.ui.graphics.Color,
-    borderColor: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true
-) {
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(
-                enabled = enabled,
-                onClick = onClick
-            ),
-        color = containerColor,
-        shape = RoundedCornerShape(28.dp),
-        border = BorderStroke(
-            width = 1.dp,
-            color = borderColor
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            icon()
-
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = contentColor
-            )
-        }
     }
 }
 

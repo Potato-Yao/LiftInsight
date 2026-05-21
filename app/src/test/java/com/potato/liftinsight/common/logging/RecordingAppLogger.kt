@@ -10,8 +10,16 @@ data class LogEntry(
 class RecordingAppLogger : AppLogger {
     private val entries = mutableListOf<LogEntry>()
 
+    override fun trace(tag: String, message: String) {
+        entries += LogEntry(level = "trace", tag = tag, message = message)
+    }
+
     override fun debug(tag: String, message: String) {
         entries += LogEntry(level = "debug", tag = tag, message = message)
+    }
+
+    override fun info(tag: String, message: String) {
+        entries += LogEntry(level = "info", tag = tag, message = message)
     }
 
     override fun warn(tag: String, message: String) {

@@ -2,67 +2,114 @@ package com.potato.liftinsight.training.data
 
 import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 
 class MotionStore private constructor(
-    private val motionDao: MotionDao
+    private val motionDao: MotionDao,
+    private val logger: AppLogger
 ) {
     fun createMotion(request: CreateMotionRequest): Int {
+        logTrace("createMotion start: requestedName=${request.name.orEmpty().trim()}")
+
         val motion = MotionEntity(
             name = normalizeRequiredText(request.name, "Motion name")
         )
 
         try {
-            return motionDao.insertMotionEntity(motion).toInt()
+            val motionId = motionDao.insertMotionEntity(motion).toInt()
+
+            logTrace("createMotion result: motionId=$motionId, name=${motion.name}")
+
+            return motionId
         } catch (_: SQLiteConstraintException) {
+            logTrace("createMotion unique constraint violation: name=${motion.name}")
             throw IllegalArgumentException("Motion name must be unique.")
         }
     }
 
     fun getMotion(motionId: Int): MotionRecord? {
         if (motionId <= 0) {
+            logTrace("getMotion skipped: motionId=$motionId")
             return null
         }
 
-        return motionDao.getMotionEntity(motionId)?.toRecord()
+        val motion = motionDao.getMotionEntity(motionId)?.toRecord()
+
+        logTrace("getMotion result: motionId=$motionId, found=${motion != null}")
+
+        return motion
     }
 
     fun getMotions(): List<MotionRecord> {
-        return motionDao.getMotionEntities().map { motion -> motion.toRecord() }
+        val motions = motionDao.getMotionEntities().map { motion -> motion.toRecord() }
+
+        logTrace("getMotions result: count=${motions.size}")
+
+        return motions
     }
 
     fun updateMotion(motion: MotionRecord): Boolean {
+        logTrace("updateMotion start: motionId=${motion.id}, requestedName=${motion.name.trim()}")
+
         if (motion.id <= 0) {
+            logTrace("updateMotion skipped: motionId=${motion.id}")
             return false
         }
 
         val updatedMotion = motion.copy(name = normalizeRequiredText(motion.name, "Motion name"))
 
         try {
-            return motionDao.updateMotionEntity(updatedMotion.toEntity()) > 0
+            val updated = motionDao.updateMotionEntity(updatedMotion.toEntity()) > 0
+
+            logTrace("updateMotion result: motionId=${motion.id}, updated=$updated")
+
+            return updated
         } catch (_: SQLiteConstraintException) {
+            logTrace("updateMotion unique constraint violation: motionId=${motion.id}, name=${updatedMotion.name}")
             throw IllegalArgumentException("Motion name must be unique.")
         }
     }
 
     fun deleteMotion(motionId: Int): Boolean {
+        logTrace("deleteMotion start: motionId=$motionId")
+
         if (motionId <= 0) {
+            logTrace("deleteMotion skipped: motionId=$motionId")
             return false
         }
 
         return try {
-            motionDao.deleteMotion(motionId) > 0
+            val deleted = motionDao.deleteMotion(motionId) > 0
+
+            logTrace("deleteMotion result: motionId=$motionId, deleted=$deleted")
+
+            deleted
         } catch (_: SQLiteConstraintException) {
+            logTrace("deleteMotion blocked by constraint: motionId=$motionId")
             false
         }
     }
 
+    private fun logTrace(message: String) {
+        logger.trace(TAG, message)
+    }
+
     companion object {
+        private const val TAG = "MotionStore"
+
         fun from(context: Context): MotionStore {
-            return MotionStore(LiftInsightDatabase.from(context).motionDao())
+            return MotionStore(
+                motionDao = LiftInsightDatabase.from(context).motionDao(),
+                logger = AndroidAppLogger
+            )
         }
 
-        internal fun fromDatabase(database: LiftInsightDatabase): MotionStore {
-            return MotionStore(database.motionDao())
+        internal fun fromDatabase(
+            database: LiftInsightDatabase,
+            logger: AppLogger = AndroidAppLogger
+        ): MotionStore {
+            return MotionStore(database.motionDao(), logger)
         }
     }
 }

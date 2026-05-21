@@ -3,6 +3,7 @@ package com.potato.liftinsight.training.data
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.potato.liftinsight.common.logging.RecordingAppLogger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,6 +20,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class MotionStoreTest {
     private lateinit var database: LiftInsightDatabase
+    private lateinit var logger: RecordingAppLogger
     private lateinit var motionStore: MotionStore
     private lateinit var planStore: PlanStore
 
@@ -28,8 +30,9 @@ class MotionStoreTest {
         database = Room.inMemoryDatabaseBuilder(context, LiftInsightDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        motionStore = MotionStore.fromDatabase(database)
-        planStore = PlanStore.fromDatabase(database)
+        logger = RecordingAppLogger()
+        motionStore = MotionStore.fromDatabase(database, logger)
+        planStore = PlanStore.fromDatabase(database, logger)
     }
 
     @After
@@ -153,6 +156,28 @@ class MotionStoreTest {
                 name = "  Snatch  "
             )
         )
+    }
+
+    @Test
+    fun crudOperations_emitTraceLogs() {
+        val motionId = motionStore.createMotion(CreateMotionRequest(name = "Snatch"))
+        motionStore.getMotion(motionId)
+        motionStore.getMotions()
+        motionStore.updateMotion(MotionRecord(id = motionId, name = "Power Snatch"))
+        motionStore.deleteMotion(motionId)
+
+        val traceMessages = logger.entries()
+            .filter { entry -> entry.level == "trace" && entry.tag == "MotionStore" }
+            .map { entry -> entry.message }
+
+        assertTrue(traceMessages.any { message -> message.contains("createMotion start") })
+        assertTrue(traceMessages.any { message -> message.contains("createMotion result") && message.contains("motionId=$motionId") })
+        assertTrue(traceMessages.any { message -> message.contains("getMotion result") && message.contains("motionId=$motionId") })
+        assertTrue(traceMessages.any { message -> message.contains("getMotions result") })
+        assertTrue(traceMessages.any { message -> message.contains("updateMotion start") && message.contains("motionId=$motionId") })
+        assertTrue(traceMessages.any { message -> message.contains("updateMotion result") && message.contains("updated=true") })
+        assertTrue(traceMessages.any { message -> message.contains("deleteMotion start") && message.contains("motionId=$motionId") })
+        assertTrue(traceMessages.any { message -> message.contains("deleteMotion result") && message.contains("deleted=true") })
     }
 }
 

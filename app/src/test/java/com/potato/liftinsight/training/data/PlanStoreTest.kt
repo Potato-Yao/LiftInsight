@@ -3,6 +3,7 @@ package com.potato.liftinsight.training.data
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.potato.liftinsight.common.logging.RecordingAppLogger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -20,6 +21,7 @@ import org.robolectric.annotation.Config
 class PlanStoreTest {
     private lateinit var database: LiftInsightDatabase
     private lateinit var planDao: PlanDao
+    private lateinit var logger: RecordingAppLogger
     private lateinit var motionStore: MotionStore
     private lateinit var planStore: PlanStore
 
@@ -30,8 +32,9 @@ class PlanStoreTest {
             .allowMainThreadQueries()
             .build()
         planDao = database.planDao()
-        motionStore = MotionStore.fromDatabase(database)
-        planStore = PlanStore.fromDatabase(database)
+        logger = RecordingAppLogger()
+        motionStore = MotionStore.fromDatabase(database, logger)
+        planStore = PlanStore.fromDatabase(database, logger)
     }
 
     @After
@@ -347,6 +350,66 @@ class PlanStoreTest {
                 currentIndex = 0
             )
         )
+    }
+
+    @Test
+    fun crudOperations_emitTraceLogs() {
+        val snatchId = createMotion("Snatch")
+        val planId = planStore.createPlan(
+            CreatePlanRequest(
+                name = "Competition Peak",
+                cyclePeriod = 7,
+                metaPlans = listOf(
+                    CreateMetaPlanRequest(
+                        motionId = snatchId,
+                        sets = 5,
+                        reps = 2,
+                        intensity = 0.8,
+                        weight = 80.0,
+                        orderIndex = 1
+                    )
+                )
+            )
+        )
+
+        planStore.getPlan(planId)
+        planStore.getPlans()
+        planStore.updatePlan(
+            PlanRecord(
+                id = planId,
+                name = "Competition Peak Updated",
+                cyclePeriod = 7,
+                currentIndex = 2,
+                lastAppliedAt = 50L,
+                metaPlans = listOf(
+                    MetaPlanRecord(
+                        id = 0,
+                        motionId = snatchId,
+                        motionName = "Snatch",
+                        dayIndex = 1,
+                        sets = 4,
+                        reps = 3,
+                        intensity = 0.82,
+                        weight = 82.5,
+                        orderIndex = 1
+                    )
+                )
+            )
+        )
+        planStore.deletePlan(planId)
+
+        val traceMessages = logger.entries()
+            .filter { entry -> entry.level == "trace" && entry.tag == "PlanStore" }
+            .map { entry -> entry.message }
+
+        assertTrue(traceMessages.any { message -> message.contains("createPlan start") })
+        assertTrue(traceMessages.any { message -> message.contains("createPlan result") && message.contains("planId=$planId") })
+        assertTrue(traceMessages.any { message -> message.contains("getPlan result") && message.contains("planId=$planId") })
+        assertTrue(traceMessages.any { message -> message.contains("getPlans result") })
+        assertTrue(traceMessages.any { message -> message.contains("updatePlan start") && message.contains("planId=$planId") })
+        assertTrue(traceMessages.any { message -> message.contains("updatePlan result") && message.contains("updated=true") })
+        assertTrue(traceMessages.any { message -> message.contains("deletePlan start") && message.contains("planId=$planId") })
+        assertTrue(traceMessages.any { message -> message.contains("deletePlan result") && message.contains("deleted=true") })
     }
 }
 
