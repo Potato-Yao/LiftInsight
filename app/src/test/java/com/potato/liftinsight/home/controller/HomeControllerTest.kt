@@ -3,6 +3,9 @@ package com.potato.liftinsight.home.controller
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
+import com.potato.liftinsight.common.logging.RecordingAppLogger
 import com.potato.liftinsight.plan.data.TrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.model.AvailableMotionState
@@ -104,11 +107,15 @@ class HomeControllerTest {
         database.close()
     }
 
-    private fun controller(nowProvider: () -> Long = { 123L }): HomeController {
+    private fun controller(
+        nowProvider: () -> Long = { 123L },
+        logger: AppLogger = AndroidAppLogger
+    ): HomeController {
         return HomeController(
             trainingPlanStore = trainingPlanStore,
             shouldSeedDebugPlans = true,
-            nowProvider = nowProvider
+            nowProvider = nowProvider,
+            logger = logger
         )
     }
 
@@ -233,6 +240,25 @@ class HomeControllerTest {
     }
 
     @Test
+    fun selectPlan_whenPlanIsMissing_logsWarningAndKeepsState() = runBlocking {
+        val logger = RecordingAppLogger()
+        val controller = controller(logger = logger)
+        val state = initialState(controller)
+
+        val updatedState = controller.selectPlan(state, 999)
+
+        assertEquals(state, updatedState)
+        assertTrue(
+            logger.entries().any { entry ->
+                entry.level == "warn" &&
+                    entry.tag == "HomeController" &&
+                    entry.message.contains("was not found") &&
+                    entry.message.contains("planId=999")
+            }
+        )
+    }
+
+    @Test
     fun updatePlanCurrentDay_persistsSelectedCycleDay() = runBlocking {
         val controller = controller()
         val updatedState = controller.updatePlanCurrentDay(
@@ -285,15 +311,17 @@ class HomeControllerTest {
     fun updateMotionWeight_persistsWeightAndClampsNegativeValues() = runBlocking {
         val controller = controller()
         val detailState = controller.showPlanDetail(initialState(controller), 1)
+        val initialMotionEntryId = detailState.planEditor?.motions?.first()?.entryId ?: -1
 
         val weightedState = controller.updateMotionWeight(
             state = detailState,
-            motionEntryId = 1,
+            motionEntryId = initialMotionEntryId,
             weight = 92.5
         )
+        val persistedMotionEntryId = weightedState.planEditor?.motions?.first()?.entryId ?: -1
         val clampedState = controller.updateMotionWeight(
             state = weightedState,
-            motionEntryId = 1,
+            motionEntryId = persistedMotionEntryId,
             weight = -3.0
         )
 
@@ -307,14 +335,15 @@ class HomeControllerTest {
     fun confirmMotionDeletion_removesMotionAndReturnsToEditor() = runBlocking {
         val controller = controller()
         val detailState = controller.showPlanDetail(initialState(controller), 1)
-        val state = controller.requestMotionDeletion(detailState, 2)
+        val motionEntryIdToDelete = detailState.planEditor?.motions?.getOrNull(1)?.entryId ?: -1
+        val state = controller.requestMotionDeletion(detailState, motionEntryIdToDelete)
         val updatedState = controller.confirmMotionDeletion(state)
         val updatedPlan = updatedState.trainingPlans.first { it.id == 1 }
 
-        assertEquals(listOf(1, 3), updatedPlan.motions.map { it.entryId })
+        assertEquals(listOf("Snatch", "Snatch Pull"), updatedPlan.motions.map { it.title })
         assertEquals(PlanDestination.Editor, updatedState.planDestination)
         assertNull(updatedState.motionPendingDelete)
-        assertEquals(listOf(1, 3), updatedState.planEditor?.motions?.map { it.entryId })
+        assertEquals(listOf("Snatch", "Snatch Pull"), updatedState.planEditor?.motions?.map { it.title })
     }
 
     @Test

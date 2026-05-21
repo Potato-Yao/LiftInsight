@@ -47,6 +47,8 @@ class MotionStoreTest {
 
         val storedMotion = motionStore.getMotion(motionId)
 
+        assertTrue(motionId > 0)
+        assertEquals(motionId, storedMotion?.id)
         assertEquals("Snatch Session", storedMotion?.name)
     }
 

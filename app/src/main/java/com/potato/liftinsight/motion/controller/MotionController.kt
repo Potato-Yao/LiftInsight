@@ -1,5 +1,7 @@
 package com.potato.liftinsight.motion.controller
 
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.motion.model.MotionEditorMessage
 import com.potato.liftinsight.motion.model.MotionEditorState
 import com.potato.liftinsight.motion.model.MotionRowState
@@ -17,17 +19,20 @@ data class MotionMutationResult(
 )
 
 class MotionController(
-    private val motionStore: MotionStore
+    private val motionStore: MotionStore,
+    private val logger: AppLogger = AndroidAppLogger
 ) {
     fun emptyState(): MotionState {
         return MotionState()
     }
 
     suspend fun loadState(): MotionState {
+        logDebug("Loading motion library state")
         return reloadState(emptyState())
     }
 
     fun openCreateMotion(state: MotionState): MotionState {
+        logDebug("Opening motion create editor")
         return state.copy(editor = MotionEditorState())
     }
 
@@ -35,7 +40,12 @@ class MotionController(
         state: MotionState,
         motionId: Int
     ): MotionState {
-        val motion = state.motions.firstOrNull { row -> row.id == motionId } ?: return state
+        val motion = state.motions.firstOrNull { row -> row.id == motionId } ?: run {
+            logWarn("Cannot open motion editor because the motion was not found: motionId=$motionId")
+            return state
+        }
+
+        logDebug("Opening motion editor: motionId=$motionId")
 
         return state.copy(
             editor = MotionEditorState(
@@ -49,7 +59,12 @@ class MotionController(
         state: MotionState,
         name: String
     ): MotionState {
-        val editor = state.editor ?: return state
+        val editor = state.editor ?: run {
+            logWarn("Ignoring motion name update because no editor is open")
+            return state
+        }
+
+        logDebug("Updating motion editor name: motionId=${editor.motionId ?: -1}")
 
         return state.copy(
             editor = editor.copy(
@@ -60,11 +75,17 @@ class MotionController(
     }
 
     fun closeEditor(state: MotionState): MotionState {
+        logDebug("Closing motion editor")
         return state.copy(editor = null)
     }
 
     suspend fun submitMotion(state: MotionState): MotionMutationResult {
-        val editor = state.editor ?: return MotionMutationResult(state)
+        val editor = state.editor ?: run {
+            logWarn("Ignoring motion submission because no editor is open")
+            return MotionMutationResult(state)
+        }
+
+        logDebug("Submitting motion editor: motionId=${editor.motionId ?: -1}")
 
         return withContext(Dispatchers.IO) {
             try {
@@ -79,6 +100,7 @@ class MotionController(
                     )
 
                     if (!updated) {
+                        logWarn("Motion update failed because the record could not be persisted: motionId=${editor.motionId}")
                         return@withContext MotionMutationResult(
                             state = state.copy(
                                 editor = editor.copy(message = MotionEditorMessage.SaveFailed)
@@ -87,6 +109,11 @@ class MotionController(
                     }
                 }
             } catch (error: IllegalArgumentException) {
+                logError(
+                    message = "Motion submission failed validation: motionId=${editor.motionId ?: -1}",
+                    throwable = error
+                )
+
                 return@withContext MotionMutationResult(
                     state = state.copy(
                         editor = editor.copy(
@@ -96,6 +123,8 @@ class MotionController(
                 )
             }
 
+            logDebug("Motion submission succeeded: motionId=${editor.motionId ?: -1}")
+
             MotionMutationResult(
                 state = reloadState(state.copy(editor = null)),
                 didChangeData = true
@@ -104,19 +133,30 @@ class MotionController(
     }
 
     suspend fun deleteMotion(state: MotionState): MotionMutationResult {
-        val editor = state.editor ?: return MotionMutationResult(state)
-        val motionId = editor.motionId ?: return MotionMutationResult(state)
+        val editor = state.editor ?: run {
+            logWarn("Ignoring motion delete request because no editor is open")
+            return MotionMutationResult(state)
+        }
+        val motionId = editor.motionId ?: run {
+            logWarn("Ignoring motion delete request because the motion has not been created yet")
+            return MotionMutationResult(state)
+        }
+
+        logDebug("Deleting motion: motionId=$motionId")
 
         return withContext(Dispatchers.IO) {
             val deleted = motionStore.deleteMotion(motionId)
 
             if (!deleted) {
+                logWarn("Motion delete was blocked: motionId=$motionId")
                 return@withContext MotionMutationResult(
                     state = state.copy(
                         editor = editor.copy(message = MotionEditorMessage.DeleteBlocked)
                     )
                 )
             }
+
+            logDebug("Deleted motion: motionId=$motionId")
 
             MotionMutationResult(
                 state = reloadState(state.copy(editor = null)),
@@ -137,8 +177,28 @@ class MotionController(
             state.copy(
                 motions = motions,
                 sections = buildSections(motions)
-            )
+            ).also { updatedState ->
+                logDebug(
+                    "Loaded motion library state: motions=${updatedState.motions.size}, sections=${updatedState.sections.size}"
+                )
+            }
         }
+    }
+
+    private fun logDebug(message: String) {
+        logger.debug(TAG, message)
+    }
+
+    private fun logWarn(message: String) {
+        logger.warn(TAG, message)
+    }
+
+    private fun logError(message: String, throwable: Throwable) {
+        logger.error(TAG, message, throwable)
+    }
+
+    companion object {
+        private const val TAG = "MotionController"
     }
 }
 

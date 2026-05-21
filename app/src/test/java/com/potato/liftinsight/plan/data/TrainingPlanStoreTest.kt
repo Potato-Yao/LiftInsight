@@ -9,6 +9,7 @@ import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -102,7 +103,7 @@ class TrainingPlanStoreTest {
     }
 
     @Test
-    fun updateTrainingPlan_preservesMotionEntryIdsAcrossSaves() {
+    fun updateTrainingPlan_usesDatabaseGeneratedMotionEntryIds() {
         trainingPlanStore.ensureAvailableMotions(
             listOf(
                 AvailableMotionState(id = 1, title = "Snatch"),
@@ -128,7 +129,7 @@ class TrainingPlanStoreTest {
             currentIndex = 2,
             motions = listOf(
                 PlanMotionState(
-                    entryId = 1,
+                    entryId = 101,
                     motionId = storedMotions.getValue("Snatch").id,
                     title = "Snatch",
                     dayIndex = 1,
@@ -139,7 +140,7 @@ class TrainingPlanStoreTest {
                     orderIndex = 1
                 ),
                 PlanMotionState(
-                    entryId = 2,
+                    entryId = 202,
                     motionId = storedMotions.getValue("Front Squat").id,
                     title = "Front Squat",
                     dayIndex = 1,
@@ -158,7 +159,7 @@ class TrainingPlanStoreTest {
                 initialPlan.motions[1],
                 initialPlan.motions[0].copy(sets = 6),
                 PlanMotionState(
-                    entryId = 3,
+                    entryId = 303,
                     motionId = storedMotions.getValue("Snatch").id,
                     title = "Snatch",
                     dayIndex = 1,
@@ -175,14 +176,16 @@ class TrainingPlanStoreTest {
         val reloadedPlan = trainingPlanStore.getTrainingPlan(createdPlanId)
 
         assertTrue(updated)
-        assertEquals(listOf(1, 2, 3), reloadedPlan?.motions?.map { motion -> motion.entryId })
+        assertEquals(3, reloadedPlan?.motions?.size)
+        assertTrue(reloadedPlan?.motions?.all { motion -> motion.entryId > 0 } == true)
+        assertFalse(reloadedPlan?.motions?.any { motion -> motion.entryId == 101 || motion.entryId == 202 || motion.entryId == 303 } == true)
         assertEquals(listOf(1, 2, 3), reloadedPlan?.motions?.map { motion -> motion.orderIndex })
         assertEquals(10, reloadedPlan?.cyclePeriod)
         assertEquals(2, reloadedPlan?.currentIndex)
-        assertEquals(6, reloadedPlan?.motions?.first { motion -> motion.entryId == 1 }?.sets)
-        assertEquals(82.5, reloadedPlan?.motions?.first { motion -> motion.entryId == 1 }?.weight ?: Double.NaN, 0.0)
-        assertEquals(0.7, reloadedPlan?.motions?.first { motion -> motion.entryId == 3 }?.intensity ?: Double.NaN, 0.0)
-        assertEquals(90.0, reloadedPlan?.motions?.first { motion -> motion.entryId == 3 }?.weight ?: Double.NaN, 0.0)
+        assertEquals(listOf("Snatch", "Front Squat", "Snatch"), reloadedPlan?.motions?.map { motion -> motion.title })
+        assertEquals(listOf(6, 4, 3), reloadedPlan?.motions?.map { motion -> motion.sets })
+        assertEquals(listOf(82.5, 105.0, 90.0), reloadedPlan?.motions?.map { motion -> motion.weight })
+        assertEquals(listOf(0.8, 0.78, 0.7), reloadedPlan?.motions?.map { motion -> motion.intensity })
     }
 }
 

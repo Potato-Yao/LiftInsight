@@ -3,6 +3,8 @@ package com.potato.liftinsight.home.controller
 import com.potato.liftinsight.body.model.BodyMetricState
 import com.potato.liftinsight.body.model.defaultBodyMetrics
 import com.potato.liftinsight.body.model.updateBodyMetric as applyBodyMetricUpdate
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.plan.data.TrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.model.AvailableMotionState
@@ -88,7 +90,8 @@ fun planDestinationDepth(destination: PlanDestination): Int {
 class HomeController(
     private val trainingPlanStore: TrainingPlanStore,
     private val shouldSeedDebugPlans: Boolean = false,
-    private val nowProvider: () -> Long = { System.currentTimeMillis() }
+    private val nowProvider: () -> Long = { System.currentTimeMillis() },
+    private val logger: AppLogger = AndroidAppLogger
 ) {
     fun emptyState(): HomeState {
         return HomeState(
@@ -100,6 +103,10 @@ class HomeController(
     }
 
     suspend fun loadState(seedCatalog: TrainingPlanSeedCatalog): HomeState {
+        logDebug(
+            "Loading home state: availableMotionSeeds=${seedCatalog.availableMotions.size}, debugPlanSeedEnabled=$shouldSeedDebugPlans"
+        )
+
         return withContext(Dispatchers.IO) {
             trainingPlanStore.ensureAvailableMotions(seedCatalog.availableMotions)
 
@@ -123,12 +130,20 @@ class HomeController(
                 planIdPendingDelete = null,
                 motionPendingDelete = null,
                 planEditor = null
-            )
+            ).also { loadedState ->
+                logDebug(
+                    "Loaded home state: motions=${loadedState.availableMotions.size}, plans=${loadedState.trainingPlans.size}, currentPlanId=${loadedState.currentPlanId}"
+                )
+            }
         }
     }
 
     fun selectTab(state: HomeState, tabIndex: Int): HomeState {
-        return state.copy(selectedTab = MainTab.fromIndex(tabIndex))
+        val selectedTab = MainTab.fromIndex(tabIndex)
+
+        logDebug("Selecting main tab: requestedIndex=$tabIndex, resolvedTab=$selectedTab")
+
+        return state.copy(selectedTab = selectedTab)
     }
 
     fun updateBodyMetric(
@@ -136,6 +151,8 @@ class HomeController(
         metricId: Int,
         newValue: String
     ): HomeState {
+        logDebug("Updating body metric: metricId=$metricId")
+
         return state.copy(
             bodyMetrics = applyBodyMetricUpdate(
                 metrics = state.bodyMetrics,
@@ -146,6 +163,8 @@ class HomeController(
     }
 
     fun createPlan(state: HomeState): HomeState {
+        logDebug("Opening new plan editor")
+
         return state.copy(
             planDestination = PlanDestination.Editor,
             planIdPendingDelete = null,
@@ -158,13 +177,19 @@ class HomeController(
         state: HomeState,
         planId: Int
     ): HomeState {
+        logDebug("Selecting training plan: planId=$planId")
+
         val updateSucceeded = withContext(Dispatchers.IO) {
-            val selectedPlan = trainingPlanStore.getTrainingPlan(planId) ?: return@withContext false
+            val selectedPlan = trainingPlanStore.getTrainingPlan(planId) ?: run {
+                logWarn("Cannot select training plan because it was not found: planId=$planId")
+                return@withContext false
+            }
 
             val planSaved = trainingPlanStore.updateTrainingPlan(
                 selectedPlan.copy(lastAppliedAt = nowProvider())
             )
             if (!planSaved) {
+                logWarn("Failed to update selected training plan timestamp: planId=$planId")
                 return@withContext false
             }
 
@@ -175,14 +200,18 @@ class HomeController(
             return state
         }
 
+        logDebug("Selected training plan: planId=$planId")
+
         return reloadState(state)
     }
 
     fun showPlanList(state: HomeState): HomeState {
+        logDebug("Showing training plan list")
         return state.copy(planDestination = PlanDestination.List)
     }
 
     fun showPlanOverview(state: HomeState): HomeState {
+        logDebug("Showing training plan overview")
         return state.copy(planDestination = PlanDestination.Overview)
     }
 
@@ -193,8 +222,11 @@ class HomeController(
         val plan = trainingPlan(state.trainingPlans, planId)
 
         if (plan == null) {
+            logWarn("Cannot show plan detail because the plan was not found: planId=$planId")
             return state.copy(planDestination = PlanDestination.List)
         }
+
+        logDebug("Showing plan detail editor: planId=$planId")
 
         return state.copy(
             planDestination = PlanDestination.Editor,
@@ -208,17 +240,25 @@ class HomeController(
         state: HomeState,
         motionEntryId: Int
     ): HomeState {
-        val editor = state.planEditor ?: return state.copy(planDestination = PlanDestination.List)
+        val editor = state.planEditor ?: run {
+            logWarn("Cannot show plan motion detail without an active plan editor: motionEntryId=$motionEntryId")
+            return state.copy(planDestination = PlanDestination.List)
+        }
         val motion = editor.motions.firstOrNull { planMotion -> planMotion.entryId == motionEntryId }
 
         if (motion == null) {
+            logWarn("Cannot show plan motion detail because the motion entry was not found: motionEntryId=$motionEntryId")
             return state.copy(planDestination = PlanDestination.List)
         }
+
+        logDebug("Showing plan motion detail: motionEntryId=$motionEntryId")
 
         return state.copy(planDestination = PlanDestination.Motion(motionEntryId = motionEntryId))
     }
 
     suspend fun handlePlanBack(state: HomeState): HomeState {
+        logDebug("Handling plan back navigation from destination=${state.planDestination}")
+
         return when (state.planDestination) {
             PlanDestination.Overview -> state
 
@@ -252,11 +292,16 @@ class HomeController(
         state: HomeState,
         newName: String
     ): HomeState {
-        val editor = state.planEditor ?: return state
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring plan title update because no plan editor is open")
+            return state
+        }
         val updatedEditor = editor.copy(
             title = newName,
             titleError = false
         )
+
+        logDebug("Updating plan title: planId=${editor.planId ?: -1}, isNewPlan=${editor.isNewPlan}")
 
         if (updatedEditor.isNewPlan) {
             return state.copy(planEditor = updatedEditor)
@@ -265,6 +310,7 @@ class HomeController(
         val updatedState = persistEditorPlan(state, updatedEditor)
 
         if (updatedState == null) {
+            logWarn("Failed to persist updated plan title: planId=${editor.planId}")
             return state
         }
 
@@ -275,7 +321,10 @@ class HomeController(
         state: HomeState,
         cyclePeriod: Int?
     ): HomeState {
-        val editor = state.planEditor ?: return state
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring cycle period update because no plan editor is open")
+            return state
+        }
         val normalizedCyclePeriod = cyclePeriod?.takeIf { value -> value > 0 }
         val selectedDayIndex = when {
             normalizedCyclePeriod == null -> null
@@ -301,6 +350,10 @@ class HomeController(
             cyclePeriodError = false
         )
 
+        logDebug(
+            "Updating plan cycle period: planId=${editor.planId ?: -1}, requested=$cyclePeriod, normalized=$normalizedCyclePeriod"
+        )
+
         if (updatedEditor.isNewPlan) {
             return state.copy(planEditor = updatedEditor)
         }
@@ -308,6 +361,7 @@ class HomeController(
         val updatedState = persistEditorPlan(state, updatedEditor)
 
         if (updatedState == null) {
+            logWarn("Failed to persist updated cycle period: planId=${editor.planId}")
             return state
         }
 
@@ -318,9 +372,19 @@ class HomeController(
         state: HomeState,
         dayIndex: Int
     ): HomeState {
-        val editor = state.planEditor ?: return state
-        val cyclePeriod = editor.cyclePeriod ?: return state
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring plan editor day selection because no plan editor is open")
+            return state
+        }
+        val cyclePeriod = editor.cyclePeriod ?: run {
+            logWarn("Ignoring plan editor day selection because cycle period is not set")
+            return state
+        }
         val normalizedDayIndex = dayIndex.coerceIn(1, cyclePeriod)
+
+        logDebug(
+            "Selecting plan editor day: planId=${editor.planId ?: -1}, requested=$dayIndex, selected=$normalizedDayIndex"
+        )
 
         return state.copy(
             planEditor = editor.copy(selectedDayIndex = normalizedDayIndex)
@@ -332,8 +396,13 @@ class HomeController(
         planId: Int,
         dayIndex: Int
     ): HomeState {
+        logDebug("Updating current plan day: planId=$planId, requestedDayIndex=$dayIndex")
+
         val updateSucceeded = withContext(Dispatchers.IO) {
-            val storedPlan = trainingPlanStore.getTrainingPlan(planId) ?: return@withContext false
+            val storedPlan = trainingPlanStore.getTrainingPlan(planId) ?: run {
+                logWarn("Cannot update current day because the plan was not found: planId=$planId")
+                return@withContext false
+            }
             val updatedPlan = applyPlanCurrentIndexUpdate(
                 plans = listOf(storedPlan),
                 planId = planId,
@@ -341,6 +410,7 @@ class HomeController(
             ).first()
 
             if (updatedPlan == storedPlan) {
+                logWarn("Current plan day update produced no change: planId=$planId, requestedDayIndex=$dayIndex")
                 return@withContext false
             }
 
@@ -351,6 +421,8 @@ class HomeController(
             return state
         }
 
+        logDebug("Updated current plan day: planId=$planId")
+
         return reloadState(state)
     }
 
@@ -359,20 +431,29 @@ class HomeController(
         motionEntryId: Int,
         direction: Int
     ): HomeState {
-        val editor = state.planEditor ?: return state
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring plan motion reorder because no plan editor is open: motionEntryId=$motionEntryId")
+            return state
+        }
         val updatedMotions = reorderEditorMotions(editor.motions, motionEntryId, direction)
 
         if (updatedMotions == editor.motions) {
+            logWarn("Plan motion reorder produced no change: motionEntryId=$motionEntryId, direction=$direction")
             return state
         }
 
         val updatedEditor = editor.copy(motions = updatedMotions)
 
+        logDebug("Reordering plan motion: planId=${editor.planId ?: -1}, motionEntryId=$motionEntryId, direction=$direction")
+
         if (updatedEditor.isNewPlan) {
             return state.copy(planEditor = updatedEditor)
         }
 
-        return persistEditorPlan(state, updatedEditor) ?: state
+        return persistEditorPlan(state, updatedEditor) ?: run {
+            logWarn("Failed to persist reordered plan motion: planId=${editor.planId}, motionEntryId=$motionEntryId")
+            state
+        }
     }
 
     suspend fun updateMotionSets(
@@ -380,7 +461,10 @@ class HomeController(
         motionEntryId: Int,
         sets: Int
     ): HomeState {
-        val editor = state.planEditor ?: return state
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring motion sets update because no plan editor is open: motionEntryId=$motionEntryId")
+            return state
+        }
         val updatedEditor = editor.copy(
             motions = editor.motions.map { motion ->
                 if (motion.entryId == motionEntryId) {
@@ -392,14 +476,20 @@ class HomeController(
         )
 
         if (updatedEditor == editor) {
+            logWarn("Motion sets update produced no change: motionEntryId=$motionEntryId, requestedSets=$sets")
             return state
         }
+
+        logDebug("Updating motion sets: planId=${editor.planId ?: -1}, motionEntryId=$motionEntryId, requestedSets=$sets")
 
         if (updatedEditor.isNewPlan) {
             return state.copy(planEditor = updatedEditor)
         }
 
-        return persistEditorPlan(state, updatedEditor) ?: state
+        return persistEditorPlan(state, updatedEditor) ?: run {
+            logWarn("Failed to persist motion sets update: planId=${editor.planId}, motionEntryId=$motionEntryId")
+            state
+        }
     }
 
     suspend fun updateMotionRepsPerSet(
@@ -407,7 +497,10 @@ class HomeController(
         motionEntryId: Int,
         repsPerSet: Int
     ): HomeState {
-        val editor = state.planEditor ?: return state
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring motion reps update because no plan editor is open: motionEntryId=$motionEntryId")
+            return state
+        }
         val updatedEditor = editor.copy(
             motions = editor.motions.map { motion ->
                 if (motion.entryId == motionEntryId) {
@@ -419,14 +512,22 @@ class HomeController(
         )
 
         if (updatedEditor == editor) {
+            logWarn("Motion reps update produced no change: motionEntryId=$motionEntryId, requestedRepsPerSet=$repsPerSet")
             return state
         }
+
+        logDebug(
+            "Updating motion reps per set: planId=${editor.planId ?: -1}, motionEntryId=$motionEntryId, requestedRepsPerSet=$repsPerSet"
+        )
 
         if (updatedEditor.isNewPlan) {
             return state.copy(planEditor = updatedEditor)
         }
 
-        return persistEditorPlan(state, updatedEditor) ?: state
+        return persistEditorPlan(state, updatedEditor) ?: run {
+            logWarn("Failed to persist motion reps update: planId=${editor.planId}, motionEntryId=$motionEntryId")
+            state
+        }
     }
 
     suspend fun updateMotionWeight(
@@ -434,7 +535,10 @@ class HomeController(
         motionEntryId: Int,
         weight: Double
     ): HomeState {
-        val editor = state.planEditor ?: return state
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring motion weight update because no plan editor is open: motionEntryId=$motionEntryId")
+            return state
+        }
         val updatedEditor = editor.copy(
             motions = editor.motions.map { motion ->
                 if (motion.entryId == motionEntryId) {
@@ -446,14 +550,20 @@ class HomeController(
         )
 
         if (updatedEditor == editor) {
+            logWarn("Motion weight update produced no change: motionEntryId=$motionEntryId, requestedWeight=$weight")
             return state
         }
+
+        logDebug("Updating motion weight: planId=${editor.planId ?: -1}, motionEntryId=$motionEntryId, requestedWeight=$weight")
 
         if (updatedEditor.isNewPlan) {
             return state.copy(planEditor = updatedEditor)
         }
 
-        return persistEditorPlan(state, updatedEditor) ?: state
+        return persistEditorPlan(state, updatedEditor) ?: run {
+            logWarn("Failed to persist motion weight update: planId=${editor.planId}, motionEntryId=$motionEntryId")
+            state
+        }
     }
 
     fun requestPlanDeletion(
@@ -461,23 +571,34 @@ class HomeController(
         planId: Int
     ): HomeState {
         if (trainingPlan(state.trainingPlans, planId) == null) {
+            logWarn("Ignoring plan deletion request because the plan was not found: planId=$planId")
             return state
         }
+
+        logDebug("Requesting plan deletion: planId=$planId")
 
         return state.copy(planIdPendingDelete = planId)
     }
 
     fun cancelPlanDeletion(state: HomeState): HomeState {
+        logDebug("Cancelling plan deletion request")
         return state.copy(planIdPendingDelete = null)
     }
 
     suspend fun confirmPlanDeletion(state: HomeState): HomeState {
-        val pendingPlanId = state.planIdPendingDelete ?: return state
+        val pendingPlanId = state.planIdPendingDelete ?: run {
+            logWarn("Ignoring plan deletion confirmation because no plan is pending deletion")
+            return state
+        }
+
+        logDebug("Confirming plan deletion: planId=$pendingPlanId")
+
         val deleteSucceeded = withContext(Dispatchers.IO) {
             deleteTrainingPlanAndUpdateSelection(pendingPlanId)
         }
 
         if (!deleteSucceeded) {
+            logWarn("Failed to delete training plan: planId=$pendingPlanId")
             return state
         }
 
@@ -494,13 +615,22 @@ class HomeController(
         state: HomeState,
         motionEntryId: Int
     ): HomeState {
-        val editor = state.planEditor ?: return state
-        val planId = editor.planId ?: return state
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring motion deletion request because no plan editor is open: motionEntryId=$motionEntryId")
+            return state
+        }
+        val planId = editor.planId ?: run {
+            logWarn("Ignoring motion deletion request because the plan has not been created yet: motionEntryId=$motionEntryId")
+            return state
+        }
         val motion = editor.motions.firstOrNull { planMotion -> planMotion.entryId == motionEntryId }
 
         if (motion == null) {
+            logWarn("Ignoring motion deletion request because the motion entry was not found: motionEntryId=$motionEntryId")
             return state
         }
+
+        logDebug("Requesting motion deletion: planId=$planId, motionEntryId=$motionEntryId")
 
         return state.copy(
             motionPendingDelete = MotionDeleteTarget(
@@ -511,12 +641,24 @@ class HomeController(
     }
 
     fun cancelMotionDeletion(state: HomeState): HomeState {
+        logDebug("Cancelling motion deletion request")
         return state.copy(motionPendingDelete = null)
     }
 
     suspend fun confirmMotionDeletion(state: HomeState): HomeState {
-        val pendingTarget = state.motionPendingDelete ?: return state
-        val editor = state.planEditor ?: return state
+        val pendingTarget = state.motionPendingDelete ?: run {
+            logWarn("Ignoring motion deletion confirmation because no motion is pending deletion")
+            return state
+        }
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring motion deletion confirmation because no plan editor is open")
+            return state
+        }
+
+        logDebug(
+            "Confirming motion deletion: planId=${pendingTarget.planId}, motionEntryId=${pendingTarget.motionEntryId}"
+        )
+
         val updatedEditor = editor.copy(
             motions = normalizeEditorMotions(
                 motions = editor.motions.filterNot { motion ->
@@ -534,6 +676,9 @@ class HomeController(
         )
 
         if (updatedState == null) {
+            logWarn(
+                "Failed to delete motion from plan: planId=${pendingTarget.planId}, motionEntryId=${pendingTarget.motionEntryId}"
+            )
             return state
         }
 
@@ -541,16 +686,23 @@ class HomeController(
     }
 
     fun openAddMotionPicker(state: HomeState): HomeState {
-        val editor = state.planEditor ?: return state
-
-        if (editor.cyclePeriod == null || editor.selectedDayIndex == null) {
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring add motion picker request because no plan editor is open")
             return state
         }
+
+        if (editor.cyclePeriod == null || editor.selectedDayIndex == null) {
+            logWarn("Ignoring add motion picker request because day selection is incomplete")
+            return state
+        }
+
+        logDebug("Opening add motion picker: planId=${editor.planId ?: -1}, selectedDayIndex=${editor.selectedDayIndex}")
 
         return state.copy(planDestination = PlanDestination.MotionPicker)
     }
 
     fun closeAddMotionPicker(state: HomeState): HomeState {
+        logDebug("Closing add motion picker")
         return state.copy(planDestination = PlanDestination.Editor)
     }
 
@@ -558,8 +710,14 @@ class HomeController(
         state: HomeState,
         motion: AvailableMotionState
     ): HomeState {
-        val editor = state.planEditor ?: return state
-        val selectedDayIndex = editor.selectedDayIndex ?: return state
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring add motion request because no plan editor is open: motionId=${motion.id}")
+            return state
+        }
+        val selectedDayIndex = editor.selectedDayIndex ?: run {
+            logWarn("Ignoring add motion request because no training day is selected: motionId=${motion.id}")
+            return state
+        }
         val addedMotionEntryId = editor.nextTemporaryMotionEntryId
         val nextOrderIndex = editor.motions
             .filter { existingMotion -> existingMotion.dayIndex == selectedDayIndex }
@@ -584,6 +742,10 @@ class HomeController(
             nextTemporaryMotionEntryId = editor.nextTemporaryMotionEntryId - 1
         )
 
+        logDebug(
+            "Adding motion to plan: planId=${editor.planId ?: -1}, motionId=${motion.id}, motionEntryId=$addedMotionEntryId, dayIndex=$selectedDayIndex"
+        )
+
         if (updatedEditor.isNewPlan) {
             return state.copy(
                 planDestination = PlanDestination.Motion(motionEntryId = addedMotionEntryId),
@@ -595,17 +757,28 @@ class HomeController(
             state = state,
             editor = updatedEditor,
             requestedDestination = PlanDestination.Motion(motionEntryId = addedMotionEntryId)
-        ) ?: state
+        ) ?: run {
+            logWarn("Failed to persist added motion: planId=${editor.planId}, motionId=${motion.id}")
+            state
+        }
     }
 
     suspend fun submitPlanEditor(state: HomeState): HomeState {
-        val editor = state.planEditor ?: return state
+        val editor = state.planEditor ?: run {
+            logWarn("Ignoring plan submission because no plan editor is open")
+            return state
+        }
         val title = editor.title.trim()
         val cyclePeriod = editor.cyclePeriod
         val hasTitleError = title.isEmpty()
         val hasCyclePeriodError = cyclePeriod == null || cyclePeriod <= 0
 
+        logDebug("Submitting plan editor: planId=${editor.planId ?: -1}, isNewPlan=${editor.isNewPlan}")
+
         if (hasTitleError || hasCyclePeriodError) {
+            logWarn(
+                "Plan submission validation failed: planId=${editor.planId ?: -1}, titleError=$hasTitleError, cyclePeriodError=$hasCyclePeriodError"
+            )
             return state.copy(
                 planEditor = editor.copy(
                     titleError = hasTitleError,
@@ -615,7 +788,10 @@ class HomeController(
         }
 
         if (!editor.isNewPlan) {
-            return persistEditorPlan(state, editor) ?: state
+            return persistEditorPlan(state, editor) ?: run {
+                logWarn("Failed to persist existing plan submission: planId=${editor.planId}")
+                state
+            }
         }
 
         val createdPlanId = withContext(Dispatchers.IO) {
@@ -626,7 +802,12 @@ class HomeController(
 
         val storedPlan = withContext(Dispatchers.IO) {
             trainingPlanStore.getTrainingPlan(createdPlanId)
-        } ?: return state
+        } ?: run {
+            logWarn("Created plan could not be reloaded after persistence: createdPlanId=$createdPlanId")
+            return state
+        }
+
+        logDebug("Created new training plan: planId=$createdPlanId")
 
         return reloadState(
             state = state,
@@ -636,6 +817,7 @@ class HomeController(
     }
 
     suspend fun refreshState(state: HomeState): HomeState {
+        logDebug("Refreshing home state")
         return reloadState(state)
     }
 
@@ -743,7 +925,10 @@ class HomeController(
         val planId = editor.planId ?: return state.copy(planEditor = editor)
         val storedPlan = withContext(Dispatchers.IO) {
             trainingPlanStore.getTrainingPlan(planId)
-        } ?: return null
+        } ?: run {
+            logWarn("Cannot persist plan editor because the stored plan was not found: planId=$planId")
+            return null
+        }
         val cyclePeriod = editor.cyclePeriod ?: return state.copy(planEditor = editor)
         val normalizedEditor = editor.copy(
             title = editor.title.trim(),
@@ -753,6 +938,7 @@ class HomeController(
         )
 
         if (normalizedEditor.title.isEmpty()) {
+            logWarn("Cannot persist plan editor because the title is blank: planId=$planId")
             return state.copy(planEditor = normalizedEditor.copy(titleError = true))
         }
 
@@ -764,22 +950,38 @@ class HomeController(
         }
 
         if (!updateSucceeded) {
+            logWarn("Training plan persistence failed: planId=$planId")
             return null
         }
 
         val refreshedPlan = withContext(Dispatchers.IO) {
             trainingPlanStore.getTrainingPlan(planId)
-        } ?: return null
+        } ?: run {
+            logWarn("Training plan reload failed after persistence: planId=$planId")
+            return null
+        }
+        val refreshedEditor = refreshedPlan.toEditorState().copy(
+            selectedDayIndex = normalizedEditor.selectedDayIndex,
+            titleError = false,
+            cyclePeriodError = false
+        )
+        val persistedMotionEntryIds = persistedMotionEntryIds(
+            savedMotions = normalizedEditor.motions,
+            refreshedMotions = refreshedEditor.motions
+        )
+
+        logDebug("Persisted plan editor changes: planId=$planId")
 
         return reloadState(
             state = state,
-            requestedDestination = requestedDestination,
-            motionPendingDelete = motionPendingDelete,
-            planEditor = refreshedPlan.toEditorState().copy(
-                selectedDayIndex = normalizedEditor.selectedDayIndex,
-                titleError = false,
-                cyclePeriodError = false
-            )
+            requestedDestination = resolvePersistedPlanDestination(
+                requestedDestination = requestedDestination,
+                persistedMotionEntryIds = persistedMotionEntryIds
+            ),
+            motionPendingDelete = motionPendingDelete?.toPersistedTarget(
+                persistedMotionEntryIds = persistedMotionEntryIds
+            ),
+            planEditor = refreshedEditor
         )
     }
 
@@ -793,8 +995,12 @@ class HomeController(
         val fallbackPlanId = sortPlansByLastApplied(trainingPlans).firstOrNull()?.id ?: -1
 
         if (fallbackPlanId == -1) {
+            logWarn("No valid current training plan found; clearing selection")
             trainingPlanStore.clearCurrentPlan()
         } else {
+            logWarn(
+                "Stored current training plan was invalid; falling back to the most recently applied plan: planId=$fallbackPlanId"
+            )
             trainingPlanStore.setCurrentPlan(fallbackPlanId)
         }
 
@@ -806,6 +1012,7 @@ class HomeController(
         val deleted = trainingPlanStore.deleteTrainingPlan(planId)
 
         if (!deleted) {
+            logWarn("Training plan delete operation was rejected: planId=$planId")
             return false
         }
 
@@ -819,12 +1026,26 @@ class HomeController(
             ?: -1
 
         if (fallbackPlanId == -1) {
+            logWarn("Deleted current training plan and no fallback remained; clearing current selection")
             trainingPlanStore.clearCurrentPlan()
         } else {
+            logDebug("Deleted current training plan and selected fallback plan: planId=$fallbackPlanId")
             trainingPlanStore.setCurrentPlan(fallbackPlanId)
         }
 
         return true
+    }
+
+    private fun logDebug(message: String) {
+        logger.debug(TAG, message)
+    }
+
+    private fun logWarn(message: String) {
+        logger.warn(TAG, message)
+    }
+
+    companion object {
+        private const val TAG = "HomeController"
     }
 }
 
@@ -958,6 +1179,53 @@ private fun sanitizePlanEditor(
         },
         motions = sanitizedMotions
     )
+}
+
+private fun persistedMotionEntryIds(
+    savedMotions: List<PlanMotionState>,
+    refreshedMotions: List<PlanMotionState>
+): Map<Int, Int> {
+    if (savedMotions.isEmpty() || refreshedMotions.isEmpty()) {
+        return emptyMap()
+    }
+
+    val savedMotionsByOrder = normalizeEditorMotions(savedMotions, cyclePeriod = null)
+    val refreshedMotionsByOrder = normalizeEditorMotions(refreshedMotions, cyclePeriod = null)
+    val pairCount = minOf(savedMotionsByOrder.size, refreshedMotionsByOrder.size)
+
+    if (pairCount == 0) {
+        return emptyMap()
+    }
+
+    val persistedIds = mutableMapOf<Int, Int>()
+
+    for (index in 0 until pairCount) {
+        persistedIds[savedMotionsByOrder[index].entryId] = refreshedMotionsByOrder[index].entryId
+    }
+
+    return persistedIds
+}
+
+private fun resolvePersistedPlanDestination(
+    requestedDestination: PlanDestination,
+    persistedMotionEntryIds: Map<Int, Int>
+): PlanDestination {
+    if (requestedDestination !is PlanDestination.Motion) {
+        return requestedDestination
+    }
+
+    val persistedMotionEntryId = persistedMotionEntryIds[requestedDestination.motionEntryId]
+        ?: return PlanDestination.Editor
+
+    return PlanDestination.Motion(motionEntryId = persistedMotionEntryId)
+}
+
+private fun MotionDeleteTarget.toPersistedTarget(
+    persistedMotionEntryIds: Map<Int, Int>
+): MotionDeleteTarget? {
+    val persistedMotionEntryId = persistedMotionEntryIds[motionEntryId] ?: return null
+
+    return copy(motionEntryId = persistedMotionEntryId)
 }
 
 

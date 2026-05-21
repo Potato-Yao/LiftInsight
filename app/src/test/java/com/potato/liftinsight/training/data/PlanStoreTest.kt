@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -72,12 +73,15 @@ class PlanStoreTest {
 
         val storedPlan = planStore.getPlan(planId)
 
+        assertTrue(planId > 0)
+        assertEquals(planId, storedPlan?.id)
         assertEquals("Strength Base", storedPlan?.name)
         assertEquals(7, storedPlan?.cyclePeriod)
         assertEquals(2, storedPlan?.currentIndex)
         assertEquals(1234L, storedPlan?.lastAppliedAt)
         assertEquals(listOf(1, 2), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.orderIndex })
         assertEquals(listOf("Snatch", "Front Squat"), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.motionName })
+        assertTrue(storedPlan?.metaPlans?.all { metaPlan -> metaPlan.id > 0 } == true)
         assertEquals(2, planDao.countMetaPlansForPlan(planId))
         assertEquals(0.85, storedPlan?.metaPlans?.first()?.intensity ?: Double.NaN, 0.0)
         assertEquals(72.5, storedPlan?.metaPlans?.first()?.weight ?: Double.NaN, 0.0)
@@ -146,7 +150,7 @@ class PlanStoreTest {
                 lastAppliedAt = 5678L,
                 metaPlans = listOf(
                     MetaPlanRecord(
-                        id = 0,
+                        id = 500,
                         motionId = snatchId,
                         motionName = "",
                         sets = 5,
@@ -156,7 +160,7 @@ class PlanStoreTest {
                         orderIndex = 1
                     ),
                     MetaPlanRecord(
-                        id = 0,
+                        id = 900,
                         motionId = frontSquatId,
                         motionName = "",
                         sets = 4,
@@ -177,6 +181,10 @@ class PlanStoreTest {
         assertEquals(4, storedPlan?.currentIndex)
         assertEquals(5678L, storedPlan?.lastAppliedAt)
         assertEquals(listOf("Snatch", "Front Squat"), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.motionName })
+        assertEquals(2, storedPlan?.metaPlans?.size)
+        assertTrue(storedPlan?.metaPlans?.all { metaPlan -> metaPlan.id > 0 } == true)
+        assertFalse(storedPlan?.metaPlans?.any { metaPlan -> metaPlan.id == 500 || metaPlan.id == 900 } == true)
+        assertNotEquals(listOf(500, 900), storedPlan?.metaPlans?.map { metaPlan -> metaPlan.id })
         assertEquals(0.8, storedPlan?.metaPlans?.last()?.intensity ?: Double.NaN, 0.0)
         assertEquals(110.0, storedPlan?.metaPlans?.last()?.weight ?: Double.NaN, 0.0)
         assertEquals(2, planDao.countMetaPlansForPlan(planId))

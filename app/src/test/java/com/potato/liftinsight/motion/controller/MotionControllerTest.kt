@@ -3,6 +3,7 @@ package com.potato.liftinsight.motion.controller
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.potato.liftinsight.common.logging.RecordingAppLogger
 import com.potato.liftinsight.motion.model.MotionEditorMessage
 import com.potato.liftinsight.training.data.CreateMetaPlanRequest
 import com.potato.liftinsight.training.data.CreateMotionRequest
@@ -28,6 +29,7 @@ class MotionControllerTest {
     private lateinit var database: LiftInsightDatabase
     private lateinit var motionStore: MotionStore
     private lateinit var planStore: PlanStore
+    private lateinit var logger: RecordingAppLogger
     private lateinit var controller: MotionController
 
     @Before
@@ -38,7 +40,8 @@ class MotionControllerTest {
             .build()
         motionStore = MotionStore.fromDatabase(database)
         planStore = PlanStore.fromDatabase(database)
-        controller = MotionController(motionStore)
+        logger = RecordingAppLogger()
+        controller = MotionController(motionStore, logger)
     }
 
     @After
@@ -107,6 +110,14 @@ class MotionControllerTest {
         assertEquals(MotionEditorMessage.DuplicateName, result.state.editor?.message)
         assertEquals(" Snatch ", result.state.editor?.name)
         assertEquals(listOf("Clean", "Snatch"), state.motions.map { motion -> motion.name })
+        assertTrue(
+            logger.entries().any { entry ->
+                entry.level == "error" &&
+                    entry.tag == "MotionController" &&
+                    entry.message.contains("failed validation") &&
+                    entry.throwable is IllegalArgumentException
+            }
+        )
     }
 
     @Test

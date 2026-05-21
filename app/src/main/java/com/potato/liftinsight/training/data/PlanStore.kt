@@ -94,7 +94,6 @@ class PlanStore private constructor(
 }
 
 private data class PreparedMetaPlan(
-    val id: Int,
     val motionId: Int,
     val dayIndex: Int,
     val sets: Int,
@@ -142,7 +141,6 @@ private fun prepareCreateMetaPlans(
     return preparePreparedMetaPlans(
         metaPlans.map { metaPlan ->
             PreparedMetaPlan(
-                id = 0,
                 motionId = metaPlan.motionId,
                 dayIndex = metaPlan.dayIndex,
                 sets = metaPlan.sets,
@@ -163,7 +161,6 @@ private fun prepareStoredMetaPlans(
     return preparePreparedMetaPlans(
         metaPlans.map { metaPlan ->
             PreparedMetaPlan(
-                id = metaPlan.id,
                 motionId = metaPlan.motionId,
                 dayIndex = metaPlan.dayIndex,
                 sets = metaPlan.sets,
@@ -248,7 +245,6 @@ private fun preparePreparedMetaPlans(
 
 private fun PreparedMetaPlan.toEntity(planId: Int): MetaPlanEntity {
     return MetaPlanEntity(
-        id = id,
         planId = planId,
         motionId = motionId,
         dayIndex = dayIndex,
