@@ -236,5 +236,54 @@ class TrainingPlanStoreTest {
         assertTrue(entries.any { entry -> entry.level == "info" && entry.message.contains("Updated current training plan selection") })
         assertTrue(entries.any { entry -> entry.level == "info" && entry.message.contains("Cleared current training plan selection") })
     }
+
+    @Test
+    fun workoutSession_persistsStartPauseResumeAndStop() {
+        val initialSession = trainingPlanStore.getWorkoutSession()
+
+        assertFalse(initialSession.isWorkoutGoing)
+        assertFalse(initialSession.isPaused)
+        assertEquals(0L, initialSession.elapsedBeforePauseMs)
+
+        trainingPlanStore.startWorkout(startedAt = 1_000L)
+
+        val startedSession = trainingPlanStore.getWorkoutSession()
+
+        assertTrue(startedSession.isWorkoutGoing)
+        assertFalse(startedSession.isPaused)
+        assertEquals(1_000L, startedSession.startedAt)
+        assertEquals(1_000L, startedSession.lastResumedAt)
+        assertEquals(0L, startedSession.elapsedBeforePauseMs)
+
+        trainingPlanStore.pauseWorkout(pausedAt = 4_500L)
+
+        val pausedSession = trainingPlanStore.getWorkoutSession()
+
+        assertTrue(pausedSession.isWorkoutGoing)
+        assertTrue(pausedSession.isPaused)
+        assertEquals(1_000L, pausedSession.startedAt)
+        assertEquals(0L, pausedSession.lastResumedAt)
+        assertEquals(3_500L, pausedSession.elapsedBeforePauseMs)
+
+        trainingPlanStore.resumeWorkout(resumedAt = 7_000L)
+
+        val resumedSession = trainingPlanStore.getWorkoutSession()
+
+        assertTrue(resumedSession.isWorkoutGoing)
+        assertFalse(resumedSession.isPaused)
+        assertEquals(1_000L, resumedSession.startedAt)
+        assertEquals(7_000L, resumedSession.lastResumedAt)
+        assertEquals(3_500L, resumedSession.elapsedBeforePauseMs)
+
+        trainingPlanStore.stopWorkout()
+
+        val stoppedSession = trainingPlanStore.getWorkoutSession()
+
+        assertFalse(stoppedSession.isWorkoutGoing)
+        assertFalse(stoppedSession.isPaused)
+        assertEquals(0L, stoppedSession.startedAt)
+        assertEquals(0L, stoppedSession.lastResumedAt)
+        assertEquals(0L, stoppedSession.elapsedBeforePauseMs)
+    }
 }
 

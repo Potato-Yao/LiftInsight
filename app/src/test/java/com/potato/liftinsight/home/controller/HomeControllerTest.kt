@@ -271,6 +271,57 @@ class HomeControllerTest {
     }
 
     @Test
+    fun workoutSessionActions_persistWorkoutLifecycleAndStopConfirmation() = runBlocking {
+        var now = 1_000L
+        val controller = controller(nowProvider = { now })
+        val initialState = initialState(controller)
+
+        val startedState = controller.startWorkout(initialState)
+
+        assertTrue(startedState.workoutSession.isWorkoutGoing)
+        assertFalse(startedState.workoutSession.isPaused)
+        assertEquals(1_000L, startedState.workoutSession.startedAt)
+        assertEquals(1_000L, startedState.workoutSession.lastResumedAt)
+
+        now = 4_000L
+
+        val pausedState = controller.toggleWorkoutPause(startedState)
+
+        assertTrue(pausedState.workoutSession.isWorkoutGoing)
+        assertTrue(pausedState.workoutSession.isPaused)
+        assertEquals(3_000L, pausedState.workoutSession.elapsedBeforePauseMs)
+
+        now = 8_000L
+
+        val resumedState = controller.toggleWorkoutPause(pausedState)
+
+        assertTrue(resumedState.workoutSession.isWorkoutGoing)
+        assertFalse(resumedState.workoutSession.isPaused)
+        assertEquals(1_000L, resumedState.workoutSession.startedAt)
+        assertEquals(8_000L, resumedState.workoutSession.lastResumedAt)
+        assertEquals(3_000L, resumedState.workoutSession.elapsedBeforePauseMs)
+
+        val stopRequestedState = controller.requestWorkoutStop(resumedState)
+
+        assertTrue(stopRequestedState.workoutStopPendingConfirmation)
+
+        val stopDismissedState = controller.dismissWorkoutStop(stopRequestedState)
+
+        assertFalse(stopDismissedState.workoutStopPendingConfirmation)
+
+        val stopConfirmedState = controller.confirmWorkoutStop(
+            controller.requestWorkoutStop(stopDismissedState)
+        )
+
+        assertFalse(stopConfirmedState.workoutSession.isWorkoutGoing)
+        assertFalse(stopConfirmedState.workoutSession.isPaused)
+        assertEquals(0L, stopConfirmedState.workoutSession.startedAt)
+        assertEquals(0L, stopConfirmedState.workoutSession.lastResumedAt)
+        assertEquals(0L, stopConfirmedState.workoutSession.elapsedBeforePauseMs)
+        assertFalse(stopConfirmedState.workoutStopPendingConfirmation)
+    }
+
+    @Test
     fun confirmPlanDeletion_removesPlanClearsDialogAndReturnsToList() = runBlocking {
         val controller = controller()
         val state = controller.requestPlanDeletion(initialState(controller), 2)

@@ -31,6 +31,14 @@ data class TrainingPlanSelectionResult(
     val currentPlanId: Int
 )
 
+data class WorkoutSessionState(
+    val isWorkoutGoing: Boolean = false,
+    val isPaused: Boolean = false,
+    val startedAt: Long = 0L,
+    val lastResumedAt: Long = 0L,
+    val elapsedBeforePauseMs: Long = 0L
+)
+
 data class CreateTrainingPlanResult(
     val plans: List<TrainingPlanState>,
     val createdPlanId: Int
@@ -117,6 +125,23 @@ fun todaysPlanMotions(plan: TrainingPlanState): List<PlanMotionState> {
         plan = plan,
         dayIndex = normalizedPlanCurrentIndex(plan)
     )
+}
+
+fun workoutElapsedTimeMs(
+    workoutSession: WorkoutSessionState,
+    now: Long
+): Long {
+    if (!workoutSession.isWorkoutGoing) {
+        return 0L
+    }
+
+    if (workoutSession.isPaused || workoutSession.lastResumedAt <= 0L) {
+        return workoutSession.elapsedBeforePauseMs.coerceAtLeast(0L)
+    }
+
+    val activeSegmentMs = (now - workoutSession.lastResumedAt).coerceAtLeast(0L)
+
+    return (workoutSession.elapsedBeforePauseMs + activeSegmentMs).coerceAtLeast(0L)
 }
 
 fun selectTrainingPlan(

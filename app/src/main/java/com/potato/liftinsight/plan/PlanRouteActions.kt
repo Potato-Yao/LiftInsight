@@ -8,6 +8,11 @@ import kotlinx.coroutines.launch
 
 internal data class PlanRouteActions(
     val onCreatePlan: () -> Unit,
+    val onStartWorkout: () -> Unit,
+    val onToggleWorkoutPause: () -> Unit,
+    val onRequestWorkoutStop: () -> Unit,
+    val onDismissWorkoutStop: () -> Unit,
+    val onConfirmWorkoutStop: () -> Unit,
     val onSelectPlan: (Int) -> Unit,
     val onOpenPlanDetail: (Int) -> Unit,
     val onOpenPlanList: () -> Unit,
@@ -45,6 +50,27 @@ internal fun buildPlanRouteActions(
     return PlanRouteActions(
         onCreatePlan = {
             updateState(controller.createPlan(currentState()))
+        },
+        onStartWorkout = {
+            coroutineScope.launch {
+                updateState(controller.startWorkout(currentState()))
+            }
+        },
+        onToggleWorkoutPause = {
+            coroutineScope.launch {
+                updateState(controller.toggleWorkoutPause(currentState()))
+            }
+        },
+        onRequestWorkoutStop = {
+            updateState(controller.requestWorkoutStop(currentState()))
+        },
+        onDismissWorkoutStop = {
+            updateState(controller.dismissWorkoutStop(currentState()))
+        },
+        onConfirmWorkoutStop = {
+            coroutineScope.launch {
+                updateState(controller.confirmWorkoutStop(currentState()))
+            }
         },
         onSelectPlan = { planId ->
             coroutineScope.launch {

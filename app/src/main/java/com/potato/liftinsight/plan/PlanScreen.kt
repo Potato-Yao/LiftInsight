@@ -39,12 +39,17 @@ import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.WorkoutSessionState
 import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
+import com.potato.liftinsight.plan.model.workoutElapsedTimeMs
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
+import java.util.Locale
+import kotlinx.coroutines.delay
 
 @Composable
 internal fun PlanScreen(
     currentPlan: TrainingPlanState?,
+    workoutSession: WorkoutSessionState,
     todayMotions: List<PlanMotionState>,
     onEditPlan: () -> Unit,
     modifier: Modifier = Modifier
@@ -92,6 +97,21 @@ internal fun PlanScreen(
                     onEditPlan = onEditPlan,
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+        }
+
+        if (workoutSession.isWorkoutGoing) {
+            item(key = "workoutSession") {
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = planSectionEnter(delayMillis = 85),
+                    exit = ExitTransition.None
+                ) {
+                    WorkoutSessionCard(
+                        workoutSession = workoutSession,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
 
@@ -163,6 +183,61 @@ internal fun PlanScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutSessionCard(
+    workoutSession: WorkoutSessionState,
+    modifier: Modifier = Modifier
+) {
+    val elapsedTimeMs = rememberWorkoutElapsedTimeMs(workoutSession)
+    val statusText = if (workoutSession.isPaused) {
+        stringResource(R.string.plan_workout_paused_label)
+    } else {
+        stringResource(R.string.plan_workout_active_label)
+    }
+    val subtitleText = if (workoutSession.isPaused) {
+        stringResource(R.string.plan_workout_paused_subtitle)
+    } else {
+        stringResource(R.string.plan_workout_active_subtitle)
+    }
+
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+
+            Text(
+                text = formatElapsedDuration(elapsedTimeMs),
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+
+            Text(
+                text = subtitleText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.82f)
+            )
         }
     }
 }
@@ -320,6 +395,47 @@ private fun EmptyPlanMessage(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+@Composable
+private fun rememberWorkoutElapsedTimeMs(workoutSession: WorkoutSessionState): Long {
+    var currentTimeMs by remember(
+        workoutSession.isWorkoutGoing,
+        workoutSession.isPaused,
+        workoutSession.lastResumedAt,
+        workoutSession.elapsedBeforePauseMs
+    ) {
+        mutableStateOf(System.currentTimeMillis())
+    }
+
+    LaunchedEffect(
+        workoutSession.isWorkoutGoing,
+        workoutSession.isPaused,
+        workoutSession.lastResumedAt,
+        workoutSession.elapsedBeforePauseMs
+    ) {
+        currentTimeMs = System.currentTimeMillis()
+
+        if (!workoutSession.isWorkoutGoing || workoutSession.isPaused) {
+            return@LaunchedEffect
+        }
+
+        while (true) {
+            delay(1_000L)
+            currentTimeMs = System.currentTimeMillis()
+        }
+    }
+
+    return workoutElapsedTimeMs(workoutSession, currentTimeMs)
+}
+
+private fun formatElapsedDuration(elapsedTimeMs: Long): String {
+    val totalSeconds = (elapsedTimeMs / 1_000L).coerceAtLeast(0L)
+    val hours = totalSeconds / 3_600L
+    val minutes = (totalSeconds % 3_600L) / 60L
+    val seconds = totalSeconds % 60L
+
+    return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
 }
 
 private fun planSectionEnter(delayMillis: Int): EnterTransition {

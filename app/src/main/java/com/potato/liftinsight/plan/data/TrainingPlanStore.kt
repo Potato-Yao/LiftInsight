@@ -6,6 +6,8 @@ import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.WorkoutSessionState
+import com.potato.liftinsight.plan.model.workoutElapsedTimeMs
 import com.potato.liftinsight.plan.model.normalizePlanDayIndex
 import com.potato.liftinsight.plan.model.sortPlansByLastApplied
 import com.potato.liftinsight.training.data.CreateMotionRequest
@@ -17,6 +19,7 @@ import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.training.data.PlanSelectionEntity
 import com.potato.liftinsight.training.data.PlanStore
 import com.potato.liftinsight.training.data.PlanRecord
+import com.potato.liftinsight.training.data.WorkoutSessionEntity
 
 class TrainingPlanStore private constructor(
     private val motionStore: MotionStore,
@@ -93,6 +96,87 @@ class TrainingPlanStore private constructor(
 
         logger.info(TAG, "Cleared current training plan selection")
         logTrace("clearCurrentPlan result: cleared=true")
+    }
+
+    fun getWorkoutSession(): WorkoutSessionState {
+        val workoutSession = database.planDao().getWorkoutSession()?.toState() ?: WorkoutSessionState()
+
+        logTrace(
+            "getWorkoutSession result: isWorkoutGoing=${workoutSession.isWorkoutGoing}, isPaused=${workoutSession.isPaused}, elapsedBeforePauseMs=${workoutSession.elapsedBeforePauseMs}"
+        )
+
+        return workoutSession
+    }
+
+    fun startWorkout(startedAt: Long) {
+        logTrace("startWorkout start: startedAt=$startedAt")
+
+        database.planDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                isWorkoutGoing = true,
+                isPaused = false,
+                startedAt = startedAt.coerceAtLeast(0L),
+                lastResumedAt = startedAt.coerceAtLeast(0L),
+                elapsedBeforePauseMs = 0L
+            )
+        )
+
+        logger.info(TAG, "Started workout session")
+        logTrace("startWorkout result: started=true")
+    }
+
+    fun pauseWorkout(pausedAt: Long) {
+        logTrace("pauseWorkout start: pausedAt=$pausedAt")
+
+        val currentSession = getWorkoutSession()
+        val updatedElapsedTimeMs = workoutElapsedTimeMs(currentSession, pausedAt.coerceAtLeast(0L))
+
+        database.planDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                isWorkoutGoing = currentSession.isWorkoutGoing,
+                isPaused = true,
+                startedAt = currentSession.startedAt,
+                lastResumedAt = 0L,
+                elapsedBeforePauseMs = updatedElapsedTimeMs
+            )
+        )
+
+        logger.info(TAG, "Paused workout session")
+        logTrace("pauseWorkout result: paused=true, elapsedBeforePauseMs=$updatedElapsedTimeMs")
+    }
+
+    fun resumeWorkout(resumedAt: Long) {
+        logTrace("resumeWorkout start: resumedAt=$resumedAt")
+
+        val currentSession = getWorkoutSession()
+        val normalizedResumedAt = resumedAt.coerceAtLeast(0L)
+        val startedAt = if (currentSession.startedAt > 0L) {
+            currentSession.startedAt
+        } else {
+            normalizedResumedAt
+        }
+
+        database.planDao().upsertWorkoutSession(
+            WorkoutSessionEntity(
+                isWorkoutGoing = true,
+                isPaused = false,
+                startedAt = startedAt,
+                lastResumedAt = normalizedResumedAt,
+                elapsedBeforePauseMs = currentSession.elapsedBeforePauseMs.coerceAtLeast(0L)
+            )
+        )
+
+        logger.info(TAG, "Resumed workout session")
+        logTrace("resumeWorkout result: resumed=true")
+    }
+
+    fun stopWorkout() {
+        logTrace("stopWorkout start")
+
+        database.planDao().upsertWorkoutSession(WorkoutSessionEntity())
+
+        logger.info(TAG, "Stopped workout session")
+        logTrace("stopWorkout result: stopped=true")
     }
 
     fun createTrainingPlan(
@@ -251,6 +335,16 @@ private fun TrainingPlanState.toRecord(): PlanRecord {
                 orderIndex = motion.orderIndex
             )
         }
+    )
+}
+
+private fun WorkoutSessionEntity.toState(): WorkoutSessionState {
+    return WorkoutSessionState(
+        isWorkoutGoing = isWorkoutGoing,
+        isPaused = isPaused,
+        startedAt = startedAt,
+        lastResumedAt = lastResumedAt,
+        elapsedBeforePauseMs = elapsedBeforePauseMs
     )
 }
 

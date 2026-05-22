@@ -38,6 +38,17 @@
     <string name="plan_add_motion_content_description">Add motion</string>
     <string name="plan_today_section_title">Today\'s motions</string>
     <string name="plan_today_section_subtitle">LiftInsight shows the motion assigned to the current day in your active cycle.</string>
+    <string name="plan_workout_active_label">Workout in progress</string>
+    <string name="plan_workout_paused_label">Workout paused</string>
+    <string name="plan_workout_active_subtitle">The session timer is running for your current workout.</string>
+    <string name="plan_workout_paused_subtitle">The session timer is paused. Resume when you are ready for the next set.</string>
+    <string name="plan_workout_start_content_description">Start workout</string>
+    <string name="plan_workout_pause_content_description">Pause workout</string>
+    <string name="plan_workout_resume_content_description">Resume workout</string>
+    <string name="plan_workout_stop_content_description">Stop workout</string>
+    <string name="plan_workout_stop_dialog_title">Stop workout?</string>
+    <string name="plan_workout_stop_dialog_message">Stop this workout session and reset the timer?</string>
+    <string name="plan_workout_stop_action">Stop</string>
     <string name="plan_today_day_label">Day %1$d</string>
     <string name="plan_day_of_cycle">Day %1$d of %2$d</string>
     <string name="plan_no_motion_for_day">No motion is scheduled for day %1$d yet.</string>

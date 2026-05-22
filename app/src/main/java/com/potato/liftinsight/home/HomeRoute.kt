@@ -192,6 +192,11 @@ private fun HomeRoutePreview() {
             onThemeModeSelected = {},
             planActions = PlanRouteActions(
                 onCreatePlan = {},
+                onStartWorkout = {},
+                onToggleWorkoutPause = {},
+                onRequestWorkoutStop = {},
+                onDismissWorkoutStop = {},
+                onConfirmWorkoutStop = {},
                 onSelectPlan = {},
                 onOpenPlanDetail = {},
                 onOpenPlanList = {},

@@ -42,6 +42,12 @@ abstract class PlanDao {
     @Query("DELETE FROM plan_selection")
     abstract fun clearPlanSelection()
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract fun upsertWorkoutSession(session: WorkoutSessionEntity)
+
+    @Query("SELECT * FROM workout_session WHERE id = 1")
+    abstract fun getWorkoutSession(): WorkoutSessionEntity?
+
     @Query(
         """
         SELECT

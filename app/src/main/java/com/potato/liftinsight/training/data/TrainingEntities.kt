@@ -48,6 +48,22 @@ data class PlanSelectionEntity(
     val currentPlanId: Int? = null
 )
 
+@Entity(tableName = "workout_session")
+data class WorkoutSessionEntity(
+    @PrimaryKey
+    val id: Int = 1,
+    @ColumnInfo(name = "is_workout_going")
+    val isWorkoutGoing: Boolean = false,
+    @ColumnInfo(name = "is_paused")
+    val isPaused: Boolean = false,
+    @ColumnInfo(name = "started_at")
+    val startedAt: Long = 0L,
+    @ColumnInfo(name = "last_resumed_at")
+    val lastResumedAt: Long = 0L,
+    @ColumnInfo(name = "elapsed_before_pause_ms")
+    val elapsedBeforePauseMs: Long = 0L
+)
+
 @Entity(
     tableName = "metaplan",
     foreignKeys = [

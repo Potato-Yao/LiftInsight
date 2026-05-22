@@ -17,6 +17,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -113,6 +116,7 @@ internal fun PlanTabContent(
 
                 PlanOverviewPanel(
                     currentPlan = plan,
+                    workoutSession = state.workoutSession,
                     todayMotions = plan?.let(::todaysPlanMotions).orEmpty(),
                     onOpenPlanList = planActions.onOpenPlanList,
                     modifier = Modifier.padding(contentPadding)
@@ -240,7 +244,15 @@ internal fun PlanTabFloatingActionButton(
     val editor = state.planEditor
 
     when (state.planDestination) {
-        PlanDestination.Overview -> Unit
+        PlanDestination.Overview -> {
+            PlanOverviewActionButtons(
+                isWorkoutGoing = state.workoutSession.isWorkoutGoing,
+                isWorkoutPaused = state.workoutSession.isPaused,
+                onStartWorkout = actions.onStartWorkout,
+                onToggleWorkoutPause = actions.onToggleWorkoutPause,
+                onRequestWorkoutStop = actions.onRequestWorkoutStop
+            )
+        }
 
         PlanDestination.List -> {
             FloatingActionButton(onClick = actions.onCreatePlan) {
@@ -355,6 +367,77 @@ internal fun PlanTabDialogs(
             )
         }
     }
+
+    if (state.workoutStopPendingConfirmation) {
+        AlertDialog(
+            onDismissRequest = actions.onDismissWorkoutStop,
+            title = {
+                Text(text = stringResource(R.string.plan_workout_stop_dialog_title))
+            },
+            text = {
+                Text(text = stringResource(R.string.plan_workout_stop_dialog_message))
+            },
+            confirmButton = {
+                TextButton(onClick = actions.onConfirmWorkoutStop) {
+                    Text(text = stringResource(R.string.plan_workout_stop_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = actions.onDismissWorkoutStop) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun PlanOverviewActionButtons(
+    isWorkoutGoing: Boolean,
+    isWorkoutPaused: Boolean,
+    onStartWorkout: () -> Unit,
+    onToggleWorkoutPause: () -> Unit,
+    onRequestWorkoutStop: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (isWorkoutGoing) {
+            SmallFloatingActionButton(
+                onClick = onRequestWorkoutStop,
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Stop,
+                    contentDescription = stringResource(R.string.plan_workout_stop_content_description)
+                )
+            }
+
+            FloatingActionButton(onClick = onToggleWorkoutPause) {
+                Icon(
+                    imageVector = if (isWorkoutPaused) {
+                        Icons.Rounded.PlayArrow
+                    } else {
+                        Icons.Rounded.Pause
+                    },
+                    contentDescription = if (isWorkoutPaused) {
+                        stringResource(R.string.plan_workout_resume_content_description)
+                    } else {
+                        stringResource(R.string.plan_workout_pause_content_description)
+                    }
+                )
+            }
+        } else {
+            FloatingActionButton(onClick = onStartWorkout) {
+                Icon(
+                    imageVector = Icons.Rounded.PlayArrow,
+                    contentDescription = stringResource(R.string.plan_workout_start_content_description)
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -440,12 +523,14 @@ private fun PlanMotionDetailActionButtons(
 @Composable
 private fun PlanOverviewPanel(
     currentPlan: TrainingPlanState?,
+    workoutSession: com.potato.liftinsight.plan.model.WorkoutSessionState,
     todayMotions: List<PlanMotionState>,
     onOpenPlanList: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     PlanScreen(
         currentPlan = currentPlan,
+        workoutSession = workoutSession,
         todayMotions = todayMotions,
         onEditPlan = onOpenPlanList,
         modifier = modifier

@@ -7,8 +7,14 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [MotionEntity::class, PlanEntity::class, PlanSelectionEntity::class, MetaPlanEntity::class],
-    version = 6,
+    entities = [
+        MotionEntity::class,
+        PlanEntity::class,
+        PlanSelectionEntity::class,
+        WorkoutSessionEntity::class,
+        MetaPlanEntity::class
+    ],
+    version = 7,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {

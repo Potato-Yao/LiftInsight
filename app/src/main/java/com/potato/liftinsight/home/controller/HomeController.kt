@@ -10,6 +10,7 @@ import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.WorkoutSessionState
 import com.potato.liftinsight.plan.model.sortPlansByLastApplied
 import com.potato.liftinsight.plan.model.trainingPlan
 import com.potato.liftinsight.plan.model.updatePlanCurrentIndex as applyPlanCurrentIndexUpdate
@@ -36,10 +37,12 @@ data class HomeState(
     val availableMotions: List<AvailableMotionState>,
     val trainingPlans: List<TrainingPlanState>,
     val currentPlanId: Int,
+    val workoutSession: WorkoutSessionState = WorkoutSessionState(),
     val planDestination: PlanDestination = PlanDestination.Overview,
     val planIdPendingDelete: Int? = null,
     val motionPendingDelete: MotionDeleteTarget? = null,
-    val planEditor: PlanEditorState? = null
+    val planEditor: PlanEditorState? = null,
+    val workoutStopPendingConfirmation: Boolean = false
 ) {
     val selectedTabIndex: Int
         get() = selectedTab.ordinal
@@ -120,16 +123,19 @@ class HomeController(
             val availableMotions = trainingPlanStore.getAvailableMotions()
             val trainingPlans = trainingPlanStore.getTrainingPlans()
             val currentPlanId = resolveCurrentPlanId(trainingPlans)
+            val workoutSession = trainingPlanStore.getWorkoutSession()
 
             buildLoadedState(
                 state = emptyState(),
                 availableMotions = availableMotions,
                 trainingPlans = trainingPlans,
                 currentPlanId = currentPlanId,
+                workoutSession = workoutSession,
                 requestedDestination = PlanDestination.Overview,
                 planIdPendingDelete = null,
                 motionPendingDelete = null,
-                planEditor = null
+                planEditor = null,
+                workoutStopPendingConfirmation = false
             ).also { loadedState ->
                 logDebug(
                     "Loaded home state: motions=${loadedState.availableMotions.size}, plans=${loadedState.trainingPlans.size}, currentPlanId=${loadedState.currentPlanId}"
@@ -213,6 +219,78 @@ class HomeController(
     fun showPlanOverview(state: HomeState): HomeState {
         logDebug("Showing training plan overview")
         return state.copy(planDestination = PlanDestination.Overview)
+    }
+
+    suspend fun startWorkout(state: HomeState): HomeState {
+        if (state.workoutSession.isWorkoutGoing) {
+            logWarn("Ignoring workout start because a workout session is already running")
+            return state
+        }
+
+        logDebug("Starting workout session")
+
+        withContext(Dispatchers.IO) {
+            trainingPlanStore.startWorkout(nowProvider())
+        }
+
+        return reloadState(state)
+    }
+
+    suspend fun toggleWorkoutPause(state: HomeState): HomeState {
+        val workoutSession = state.workoutSession
+
+        if (!workoutSession.isWorkoutGoing) {
+            logWarn("Ignoring workout pause toggle because no workout session is active")
+            return state
+        }
+
+        val now = nowProvider()
+
+        withContext(Dispatchers.IO) {
+            if (workoutSession.isPaused) {
+                trainingPlanStore.resumeWorkout(now)
+            } else {
+                trainingPlanStore.pauseWorkout(now)
+            }
+        }
+
+        logDebug("Toggled workout pause state: isPaused=${!workoutSession.isPaused}")
+
+        return reloadState(state)
+    }
+
+    fun requestWorkoutStop(state: HomeState): HomeState {
+        if (!state.workoutSession.isWorkoutGoing) {
+            logWarn("Ignoring workout stop request because no workout session is active")
+            return state
+        }
+
+        logDebug("Requesting workout stop confirmation")
+
+        return state.copy(workoutStopPendingConfirmation = true)
+    }
+
+    fun dismissWorkoutStop(state: HomeState): HomeState {
+        logDebug("Dismissing workout stop confirmation")
+        return state.copy(workoutStopPendingConfirmation = false)
+    }
+
+    suspend fun confirmWorkoutStop(state: HomeState): HomeState {
+        if (!state.workoutStopPendingConfirmation) {
+            logWarn("Ignoring workout stop confirmation because no workout stop is pending")
+            return state
+        }
+
+        logDebug("Stopping workout session")
+
+        withContext(Dispatchers.IO) {
+            trainingPlanStore.stopWorkout()
+        }
+
+        return reloadState(
+            state = state,
+            workoutStopPendingConfirmation = false
+        )
     }
 
     fun showPlanDetail(
@@ -826,22 +904,26 @@ class HomeController(
         requestedDestination: PlanDestination = state.planDestination,
         planIdPendingDelete: Int? = state.planIdPendingDelete,
         motionPendingDelete: MotionDeleteTarget? = state.motionPendingDelete,
-        planEditor: PlanEditorState? = state.planEditor
+        planEditor: PlanEditorState? = state.planEditor,
+        workoutStopPendingConfirmation: Boolean = state.workoutStopPendingConfirmation
     ): HomeState {
         return withContext(Dispatchers.IO) {
             val availableMotions = trainingPlanStore.getAvailableMotions()
             val trainingPlans = trainingPlanStore.getTrainingPlans()
             val currentPlanId = resolveCurrentPlanId(trainingPlans)
+            val workoutSession = trainingPlanStore.getWorkoutSession()
 
             buildLoadedState(
                 state = state,
                 availableMotions = availableMotions,
                 trainingPlans = trainingPlans,
                 currentPlanId = currentPlanId,
+                workoutSession = workoutSession,
                 requestedDestination = requestedDestination,
                 planIdPendingDelete = planIdPendingDelete,
                 motionPendingDelete = motionPendingDelete,
-                planEditor = planEditor
+                planEditor = planEditor,
+                workoutStopPendingConfirmation = workoutStopPendingConfirmation
             )
         }
     }
@@ -851,10 +933,12 @@ class HomeController(
         availableMotions: List<AvailableMotionState>,
         trainingPlans: List<TrainingPlanState>,
         currentPlanId: Int,
+        workoutSession: WorkoutSessionState,
         requestedDestination: PlanDestination,
         planIdPendingDelete: Int?,
         motionPendingDelete: MotionDeleteTarget?,
-        planEditor: PlanEditorState?
+        planEditor: PlanEditorState?,
+        workoutStopPendingConfirmation: Boolean
     ): HomeState {
         val sanitizedPlanEditor = sanitizePlanEditor(trainingPlans, availableMotions, planEditor)
 
@@ -862,6 +946,7 @@ class HomeController(
             availableMotions = availableMotions,
             trainingPlans = trainingPlans,
             currentPlanId = currentPlanId,
+            workoutSession = workoutSession,
             planEditor = sanitizedPlanEditor,
             planDestination = sanitizePlanDestination(
                 requestedDestination = requestedDestination,
@@ -875,7 +960,8 @@ class HomeController(
                     motion.entryId == pendingTarget.motionEntryId &&
                         sanitizedPlanEditor.planId == pendingTarget.planId
                 } == true
-            }
+            },
+            workoutStopPendingConfirmation = workoutStopPendingConfirmation && workoutSession.isWorkoutGoing
         )
     }
 
