@@ -15,6 +15,15 @@
     <string name="nav_settings">Settings</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_subtitle">Choose how LiftInsight looks on your device.</string>
+    <string name="settings_theme_summary">Current: %1$s</string>
+    <string name="settings_theme_page_title">App appearance</string>
+    <string name="settings_theme_page_subtitle">Choose the theme that feels best for planning sessions and reviewing motion.</string>
+    <string name="settings_theme_follow_system">Follow system</string>
+    <string name="settings_theme_follow_system_subtitle">Match your device setting automatically.</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_light_subtitle">Use a bright interface for a clean daytime look.</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_theme_dark_subtitle">Use a darker interface that stays comfortable in low light.</string>
     <string name="settings_about">About</string>
     <string name="settings_about_subtitle">View app details and project information.</string>
     <string name="plan_current_plan_label">Current plan:</string>

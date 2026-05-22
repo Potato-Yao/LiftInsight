@@ -49,10 +49,12 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun LiftInsightTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: AppThemeMode = AppThemeMode.FollowSystem,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val darkTheme = themeMode.resolveDarkTheme(isSystemInDarkTheme())
+
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current

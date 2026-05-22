@@ -40,13 +40,16 @@ import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.training.data.MotionStore
+import com.potato.liftinsight.ui.theme.AppThemeMode
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
 import kotlinx.coroutines.launch
 
 @Composable
 fun HomeRoute(
     trainingPlanStore: TrainingPlanStore,
-    enableDebugPlanSeed: Boolean
+    enableDebugPlanSeed: Boolean,
+    currentThemeMode: AppThemeMode,
+    onThemeModeSelected: (AppThemeMode) -> Unit
 ) {
     val context = LocalContext.current
     val controller = remember(trainingPlanStore, enableDebugPlanSeed) {
@@ -131,6 +134,7 @@ fun HomeRoute(
     HomeScaffold(
         state = state,
         motionState = motionState,
+        currentThemeMode = currentThemeMode,
         bottomBarItems = bottomBarItems,
         onTabSelected = { tabIndex ->
             state = controller.selectTab(state, tabIndex)
@@ -138,6 +142,7 @@ fun HomeRoute(
         onBodyMetricValueChange = { metricId, newValue ->
             state = controller.updateBodyMetric(state, metricId, newValue)
         },
+        onThemeModeSelected = onThemeModeSelected,
         planActions = planActions,
         motionActions = motionActions
     )
@@ -180,9 +185,11 @@ private fun HomeRoutePreview() {
                 currentPlanId = 1
             ),
             motionState = MotionState(),
+            currentThemeMode = AppThemeMode.FollowSystem,
             bottomBarItems = emptyList(),
             onTabSelected = {},
             onBodyMetricValueChange = { _, _ -> },
+            onThemeModeSelected = {},
             planActions = PlanRouteActions(
                 onCreatePlan = {},
                 onSelectPlan = {},

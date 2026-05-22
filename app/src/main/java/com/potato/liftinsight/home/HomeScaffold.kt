@@ -28,15 +28,18 @@ import com.potato.liftinsight.plan.PlanTabContent
 import com.potato.liftinsight.plan.PlanTabDialogs
 import com.potato.liftinsight.plan.PlanTabFloatingActionButton
 import com.potato.liftinsight.settings.SettingsScreen
+import com.potato.liftinsight.ui.theme.AppThemeMode
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 
 @Composable
 internal fun HomeScaffold(
     state: HomeState,
     motionState: MotionState,
+    currentThemeMode: AppThemeMode,
     bottomBarItems: List<BottomBarItem>,
     onTabSelected: (Int) -> Unit,
     onBodyMetricValueChange: (Int, String) -> Unit,
+    onThemeModeSelected: (AppThemeMode) -> Unit,
     planActions: PlanRouteActions,
     motionActions: MotionRouteActions
 ) {
@@ -136,7 +139,11 @@ internal fun HomeScaffold(
                     contentPadding = innerPadding
                 )
 
-                MainTab.Settings -> SettingsScreen(modifier = Modifier.padding(innerPadding))
+                MainTab.Settings -> SettingsScreen(
+                    currentThemeMode = currentThemeMode,
+                    onThemeModeSelected = onThemeModeSelected,
+                    modifier = Modifier.padding(innerPadding)
+                )
             }
         }
     }
