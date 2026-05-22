@@ -7,6 +7,7 @@ import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.WorkoutSessionState
+import com.potato.liftinsight.plan.model.advancePlanDayIndex
 import com.potato.liftinsight.plan.model.workoutElapsedTimeMs
 import com.potato.liftinsight.plan.model.normalizePlanDayIndex
 import com.potato.liftinsight.plan.model.sortPlansByLastApplied
@@ -20,6 +21,7 @@ import com.potato.liftinsight.training.data.PlanSelectionEntity
 import com.potato.liftinsight.training.data.PlanStore
 import com.potato.liftinsight.training.data.PlanRecord
 import com.potato.liftinsight.training.data.WorkoutSessionEntity
+import java.util.TimeZone
 
 class TrainingPlanStore private constructor(
     private val motionStore: MotionStore,
@@ -73,18 +75,106 @@ class TrainingPlanStore private constructor(
         return currentPlanId
     }
 
-    fun setCurrentPlan(planId: Int): Boolean {
-        logTrace("setCurrentPlan start: planId=$planId")
+    fun setCurrentPlan(
+        planId: Int,
+        selectedAt: Long? = null
+    ): Boolean {
+        logTrace("setCurrentPlan start: planId=$planId, selectedAt=$selectedAt")
 
         if (planStore.getPlan(planId) == null) {
             logTrace("setCurrentPlan result: planId=$planId, updated=false")
             return false
         }
 
-        database.planDao().upsertPlanSelection(PlanSelectionEntity(currentPlanId = planId))
+        database.planDao().upsertPlanSelection(
+            PlanSelectionEntity(
+                currentPlanId = planId,
+                currentDayEpoch = selectedAt?.let { timestamp -> localEpochDay(timestamp) }
+            )
+        )
 
         logger.info(TAG, "Updated current training plan selection: planId=$planId")
         logTrace("setCurrentPlan result: planId=$planId, updated=true")
+
+        return true
+    }
+
+    fun advanceCurrentPlanDayIfNeeded(now: Long): Boolean {
+        logTrace("advanceCurrentPlanDayIfNeeded start: now=$now")
+
+        val planSelection = database.planDao().getPlanSelection()
+        val currentPlanId = planSelection?.currentPlanId
+
+        if (currentPlanId == null) {
+            logTrace("advanceCurrentPlanDayIfNeeded result: advanced=false, reason=noCurrentPlan")
+            return false
+        }
+
+        val currentPlan = getTrainingPlan(currentPlanId)
+
+        if (currentPlan == null) {
+            logTrace("advanceCurrentPlanDayIfNeeded result: advanced=false, reason=missingPlan, planId=$currentPlanId")
+            return false
+        }
+
+        val todayEpoch = localEpochDay(now)
+        val storedDayEpoch = planSelection.currentDayEpoch
+
+        if (storedDayEpoch == todayEpoch) {
+            logTrace(
+                "advanceCurrentPlanDayIfNeeded result: advanced=false, reason=alreadyHandled, planId=$currentPlanId, currentDayEpoch=$todayEpoch"
+            )
+            return false
+        }
+
+        if (storedDayEpoch == null || storedDayEpoch > todayEpoch) {
+            database.planDao().upsertPlanSelection(
+                planSelection.copy(currentDayEpoch = todayEpoch)
+            )
+
+            logger.info(
+                TAG,
+                "Stored current training plan day marker: planId=$currentPlanId, currentDayEpoch=$todayEpoch"
+            )
+            logTrace(
+                "advanceCurrentPlanDayIfNeeded result: advanced=false, reason=storedMarkerOnly, planId=$currentPlanId, currentDayEpoch=$todayEpoch"
+            )
+
+            return false
+        }
+
+        val dayOffset = todayEpoch - storedDayEpoch
+        val advancedIndex = advancePlanDayIndex(
+            currentIndex = currentPlan.currentIndex,
+            cyclePeriod = currentPlan.cyclePeriod,
+            dayOffset = dayOffset
+        )
+        val planUpdated = if (advancedIndex == currentPlan.currentIndex) {
+            true
+        } else {
+            updateTrainingPlan(
+                currentPlan.copy(currentIndex = advancedIndex)
+            )
+        }
+
+        if (!planUpdated) {
+            logTrace(
+                "advanceCurrentPlanDayIfNeeded result: advanced=false, reason=updateFailed, planId=$currentPlanId, targetDayIndex=$advancedIndex"
+            )
+            return false
+        }
+
+        database.planDao().upsertPlanSelection(
+            planSelection.copy(currentDayEpoch = todayEpoch)
+        )
+
+        logger.info(
+            TAG,
+            "Advanced current training plan day: planId=$currentPlanId, previousDayIndex=${currentPlan.currentIndex}, currentDayIndex=$advancedIndex, elapsedDays=$dayOffset"
+        )
+        logTrace(
+            "advanceCurrentPlanDayIfNeeded result: advanced=true, planId=$currentPlanId, previousDayIndex=${currentPlan.currentIndex}, currentDayIndex=$advancedIndex, elapsedDays=$dayOffset"
+        )
 
         return true
     }
@@ -257,6 +347,7 @@ class TrainingPlanStore private constructor(
 
     companion object {
         private const val TAG = "TrainingPlanStore"
+        private const val MILLIS_PER_DAY = 86_400_000L
 
         fun from(context: Context): TrainingPlanStore {
             return fromDatabase(LiftInsightDatabase.from(context))
@@ -277,6 +368,12 @@ class TrainingPlanStore private constructor(
 
     private fun logTrace(message: String) {
         logger.trace(TAG, message)
+    }
+
+    private fun localEpochDay(timestamp: Long): Long {
+        val timeZoneOffsetMs = TimeZone.getDefault().getOffset(timestamp).toLong()
+
+        return Math.floorDiv(timestamp + timeZoneOffsetMs, MILLIS_PER_DAY)
     }
 }
 

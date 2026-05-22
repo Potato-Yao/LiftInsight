@@ -14,7 +14,7 @@ import androidx.room.RoomDatabase
         WorkoutSessionEntity::class,
         MetaPlanEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {

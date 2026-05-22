@@ -433,6 +433,27 @@ fun updatePlanCurrentIndex(
     }
 }
 
+fun advancePlanDayIndex(
+    currentIndex: Int,
+    cyclePeriod: Int,
+    dayOffset: Long
+): Int {
+    val normalizedCyclePeriod = cyclePeriod.coerceAtLeast(1)
+    val normalizedCurrentIndex = normalizePlanDayIndex(
+        dayIndex = currentIndex,
+        cyclePeriod = normalizedCyclePeriod
+    )
+
+    if (dayOffset <= 0L) {
+        return normalizedCurrentIndex
+    }
+
+    val zeroBasedIndex = normalizedCurrentIndex - 1L
+    val normalizedOffset = dayOffset % normalizedCyclePeriod.toLong()
+
+    return ((zeroBasedIndex + normalizedOffset) % normalizedCyclePeriod.toLong()).toInt() + 1
+}
+
 private fun reindexPlanMotions(motions: List<PlanMotionState>): List<PlanMotionState> {
     val nextIndexByDay = mutableMapOf<Int, Int>()
 

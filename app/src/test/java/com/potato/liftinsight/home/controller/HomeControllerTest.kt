@@ -34,6 +34,8 @@ class HomeControllerTest {
     private lateinit var motionStore: MotionStore
     private lateinit var seedCatalog: TrainingPlanSeedCatalog
 
+    private val millisPerDay = 86_400_000L
+
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -268,6 +270,27 @@ class HomeControllerTest {
         )
 
         assertEquals(3, updatedState.trainingPlans.first { it.id == 2 }.currentIndex)
+    }
+
+    @Test
+    fun loadState_advancesSelectedPlanDayWhenDateChangesAndDoesNotDoubleAdvance() = runBlocking {
+        val firstDay = 60L * millisPerDay
+        val nextDay = firstDay + millisPerDay
+        val firstDayController = controller(nowProvider = { firstDay })
+        val firstDayState = firstDayController.updatePlanCurrentDay(
+            state = initialState(firstDayController),
+            planId = 2,
+            dayIndex = 7
+        )
+
+        assertEquals(7, firstDayState.trainingPlans.first { it.id == 2 }.currentIndex)
+
+        val nextDayController = controller(nowProvider = { nextDay })
+        val nextDayState = initialState(nextDayController)
+        val refreshedSameDayState = nextDayController.refreshState(nextDayState)
+
+        assertEquals(1, nextDayState.trainingPlans.first { it.id == 2 }.currentIndex)
+        assertEquals(1, refreshedSameDayState.trainingPlans.first { it.id == 2 }.currentIndex)
     }
 
     @Test

@@ -17,6 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.util.TimeZone
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -24,6 +25,8 @@ class TrainingPlanStoreTest {
     private lateinit var database: LiftInsightDatabase
     private lateinit var logger: RecordingAppLogger
     private lateinit var trainingPlanStore: TrainingPlanStore
+
+    private val millisPerDay = 86_400_000L
 
     @Before
     fun setUp() {
@@ -238,6 +241,83 @@ class TrainingPlanStoreTest {
     }
 
     @Test
+    fun setCurrentPlan_storesCurrentDayMarkerForSelectedDate() {
+        trainingPlanStore.ensureAvailableMotions(listOf(AvailableMotionState(id = 1, title = "Snatch")))
+        val snatch = trainingPlanStore.getAvailableMotions().single()
+        val planId = trainingPlanStore.createTrainingPlan(
+            TrainingPlanState(
+                id = 0,
+                name = "Day Marker Test",
+                lastAppliedAt = 0L,
+                cyclePeriod = 3,
+                currentIndex = 2,
+                motions = listOf(
+                    PlanMotionState(
+                        entryId = 0,
+                        motionId = snatch.id,
+                        title = snatch.title,
+                        dayIndex = 2,
+                        sets = 5,
+                        repsPerSet = 2,
+                        intensity = 0.8,
+                        weight = 80.0,
+                        orderIndex = 1
+                    )
+                )
+            )
+        )
+        val selectedAt = 25L * millisPerDay
+
+        assertTrue(trainingPlanStore.setCurrentPlan(planId, selectedAt = selectedAt))
+
+        val selection = database.planDao().getPlanSelection()
+
+        assertEquals(planId, selection?.currentPlanId)
+        assertEquals(localEpochDay(selectedAt), selection?.currentDayEpoch)
+    }
+
+    @Test
+    fun advanceCurrentPlanDayIfNeeded_wrapsSelectedPlanToFirstDayOnNextDate() {
+        trainingPlanStore.ensureAvailableMotions(listOf(AvailableMotionState(id = 1, title = "Snatch")))
+        val snatch = trainingPlanStore.getAvailableMotions().single()
+        val planId = trainingPlanStore.createTrainingPlan(
+            TrainingPlanState(
+                id = 0,
+                name = "Wrap Test",
+                lastAppliedAt = 0L,
+                cyclePeriod = 3,
+                currentIndex = 3,
+                motions = listOf(
+                    PlanMotionState(
+                        entryId = 0,
+                        motionId = snatch.id,
+                        title = snatch.title,
+                        dayIndex = 3,
+                        sets = 5,
+                        repsPerSet = 2,
+                        intensity = 0.8,
+                        weight = 80.0,
+                        orderIndex = 1
+                    )
+                )
+            )
+        )
+        val selectedAt = 40L * millisPerDay
+        val nextDay = selectedAt + millisPerDay
+
+        assertTrue(trainingPlanStore.setCurrentPlan(planId, selectedAt = selectedAt))
+        assertTrue(trainingPlanStore.advanceCurrentPlanDayIfNeeded(now = nextDay))
+
+        val advancedPlan = trainingPlanStore.getTrainingPlan(planId)
+        val selectionAfterAdvance = database.planDao().getPlanSelection()
+
+        assertEquals(1, advancedPlan?.currentIndex)
+        assertEquals(localEpochDay(nextDay), selectionAfterAdvance?.currentDayEpoch)
+        assertFalse(trainingPlanStore.advanceCurrentPlanDayIfNeeded(now = nextDay))
+        assertEquals(1, trainingPlanStore.getTrainingPlan(planId)?.currentIndex)
+    }
+
+    @Test
     fun workoutSession_persistsStartPauseResumeAndStop() {
         val initialSession = trainingPlanStore.getWorkoutSession()
 
@@ -284,6 +364,12 @@ class TrainingPlanStoreTest {
         assertEquals(0L, stoppedSession.startedAt)
         assertEquals(0L, stoppedSession.lastResumedAt)
         assertEquals(0L, stoppedSession.elapsedBeforePauseMs)
+    }
+
+    private fun localEpochDay(timestamp: Long): Long {
+        val timeZoneOffsetMs = TimeZone.getDefault().getOffset(timestamp).toLong()
+
+        return Math.floorDiv(timestamp + timeZoneOffsetMs, millisPerDay)
     }
 }
 

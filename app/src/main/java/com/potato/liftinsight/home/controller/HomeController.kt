@@ -121,8 +121,14 @@ class HomeController(
             }
 
             val availableMotions = trainingPlanStore.getAvailableMotions()
-            val trainingPlans = trainingPlanStore.getTrainingPlans()
-            val currentPlanId = resolveCurrentPlanId(trainingPlans)
+            val now = nowProvider()
+            var trainingPlans = trainingPlanStore.getTrainingPlans()
+            var currentPlanId = resolveCurrentPlanId(trainingPlans, now)
+
+            trainingPlanStore.advanceCurrentPlanDayIfNeeded(now)
+
+            trainingPlans = trainingPlanStore.getTrainingPlans()
+            currentPlanId = resolveCurrentPlanId(trainingPlans, now)
             val workoutSession = trainingPlanStore.getWorkoutSession()
 
             buildLoadedState(
@@ -199,7 +205,7 @@ class HomeController(
                 return@withContext false
             }
 
-            trainingPlanStore.setCurrentPlan(planId)
+            trainingPlanStore.setCurrentPlan(planId, selectedAt = nowProvider())
         }
 
         if (!updateSucceeded) {
@@ -492,7 +498,17 @@ class HomeController(
                 return@withContext false
             }
 
-            trainingPlanStore.updateTrainingPlan(updatedPlan)
+            val planUpdated = trainingPlanStore.updateTrainingPlan(updatedPlan)
+
+            if (!planUpdated) {
+                return@withContext false
+            }
+
+            if (trainingPlanStore.getCurrentPlanId() == planId) {
+                trainingPlanStore.setCurrentPlan(planId, selectedAt = nowProvider())
+            }
+
+            true
         }
 
         if (!updateSucceeded) {
@@ -909,8 +925,14 @@ class HomeController(
     ): HomeState {
         return withContext(Dispatchers.IO) {
             val availableMotions = trainingPlanStore.getAvailableMotions()
-            val trainingPlans = trainingPlanStore.getTrainingPlans()
-            val currentPlanId = resolveCurrentPlanId(trainingPlans)
+            val now = nowProvider()
+            var trainingPlans = trainingPlanStore.getTrainingPlans()
+            var currentPlanId = resolveCurrentPlanId(trainingPlans, now)
+
+            trainingPlanStore.advanceCurrentPlanDayIfNeeded(now)
+
+            trainingPlans = trainingPlanStore.getTrainingPlans()
+            currentPlanId = resolveCurrentPlanId(trainingPlans, now)
             val workoutSession = trainingPlanStore.getWorkoutSession()
 
             buildLoadedState(
@@ -1071,7 +1093,10 @@ class HomeController(
         )
     }
 
-    private fun resolveCurrentPlanId(trainingPlans: List<TrainingPlanState>): Int {
+    private fun resolveCurrentPlanId(
+        trainingPlans: List<TrainingPlanState>,
+        now: Long
+    ): Int {
         val storedCurrentPlanId = trainingPlanStore.getCurrentPlanId()
 
         if (trainingPlans.any { plan -> plan.id == storedCurrentPlanId }) {
@@ -1087,7 +1112,7 @@ class HomeController(
             logWarn(
                 "Stored current training plan was invalid; falling back to the most recently applied plan: planId=$fallbackPlanId"
             )
-            trainingPlanStore.setCurrentPlan(fallbackPlanId)
+            trainingPlanStore.setCurrentPlan(fallbackPlanId, selectedAt = now)
         }
 
         return fallbackPlanId
@@ -1116,7 +1141,7 @@ class HomeController(
             trainingPlanStore.clearCurrentPlan()
         } else {
             logDebug("Deleted current training plan and selected fallback plan: planId=$fallbackPlanId")
-            trainingPlanStore.setCurrentPlan(fallbackPlanId)
+            trainingPlanStore.setCurrentPlan(fallbackPlanId, selectedAt = nowProvider())
         }
 
         return true

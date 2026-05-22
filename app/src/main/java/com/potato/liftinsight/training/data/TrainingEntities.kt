@@ -45,7 +45,9 @@ data class PlanSelectionEntity(
     @PrimaryKey
     val id: Int = 1,
     @ColumnInfo(name = "current_plan_id")
-    val currentPlanId: Int? = null
+    val currentPlanId: Int? = null,
+    @ColumnInfo(name = "current_day_epoch")
+    val currentDayEpoch: Long? = null
 )
 
 @Entity(tableName = "workout_session")
