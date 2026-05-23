@@ -10,9 +10,21 @@ import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.WorkoutProgressState
+import com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput
 import com.potato.liftinsight.plan.model.WorkoutSessionState
+import com.potato.liftinsight.plan.model.completedWorkoutSetCount
+import com.potato.liftinsight.plan.model.createWorkoutProgressState
+import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
+import com.potato.liftinsight.plan.model.sanitizeWorkoutProgressState
 import com.potato.liftinsight.plan.model.sortPlansByLastApplied
+import com.potato.liftinsight.plan.model.todaysPlanMotions
 import com.potato.liftinsight.plan.model.trainingPlan
+import com.potato.liftinsight.plan.model.workoutElapsedTimeMs
+import com.potato.liftinsight.plan.model.workoutSetTargetsForDay
+import com.potato.liftinsight.plan.model.finishWorkoutSet as finishWorkoutSetProgress
+import com.potato.liftinsight.plan.model.skipWorkoutSet as skipWorkoutSetProgress
+import com.potato.liftinsight.plan.model.startWorkoutSet as startWorkoutSetProgress
 import com.potato.liftinsight.plan.model.updatePlanCurrentIndex as applyPlanCurrentIndexUpdate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -37,6 +49,7 @@ data class HomeState(
     val availableMotions: List<AvailableMotionState>,
     val trainingPlans: List<TrainingPlanState>,
     val currentPlanId: Int,
+    val workoutProgress: WorkoutProgressState? = null,
     val workoutSession: WorkoutSessionState = WorkoutSessionState(),
     val planDestination: PlanDestination = PlanDestination.Overview,
     val planIdPendingDelete: Int? = null,
@@ -130,12 +143,14 @@ class HomeController(
             trainingPlans = trainingPlanStore.getTrainingPlans()
             currentPlanId = resolveCurrentPlanId(trainingPlans, now)
             val workoutSession = trainingPlanStore.getWorkoutSession()
+            val workoutProgress = trainingPlanStore.getWorkoutProgress()
 
             buildLoadedState(
                 state = emptyState(),
                 availableMotions = availableMotions,
                 trainingPlans = trainingPlans,
                 currentPlanId = currentPlanId,
+                workoutProgress = workoutProgress,
                 workoutSession = workoutSession,
                 requestedDestination = PlanDestination.Overview,
                 planIdPendingDelete = null,
@@ -233,11 +248,141 @@ class HomeController(
             return state
         }
 
+        val currentPlan = trainingPlan(state.trainingPlans, state.currentPlanId) ?: run {
+            logWarn("Ignoring workout start because no current plan is selected")
+            return state
+        }
+        val todayMotions = todaysPlanMotions(currentPlan)
+        val workoutTargets = workoutSetTargetsForDay(todayMotions)
+
+        if (workoutTargets.isEmpty()) {
+            logWarn("Ignoring workout start because the current plan has no sets scheduled for today")
+            return state
+        }
+
+        val now = nowProvider()
+        val dayIndex = normalizedPlanCurrentIndex(currentPlan)
+
         logDebug("Starting workout session")
 
         withContext(Dispatchers.IO) {
-            trainingPlanStore.startWorkout(nowProvider())
+            trainingPlanStore.startWorkout(now)
+            trainingPlanStore.saveWorkoutProgress(
+                createWorkoutProgressState(
+                    planId = currentPlan.id,
+                    dayIndex = dayIndex,
+                    totalSetCount = workoutTargets.size
+                )
+            )
         }
+
+        return reloadState(state)
+    }
+
+    suspend fun startNextWorkoutSet(state: HomeState): HomeState {
+        val workoutSession = state.workoutSession
+
+        if (!workoutSession.isWorkoutGoing || workoutSession.isPaused) {
+            logWarn("Ignoring start set because the workout session is not active")
+            return state
+        }
+
+        val workoutProgress = state.workoutProgress ?: run {
+            logWarn("Ignoring start set because no workout progress is available")
+            return state
+        }
+        val updatedProgress = startWorkoutSetProgress(workoutProgress)
+
+        if (updatedProgress == workoutProgress) {
+            logWarn("Ignoring start set because the workout progress was not ready for the next set")
+            return state
+        }
+
+        withContext(Dispatchers.IO) {
+            trainingPlanStore.saveWorkoutProgress(updatedProgress)
+        }
+
+        logDebug("Started workout set: setIndex=${updatedProgress.activeSetIndex ?: -1}")
+
+        return reloadState(state)
+    }
+
+    suspend fun skipWorkoutSet(state: HomeState): HomeState {
+        val workoutProgress = state.workoutProgress ?: run {
+            logWarn("Ignoring workout set skip because no workout progress is available")
+            return state
+        }
+
+        if (!state.workoutSession.isWorkoutGoing || state.workoutSession.isPaused) {
+            logWarn("Ignoring workout set skip because the workout session is not active")
+            return state
+        }
+
+        val elapsedTimeMs = workoutElapsedTimeMs(state.workoutSession, nowProvider())
+        val updatedProgress = skipWorkoutSetProgress(
+            progress = workoutProgress,
+            completedElapsedTimeMs = elapsedTimeMs
+        )
+
+        if (updatedProgress == workoutProgress) {
+            logWarn("Ignoring workout set skip because the next set was not skippable")
+            return state
+        }
+
+        withContext(Dispatchers.IO) {
+            trainingPlanStore.saveWorkoutProgress(updatedProgress)
+
+            if (updatedProgress.isFinished) {
+                trainingPlanStore.stopWorkout()
+            }
+        }
+
+        logDebug(
+            "Skipped workout set: completedSets=${completedWorkoutSetCount(updatedProgress)}, totalSets=${updatedProgress.totalSetCount}, finished=${updatedProgress.isFinished}"
+        )
+
+        return reloadState(state)
+    }
+
+    suspend fun finishCurrentWorkoutSet(
+        state: HomeState,
+        performance: WorkoutSetPerformanceInput
+    ): HomeState {
+        val workoutProgress = state.workoutProgress ?: run {
+            logWarn("Ignoring workout set completion because no workout progress is available")
+            return state
+        }
+
+        if (!state.workoutSession.isWorkoutGoing || state.workoutSession.isPaused) {
+            logWarn("Ignoring workout set completion because the workout session is not active")
+            return state
+        }
+
+        val now = nowProvider()
+        val elapsedTimeMs = workoutElapsedTimeMs(state.workoutSession, now)
+        val updatedProgress = finishWorkoutSetProgress(
+            progress = workoutProgress,
+            completedElapsedTimeMs = elapsedTimeMs,
+            finishedAt = now,
+            breakDurationSeconds = performance.breakDurationSeconds
+        )
+
+        if (updatedProgress == workoutProgress) {
+            logWarn("Ignoring workout set completion because no active set was found")
+            return state
+        }
+
+        withContext(Dispatchers.IO) {
+            trainingPlanStore.saveWorkoutProgress(updatedProgress)
+
+            if (updatedProgress.isFinished) {
+                trainingPlanStore.stopWorkout()
+            }
+        }
+
+        logDebug(
+            "Finished workout set: repsDone=${performance.repsDone}, weightDone=${performance.weightDone}, feeling=${performance.feeling}, breakDurationSeconds=${performance.breakDurationSeconds}, finished=${updatedProgress.isFinished}"
+        )
 
         return reloadState(state)
     }
@@ -291,6 +436,7 @@ class HomeController(
 
         withContext(Dispatchers.IO) {
             trainingPlanStore.stopWorkout()
+            trainingPlanStore.clearWorkoutProgress()
         }
 
         return reloadState(
@@ -934,12 +1080,14 @@ class HomeController(
             trainingPlans = trainingPlanStore.getTrainingPlans()
             currentPlanId = resolveCurrentPlanId(trainingPlans, now)
             val workoutSession = trainingPlanStore.getWorkoutSession()
+            val workoutProgress = trainingPlanStore.getWorkoutProgress()
 
             buildLoadedState(
                 state = state,
                 availableMotions = availableMotions,
                 trainingPlans = trainingPlans,
                 currentPlanId = currentPlanId,
+                workoutProgress = workoutProgress,
                 workoutSession = workoutSession,
                 requestedDestination = requestedDestination,
                 planIdPendingDelete = planIdPendingDelete,
@@ -955,6 +1103,7 @@ class HomeController(
         availableMotions: List<AvailableMotionState>,
         trainingPlans: List<TrainingPlanState>,
         currentPlanId: Int,
+        workoutProgress: WorkoutProgressState?,
         workoutSession: WorkoutSessionState,
         requestedDestination: PlanDestination,
         planIdPendingDelete: Int?,
@@ -963,11 +1112,26 @@ class HomeController(
         workoutStopPendingConfirmation: Boolean
     ): HomeState {
         val sanitizedPlanEditor = sanitizePlanEditor(trainingPlans, availableMotions, planEditor)
+        val currentPlan = trainingPlan(trainingPlans, currentPlanId)
+        val todayTargets = currentPlan?.let { plan ->
+            workoutSetTargetsForDay(todaysPlanMotions(plan))
+        }.orEmpty()
+        val sanitizedWorkoutProgress = if (currentPlan == null) {
+            null
+        } else {
+            sanitizeWorkoutProgressState(
+                progress = workoutProgress,
+                planId = currentPlan.id,
+                dayIndex = normalizedPlanCurrentIndex(currentPlan),
+                totalSetCount = todayTargets.size
+            )
+        }
 
         return state.copy(
             availableMotions = availableMotions,
             trainingPlans = trainingPlans,
             currentPlanId = currentPlanId,
+            workoutProgress = sanitizedWorkoutProgress,
             workoutSession = workoutSession,
             planEditor = sanitizedPlanEditor,
             planDestination = sanitizePlanDestination(

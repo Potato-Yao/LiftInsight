@@ -3,12 +3,16 @@ package com.potato.liftinsight.plan
 import com.potato.liftinsight.home.controller.HomeController
 import com.potato.liftinsight.home.controller.HomeState
 import com.potato.liftinsight.plan.model.AvailableMotionState
+import com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 internal data class PlanRouteActions(
     val onCreatePlan: () -> Unit,
     val onStartWorkout: () -> Unit,
+    val onStartNextWorkoutSet: () -> Unit,
+    val onSkipWorkoutSet: () -> Unit,
+    val onFinishCurrentWorkoutSet: (WorkoutSetPerformanceInput) -> Unit,
     val onToggleWorkoutPause: () -> Unit,
     val onRequestWorkoutStop: () -> Unit,
     val onDismissWorkoutStop: () -> Unit,
@@ -54,6 +58,21 @@ internal fun buildPlanRouteActions(
         onStartWorkout = {
             coroutineScope.launch {
                 updateState(controller.startWorkout(currentState()))
+            }
+        },
+        onStartNextWorkoutSet = {
+            coroutineScope.launch {
+                updateState(controller.startNextWorkoutSet(currentState()))
+            }
+        },
+        onSkipWorkoutSet = {
+            coroutineScope.launch {
+                updateState(controller.skipWorkoutSet(currentState()))
+            }
+        },
+        onFinishCurrentWorkoutSet = { performance ->
+            coroutineScope.launch {
+                updateState(controller.finishCurrentWorkoutSet(currentState(), performance))
             }
         },
         onToggleWorkoutPause = {

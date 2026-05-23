@@ -12,9 +12,10 @@ import androidx.room.RoomDatabase
         PlanEntity::class,
         PlanSelectionEntity::class,
         WorkoutSessionEntity::class,
+        WorkoutProgressEntity::class,
         MetaPlanEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {

@@ -193,6 +193,9 @@ private fun HomeRoutePreview() {
             planActions = PlanRouteActions(
                 onCreatePlan = {},
                 onStartWorkout = {},
+                onStartNextWorkoutSet = {},
+                onSkipWorkoutSet = {},
+                onFinishCurrentWorkoutSet = {},
                 onToggleWorkoutPause = {},
                 onRequestWorkoutStop = {},
                 onDismissWorkoutStop = {},

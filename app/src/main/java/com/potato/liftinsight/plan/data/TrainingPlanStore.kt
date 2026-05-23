@@ -6,6 +6,7 @@ import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.WorkoutProgressState
 import com.potato.liftinsight.plan.model.WorkoutSessionState
 import com.potato.liftinsight.plan.model.advancePlanDayIndex
 import com.potato.liftinsight.plan.model.workoutElapsedTimeMs
@@ -21,6 +22,7 @@ import com.potato.liftinsight.training.data.PlanSelectionEntity
 import com.potato.liftinsight.training.data.PlanStore
 import com.potato.liftinsight.training.data.PlanRecord
 import com.potato.liftinsight.training.data.WorkoutSessionEntity
+import com.potato.liftinsight.training.data.WorkoutProgressEntity
 import java.util.TimeZone
 
 class TrainingPlanStore private constructor(
@@ -196,6 +198,36 @@ class TrainingPlanStore private constructor(
         )
 
         return workoutSession
+    }
+
+    fun getWorkoutProgress(): WorkoutProgressState? {
+        val workoutProgress = database.planDao().getWorkoutProgress()?.toState()
+
+        logTrace(
+            "getWorkoutProgress result: planId=${workoutProgress?.planId ?: -1}, dayIndex=${workoutProgress?.dayIndex ?: -1}, nextSetIndex=${workoutProgress?.nextSetIndex ?: -1}, isFinished=${workoutProgress?.isFinished ?: false}"
+        )
+
+        return workoutProgress
+    }
+
+    fun saveWorkoutProgress(progress: WorkoutProgressState) {
+        logTrace(
+            "saveWorkoutProgress start: planId=${progress.planId}, dayIndex=${progress.dayIndex}, nextSetIndex=${progress.nextSetIndex}, activeSetIndex=${progress.activeSetIndex}, totalSetCount=${progress.totalSetCount}, isFinished=${progress.isFinished}"
+        )
+
+        database.planDao().upsertWorkoutProgress(progress.toEntity())
+
+        logger.info(TAG, "Saved workout progress")
+        logTrace("saveWorkoutProgress result: saved=true")
+    }
+
+    fun clearWorkoutProgress() {
+        logTrace("clearWorkoutProgress start")
+
+        database.planDao().clearWorkoutProgress()
+
+        logger.info(TAG, "Cleared workout progress")
+        logTrace("clearWorkoutProgress result: cleared=true")
     }
 
     fun startWorkout(startedAt: Long) {
@@ -442,6 +474,32 @@ private fun WorkoutSessionEntity.toState(): WorkoutSessionState {
         startedAt = startedAt,
         lastResumedAt = lastResumedAt,
         elapsedBeforePauseMs = elapsedBeforePauseMs
+    )
+}
+
+private fun WorkoutProgressEntity.toState(): WorkoutProgressState {
+    return WorkoutProgressState(
+        planId = planId,
+        dayIndex = planDayIndex,
+        nextSetIndex = nextSetIndex,
+        activeSetIndex = activeSetIndex,
+        totalSetCount = totalSetCount,
+        breakEndsAt = breakEndsAt,
+        isFinished = isFinished,
+        completedElapsedTimeMs = completedElapsedTimeMs
+    )
+}
+
+private fun WorkoutProgressState.toEntity(): WorkoutProgressEntity {
+    return WorkoutProgressEntity(
+        planId = planId,
+        planDayIndex = dayIndex,
+        nextSetIndex = nextSetIndex,
+        activeSetIndex = activeSetIndex,
+        totalSetCount = totalSetCount,
+        breakEndsAt = breakEndsAt,
+        isFinished = isFinished,
+        completedElapsedTimeMs = completedElapsedTimeMs
     )
 }
 

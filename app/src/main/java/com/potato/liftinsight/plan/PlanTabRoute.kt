@@ -116,9 +116,13 @@ internal fun PlanTabContent(
 
                 PlanOverviewPanel(
                     currentPlan = plan,
+                    workoutProgress = state.workoutProgress,
                     workoutSession = state.workoutSession,
                     todayMotions = plan?.let(::todaysPlanMotions).orEmpty(),
                     onOpenPlanList = planActions.onOpenPlanList,
+                    onStartNextWorkoutSet = planActions.onStartNextWorkoutSet,
+                    onSkipWorkoutSet = planActions.onSkipWorkoutSet,
+                    onFinishCurrentWorkoutSet = planActions.onFinishCurrentWorkoutSet,
                     modifier = Modifier.padding(contentPadding)
                 )
             }
@@ -246,6 +250,9 @@ internal fun PlanTabFloatingActionButton(
     when (state.planDestination) {
         PlanDestination.Overview -> {
             PlanOverviewActionButtons(
+                canStartWorkout = state.trainingPlans.any { plan -> plan.id == state.currentPlanId } &&
+                    trainingPlan(state.trainingPlans, state.currentPlanId)?.let(::todaysPlanMotions).orEmpty().isNotEmpty(),
+                workoutFinished = state.workoutProgress?.isFinished == true,
                 isWorkoutGoing = state.workoutSession.isWorkoutGoing,
                 isWorkoutPaused = state.workoutSession.isPaused,
                 onStartWorkout = actions.onStartWorkout,
@@ -393,12 +400,18 @@ internal fun PlanTabDialogs(
 
 @Composable
 private fun PlanOverviewActionButtons(
+    canStartWorkout: Boolean,
+    workoutFinished: Boolean,
     isWorkoutGoing: Boolean,
     isWorkoutPaused: Boolean,
     onStartWorkout: () -> Unit,
     onToggleWorkoutPause: () -> Unit,
     onRequestWorkoutStop: () -> Unit
 ) {
+    if (workoutFinished) {
+        return
+    }
+
     Column(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -430,7 +443,27 @@ private fun PlanOverviewActionButtons(
                 )
             }
         } else {
-            FloatingActionButton(onClick = onStartWorkout) {
+            val containerColor = if (canStartWorkout) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+
+            val contentColor = if (canStartWorkout) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+
+            FloatingActionButton(
+                onClick = {
+                    if (canStartWorkout) {
+                        onStartWorkout()
+                    }
+                },
+                containerColor = containerColor,
+                contentColor = contentColor
+            ) {
                 Icon(
                     imageVector = Icons.Rounded.PlayArrow,
                     contentDescription = stringResource(R.string.plan_workout_start_content_description)
@@ -523,16 +556,24 @@ private fun PlanMotionDetailActionButtons(
 @Composable
 private fun PlanOverviewPanel(
     currentPlan: TrainingPlanState?,
+    workoutProgress: com.potato.liftinsight.plan.model.WorkoutProgressState?,
     workoutSession: com.potato.liftinsight.plan.model.WorkoutSessionState,
     todayMotions: List<PlanMotionState>,
     onOpenPlanList: () -> Unit,
+    onStartNextWorkoutSet: () -> Unit,
+    onSkipWorkoutSet: () -> Unit,
+    onFinishCurrentWorkoutSet: (com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput) -> Unit,
     modifier: Modifier = Modifier
 ) {
     PlanScreen(
         currentPlan = currentPlan,
+        workoutProgress = workoutProgress,
         workoutSession = workoutSession,
         todayMotions = todayMotions,
         onEditPlan = onOpenPlanList,
+        onStartNextWorkoutSet = onStartNextWorkoutSet,
+        onSkipWorkoutSet = onSkipWorkoutSet,
+        onFinishCurrentWorkoutSet = onFinishCurrentWorkoutSet,
         modifier = modifier
     )
 }

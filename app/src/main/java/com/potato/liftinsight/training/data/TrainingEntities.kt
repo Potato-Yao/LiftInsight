@@ -66,6 +66,28 @@ data class WorkoutSessionEntity(
     val elapsedBeforePauseMs: Long = 0L
 )
 
+@Entity(tableName = "workout_progress")
+data class WorkoutProgressEntity(
+    @PrimaryKey
+    val id: Int = 1,
+    @ColumnInfo(name = "plan_id")
+    val planId: Int,
+    @ColumnInfo(name = "plan_day_index")
+    val planDayIndex: Int,
+    @ColumnInfo(name = "next_set_index")
+    val nextSetIndex: Int = 0,
+    @ColumnInfo(name = "active_set_index")
+    val activeSetIndex: Int? = null,
+    @ColumnInfo(name = "total_set_count")
+    val totalSetCount: Int,
+    @ColumnInfo(name = "break_ends_at")
+    val breakEndsAt: Long = 0L,
+    @ColumnInfo(name = "is_finished")
+    val isFinished: Boolean = false,
+    @ColumnInfo(name = "completed_elapsed_time_ms")
+    val completedElapsedTimeMs: Long = 0L
+)
+
 @Entity(
     tableName = "metaplan",
     foreignKeys = [

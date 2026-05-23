@@ -48,6 +48,15 @@ abstract class PlanDao {
     @Query("SELECT * FROM workout_session WHERE id = 1")
     abstract fun getWorkoutSession(): WorkoutSessionEntity?
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract fun upsertWorkoutProgress(progress: WorkoutProgressEntity)
+
+    @Query("SELECT * FROM workout_progress WHERE id = 1")
+    abstract fun getWorkoutProgress(): WorkoutProgressEntity?
+
+    @Query("DELETE FROM workout_progress")
+    abstract fun clearWorkoutProgress()
+
     @Query(
         """
         SELECT
