@@ -150,6 +150,7 @@ If you are an LLM or coding assistant working on this repository:
 6. prefer straightforward, maintainable code over heavy abstraction
 7. for non-ui code, write test with as much as possible coverage.
 8. add files you changes to git, but do not commit or push. Let a human review before committing.
+9. when the database structure changes, add a migration method in `LiftInsightDatabase.kt`.
 
 ## Scope and Non-Goals
 

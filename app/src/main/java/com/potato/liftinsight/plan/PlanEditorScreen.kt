@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,6 +39,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -407,14 +410,14 @@ internal fun MotionDetailScreen(
     planName: String,
     motion: PlanMotionState,
     onBack: () -> Unit,
-    onDecreaseSets: () -> Unit,
-    onIncreaseSets: () -> Unit,
-    onDecreaseRepsPerSet: () -> Unit,
-    onIncreaseRepsPerSet: () -> Unit,
-    onUpdateWeight: (Double) -> Unit,
+    onSubmitMotion: (Int, Int, Double) -> Unit,
     onDeleteMotion: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var draftSets by remember(motion.entryId) { mutableIntStateOf(motion.sets) }
+    var draftRepsPerSet by remember(motion.entryId) { mutableIntStateOf(motion.repsPerSet) }
+    var draftWeight by remember(motion.entryId) { mutableStateOf(motion.weight) }
+
     var showWeightDialog by remember(motion.entryId, motion.weight) { mutableStateOf(false) }
     var draftWeightText by remember(motion.entryId, motion.weight) {
         mutableStateOf(formatMotionWeightInput(motion.weight))
@@ -468,7 +471,7 @@ internal fun MotionDetailScreen(
                             return@TextButton
                         }
 
-                        onUpdateWeight(normalizedWeight)
+                        draftWeight = normalizedWeight
                         showWeightDialog = false
                         weightError = false
                     }
@@ -506,6 +509,35 @@ internal fun MotionDetailScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SmallFloatingActionButton(
+                    onClick = {
+                        onSubmitMotion(draftSets, draftRepsPerSet, draftWeight)
+                        onBack()
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.motion_submit_action)
+                    )
+                }
+
+                SmallFloatingActionButton(
+                    onClick = onDeleteMotion,
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Delete,
+                        contentDescription = stringResource(R.string.motion_detail_delete_label)
+                    )
+                }
+            }
         }
     ) { innerPadding ->
         LazyColumn(
@@ -520,6 +552,7 @@ internal fun MotionDetailScreen(
         ) {
             item(key = "motionTitle") {
                 Surface(
+                    modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.primaryContainer,
                     shape = RoundedCornerShape(32.dp),
                     border = BorderStroke(
@@ -528,7 +561,9 @@ internal fun MotionDetailScreen(
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
@@ -550,34 +585,34 @@ internal fun MotionDetailScreen(
             item(key = "sets") {
                 MotionValueRow(
                     label = stringResource(R.string.motion_detail_sets_label),
-                    value = motion.sets,
-                    onDecrease = onDecreaseSets,
-                    onIncrease = onIncreaseSets
+                    value = draftSets,
+                    onDecrease = { if (draftSets > 1) draftSets-- },
+                    onIncrease = { draftSets++ }
                 )
             }
 
             item(key = "reps") {
                 MotionValueRow(
                     label = stringResource(R.string.motion_detail_reps_per_set_label),
-                    value = motion.repsPerSet,
-                    onDecrease = onDecreaseRepsPerSet,
-                    onIncrease = onIncreaseRepsPerSet
+                    value = draftRepsPerSet,
+                    onDecrease = { if (draftRepsPerSet > 1) draftRepsPerSet-- },
+                    onIncrease = { draftRepsPerSet++ }
                 )
             }
 
             item(key = "weight") {
                 MotionWeightRow(
                     label = stringResource(R.string.motion_detail_weight_label),
-                    value = if (motion.weight <= 0.0) {
+                    value = if (draftWeight <= 0.0) {
                         stringResource(R.string.motion_detail_weight_not_set)
                     } else {
                         stringResource(
                             R.string.motion_detail_weight_value,
-                            formatMotionWeightDisplay(motion.weight)
+                            formatMotionWeightDisplay(draftWeight)
                         )
                     },
                     onEdit = {
-                        draftWeightText = formatMotionWeightInput(motion.weight)
+                        draftWeightText = formatMotionWeightInput(draftWeight)
                         weightError = false
                         showWeightDialog = true
                     }

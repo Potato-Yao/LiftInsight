@@ -214,20 +214,8 @@ internal fun PlanTabContent(
                         },
                         motion = motion,
                         onBack = planActions.onBackInPlan,
-                        onDecreaseSets = {
-                            planActions.onDecreaseMotionSets(destination.motionEntryId, motion.sets)
-                        },
-                        onIncreaseSets = {
-                            planActions.onIncreaseMotionSets(destination.motionEntryId, motion.sets)
-                        },
-                        onDecreaseRepsPerSet = {
-                            planActions.onDecreaseMotionReps(destination.motionEntryId, motion.repsPerSet)
-                        },
-                        onIncreaseRepsPerSet = {
-                            planActions.onIncreaseMotionReps(destination.motionEntryId, motion.repsPerSet)
-                        },
-                        onUpdateWeight = { weight ->
-                            planActions.onUpdateMotionWeight(destination.motionEntryId, weight)
+                        onSubmitMotion = { sets, repsPerSet, weight ->
+                            planActions.onSubmitMotion(destination.motionEntryId, sets, repsPerSet, weight)
                         },
                         onDeleteMotion = {
                             planActions.onRequestMotionDeletion(destination.motionEntryId)
@@ -285,20 +273,7 @@ internal fun PlanTabFloatingActionButton(
 
         PlanDestination.MotionPicker -> Unit
 
-        is PlanDestination.Motion -> {
-            val motionEntryId = state.planDestination.motionEntryId
-
-            if (editor != null) {
-                PlanMotionDetailActionButtons(
-                    showSubmitButton = editor.isNewPlan,
-                    onSubmitPlan = actions.onSubmitPlan,
-                    onOpenAddMotionPicker = actions.onOpenAddMotionPicker,
-                    onRequestDeleteMotion = {
-                        actions.onRequestMotionDeletion(motionEntryId)
-                    }
-                )
-            }
-        }
+        is PlanDestination.Motion -> Unit
     }
 }
 
@@ -500,46 +475,6 @@ private fun PlanEditorActionButtons(
                 Icon(
                     imageVector = Icons.Rounded.Delete,
                     contentDescription = stringResource(R.string.plan_delete_plan_content_description)
-                )
-            }
-        }
-
-        FloatingActionButton(onClick = onOpenAddMotionPicker) {
-            Icon(
-                imageVector = Icons.Rounded.Add,
-                contentDescription = stringResource(R.string.plan_add_motion_content_description)
-            )
-        }
-    }
-}
-
-@Composable
-private fun PlanMotionDetailActionButtons(
-    showSubmitButton: Boolean,
-    onSubmitPlan: () -> Unit,
-    onOpenAddMotionPicker: () -> Unit,
-    onRequestDeleteMotion: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        SmallFloatingActionButton(
-            onClick = onRequestDeleteMotion,
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Delete,
-                contentDescription = stringResource(R.string.motion_detail_delete_label)
-            )
-        }
-
-        if (showSubmitButton) {
-            SmallFloatingActionButton(onClick = onSubmitPlan) {
-                Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = stringResource(R.string.plan_submit_plan_content_description)
                 )
             }
         }

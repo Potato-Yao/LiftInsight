@@ -216,6 +216,7 @@ private fun HomeRoutePreview() {
                 onDecreaseMotionReps = { _, _ -> },
                 onIncreaseMotionReps = { _, _ -> },
                 onUpdateMotionWeight = { _, _ -> },
+                onSubmitMotion = { _, _, _, _ -> },
                 onRequestPlanDeletion = {},
                 onDismissPlanDeletion = {},
                 onConfirmPlanDeletion = {},

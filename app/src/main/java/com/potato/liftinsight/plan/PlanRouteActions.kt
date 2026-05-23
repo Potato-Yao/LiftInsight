@@ -33,6 +33,7 @@ internal data class PlanRouteActions(
     val onDecreaseMotionReps: (Int, Int) -> Unit,
     val onIncreaseMotionReps: (Int, Int) -> Unit,
     val onUpdateMotionWeight: (Int, Double) -> Unit,
+    val onSubmitMotion: (Int, Int, Int, Double) -> Unit,
     val onRequestPlanDeletion: (Int) -> Unit,
     val onDismissPlanDeletion: () -> Unit,
     val onConfirmPlanDeletion: () -> Unit,
@@ -209,6 +210,26 @@ internal fun buildPlanRouteActions(
                         weight = weight
                     )
                 )
+            }
+        },
+        onSubmitMotion = { motionEntryId, sets, repsPerSet, weight ->
+            coroutineScope.launch {
+                val afterSets = controller.updateMotionSets(
+                    state = currentState(),
+                    motionEntryId = motionEntryId,
+                    sets = sets
+                )
+                val afterReps = controller.updateMotionRepsPerSet(
+                    state = afterSets,
+                    motionEntryId = motionEntryId,
+                    repsPerSet = repsPerSet
+                )
+                val afterWeight = controller.updateMotionWeight(
+                    state = afterReps,
+                    motionEntryId = motionEntryId,
+                    weight = weight
+                )
+                updateState(afterWeight)
             }
         },
         onRequestPlanDeletion = { planId ->
