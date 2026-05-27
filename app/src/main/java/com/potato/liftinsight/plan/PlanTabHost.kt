@@ -367,22 +367,24 @@ internal fun PlanTabHost(
                         },
                         onSubmitMotion = { sets, repsPerSet, weight ->
                             coroutineScope.launch {
-                                val afterSets = planController.updateMotionSets(
-                                    state = planState,
+                                var state = planState
+                                state = planController.updateMotionSets(
+                                    state = state,
                                     motionEntryId = route.motionEntryId,
                                     sets = sets
                                 )
-                                val afterReps = planController.updateMotionRepsPerSet(
-                                    state = afterSets,
+                                state = planController.updateMotionRepsPerSet(
+                                    state = state,
                                     motionEntryId = route.motionEntryId,
                                     repsPerSet = repsPerSet
                                 )
-                                val afterWeight = planController.updateMotionWeight(
-                                    state = afterReps,
+                                state = planController.updateMotionWeight(
+                                    state = state,
                                     motionEntryId = route.motionEntryId,
                                     weight = weight
                                 )
-                                onPlanStateChange(afterWeight)
+                                state = planController.handlePlanBack(state)
+                                onPlanStateChange(state)
                             }
                         },
                         onDeleteMotion = {

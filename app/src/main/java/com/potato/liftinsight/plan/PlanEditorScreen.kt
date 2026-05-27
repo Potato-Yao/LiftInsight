@@ -518,7 +518,6 @@ internal fun MotionDetailScreen(
                 SmallFloatingActionButton(
                     onClick = {
                         onSubmitMotion(draftSets, draftRepsPerSet, draftWeight)
-                        onBack()
                     }
                 ) {
                     Icon(

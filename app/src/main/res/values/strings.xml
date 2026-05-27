@@ -26,6 +26,9 @@
     <string name="settings_theme_dark_subtitle">Use a darker interface that stays comfortable in low light.</string>
     <string name="settings_about">About</string>
     <string name="settings_about_subtitle">View app details and project information.</string>
+    <string name="about_panel_title">About</string>
+    <string name="about_version_label">Version</string>
+    <string name="about_build_time_label">Build time</string>
     <string name="plan_current_plan_label">Current plan:</string>
     <string name="plan_no_current_plan_selected">No plan selected</string>
     <string name="plan_no_current_plan_summary">Choose a plan to start tracking today’s training focus.</string>
