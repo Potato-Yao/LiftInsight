@@ -1,4 +1,4 @@
-package com.potato.liftinsight.home.controller
+package com.potato.liftinsight.plan.controller
 
 import android.content.Context
 import androidx.room.Room
@@ -10,7 +10,9 @@ import com.potato.liftinsight.plan.data.TrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
+import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.route.PlanRoute
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import kotlinx.coroutines.runBlocking
@@ -28,7 +30,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-class HomeControllerTest {
+class PlanControllerTest {
     private lateinit var database: LiftInsightDatabase
     private lateinit var trainingPlanStore: TrainingPlanStore
     private lateinit var motionStore: MotionStore
@@ -112,8 +114,8 @@ class HomeControllerTest {
     private fun controller(
         nowProvider: () -> Long = { 123L },
         logger: AppLogger = AndroidAppLogger
-    ): HomeController {
-        return HomeController(
+    ): PlanController {
+        return PlanController(
             trainingPlanStore = trainingPlanStore,
             shouldSeedDebugPlans = true,
             nowProvider = nowProvider,
@@ -121,7 +123,7 @@ class HomeControllerTest {
         )
     }
 
-    private fun initialState(controller: HomeController): HomeState {
+    private fun initialState(controller: PlanController): PlanState {
         return runBlocking {
             controller.loadState(seedCatalog)
         }
@@ -131,45 +133,21 @@ class HomeControllerTest {
     fun loadState_readsDatabaseSeedAndDefaults() {
         val state = initialState(controller())
 
-        assertEquals(MainTab.Home, state.selectedTab)
-        assertEquals(0, state.selectedTabIndex)
         assertEquals(7, state.availableMotions.size)
         assertEquals(4, state.trainingPlans.size)
         assertEquals(2, state.currentPlanId)
-        assertEquals(PlanDestination.Overview, state.planDestination)
-        assertTrue(state.bodyMetrics.isNotEmpty())
+        assertEquals(PlanRoute.Overview, state.planRoute)
     }
 
     @Test
-    fun selectTab_updatesSelectedMainTab() {
-        val controller = controller()
-        val motionState = controller.selectTab(initialState(controller), 2)
-        val settingsState = controller.selectTab(initialState(controller), 4)
-
-        assertEquals(MainTab.Motion, motionState.selectedTab)
-        assertEquals(2, motionState.selectedTabIndex)
-        assertEquals(MainTab.Settings, settingsState.selectedTab)
-        assertEquals(4, settingsState.selectedTabIndex)
-    }
-
-    @Test
-    fun selectTab_withInvalidIndexFallsBackToHome() {
-        val controller = controller()
-        val updatedState = controller.selectTab(initialState(controller), 99)
-
-        assertEquals(MainTab.Home, updatedState.selectedTab)
-        assertEquals(0, updatedState.selectedTabIndex)
-    }
-
-    @Test
-    fun createPlan_opensDraftEditorWithoutPersisting() = runBlocking {
+    fun createPlan_opensDraftEditorWithoutPersisting() {
         val controller = controller(nowProvider = { 900L })
-        val initialState = initialState(controller)
+        val initial = initialState(controller)
 
-        val updatedState = controller.createPlan(initialState)
+        val updatedState = controller.createPlan(initial)
 
-        assertEquals(initialState.trainingPlans.size, updatedState.trainingPlans.size)
-        assertEquals(PlanDestination.Editor, updatedState.planDestination)
+        assertEquals(initial.trainingPlans.size, updatedState.trainingPlans.size)
+        assertEquals(PlanRoute.Editor, updatedState.planRoute)
         assertNotNull(updatedState.planEditor)
         assertTrue(updatedState.planEditor?.isNewPlan == true)
         assertEquals("", updatedState.planEditor?.title)
@@ -188,7 +166,7 @@ class HomeControllerTest {
 
         assertEquals(900L, createdPlan.lastAppliedAt)
         assertEquals(5, updatedState.trainingPlans.size)
-        assertEquals(PlanDestination.Editor, updatedState.planDestination)
+        assertEquals(PlanRoute.Editor, updatedState.planRoute)
         assertEquals(createdPlan.id, updatedState.planEditor?.planId)
         assertEquals("New Plan", updatedState.planEditor?.title)
         assertEquals(9, updatedState.planEditor?.cyclePeriod)
@@ -198,16 +176,16 @@ class HomeControllerTest {
     @Test
     fun handlePlanBack_closesNewDraftEditorAndReturnsToList() = runBlocking {
         val controller = controller(nowProvider = { 900L })
-        val initialState = initialState(controller)
-        val createdState = controller.createPlan(initialState)
+        val initial = initialState(controller)
+        val createdState = controller.createPlan(initial)
         val renamedState = controller.updatePlanEditorTitle(createdState, "Temporary Draft")
 
         val updatedState = controller.handlePlanBack(renamedState)
 
         assertFalse(updatedState.trainingPlans.any { it.name == "Temporary Draft" })
-        assertEquals(PlanDestination.List, updatedState.planDestination)
+        assertEquals(PlanRoute.List, updatedState.planRoute)
         assertNull(updatedState.planEditor)
-        assertEquals(initialState.trainingPlans.size, updatedState.trainingPlans.size)
+        assertEquals(initial.trainingPlans.size, updatedState.trainingPlans.size)
     }
 
     @Test
@@ -218,7 +196,7 @@ class HomeControllerTest {
 
         val updatedState = controller.handlePlanBack(state)
 
-        assertEquals(PlanDestination.Editor, updatedState.planDestination)
+        assertEquals(PlanRoute.Editor, updatedState.planRoute)
         assertEquals(1, updatedState.planEditor?.planId)
     }
 
@@ -229,7 +207,7 @@ class HomeControllerTest {
 
         val updatedState = controller.handlePlanBack(state)
 
-        assertEquals(PlanDestination.Overview, updatedState.planDestination)
+        assertEquals(PlanRoute.Overview, updatedState.planRoute)
     }
 
     @Test
@@ -253,7 +231,7 @@ class HomeControllerTest {
         assertTrue(
             logger.entries().any { entry ->
                 entry.level == "warn" &&
-                    entry.tag == "HomeController" &&
+                    entry.tag == "PlanController" &&
                     entry.message.contains("was not found") &&
                     entry.message.contains("planId=999")
             }
@@ -297,9 +275,9 @@ class HomeControllerTest {
     fun workoutSessionActions_persistWorkoutLifecycleAndStopConfirmation() = runBlocking {
         var now = 1_000L
         val controller = controller(nowProvider = { now })
-        val initialState = initialState(controller)
+        val initial = initialState(controller)
 
-        val startedState = controller.startWorkout(initialState)
+        val startedState = controller.startWorkout(initial)
 
         assertTrue(startedState.workoutSession.isWorkoutGoing)
         assertFalse(startedState.workoutSession.isPaused)
@@ -352,7 +330,7 @@ class HomeControllerTest {
 
         assertFalse(updatedState.trainingPlans.any { it.id == 2 })
         assertEquals(1, updatedState.currentPlanId)
-        assertEquals(PlanDestination.List, updatedState.planDestination)
+        assertEquals(PlanRoute.List, updatedState.planRoute)
         assertEquals(null, updatedState.planIdPendingDelete)
     }
 
@@ -365,7 +343,7 @@ class HomeControllerTest {
 
         val updatedState = controller.addMotionToPlan(pickerState, motion)
         val updatedPlan = updatedState.trainingPlans.first { it.id == 1 }
-        val destination = updatedState.planDestination as PlanDestination.Motion
+        val destination = updatedState.planRoute as PlanRoute.Motion
         val addedMotion = updatedState.planEditor
             ?.motions
             ?.firstOrNull { planMotion -> planMotion.entryId == destination.motionEntryId }
@@ -377,7 +355,7 @@ class HomeControllerTest {
         assertEquals(0.0, addedMotion?.intensity ?: Double.NaN, 0.0)
         assertEquals(0.0, addedMotion?.weight ?: Double.NaN, 0.0)
         assertEquals(1, addedMotion?.dayIndex)
-        assertEquals(PlanDestination.Motion(motionEntryId = destination.motionEntryId), updatedState.planDestination)
+        assertEquals(PlanRoute.Motion(motionEntryId = destination.motionEntryId), updatedState.planRoute)
         assertEquals(1, updatedState.planEditor?.selectedDayIndex)
     }
 
@@ -415,7 +393,7 @@ class HomeControllerTest {
         val updatedPlan = updatedState.trainingPlans.first { it.id == 1 }
 
         assertEquals(listOf("Snatch", "Snatch Pull"), updatedPlan.motions.map { it.title })
-        assertEquals(PlanDestination.Editor, updatedState.planDestination)
+        assertEquals(PlanRoute.Editor, updatedState.planRoute)
         assertNull(updatedState.motionPendingDelete)
         assertEquals(listOf("Snatch", "Snatch Pull"), updatedState.planEditor?.motions?.map { it.title })
     }
@@ -441,4 +419,3 @@ class HomeControllerTest {
         )
     }
 }
-

@@ -1,18 +1,16 @@
-package com.potato.liftinsight.home.controller
+package com.potato.liftinsight.plan.controller
 
-import com.potato.liftinsight.body.model.BodyMetricState
-import com.potato.liftinsight.body.model.defaultBodyMetrics
-import com.potato.liftinsight.body.model.updateBodyMetric as applyBodyMetricUpdate
 import com.potato.liftinsight.common.logging.AndroidAppLogger
 import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.plan.data.TrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
+import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.WorkoutProgressState
-import com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput
 import com.potato.liftinsight.plan.model.WorkoutSessionState
+import com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput
 import com.potato.liftinsight.plan.model.completedWorkoutSetCount
 import com.potato.liftinsight.plan.model.createWorkoutProgressState
 import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
@@ -22,6 +20,9 @@ import com.potato.liftinsight.plan.model.todaysPlanMotions
 import com.potato.liftinsight.plan.model.trainingPlan
 import com.potato.liftinsight.plan.model.workoutElapsedTimeMs
 import com.potato.liftinsight.plan.model.workoutSetTargetsForDay
+import com.potato.liftinsight.plan.route.MotionDeleteTarget
+import com.potato.liftinsight.plan.route.PlanEditorState
+import com.potato.liftinsight.plan.route.PlanRoute
 import com.potato.liftinsight.plan.model.finishWorkoutSet as finishWorkoutSetProgress
 import com.potato.liftinsight.plan.model.skipWorkoutSet as skipWorkoutSetProgress
 import com.potato.liftinsight.plan.model.startWorkoutSet as startWorkoutSetProgress
@@ -29,98 +30,23 @@ import com.potato.liftinsight.plan.model.updatePlanCurrentIndex as applyPlanCurr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-enum class MainTab {
-    Home,
-    Body,
-    Motion,
-    Plan,
-    Settings;
-
-    companion object {
-        fun fromIndex(index: Int): MainTab {
-            return entries.getOrNull(index) ?: Home
-        }
-    }
-}
-
-data class HomeState(
-    val selectedTab: MainTab = MainTab.Home,
-    val bodyMetrics: List<BodyMetricState>,
-    val availableMotions: List<AvailableMotionState>,
-    val trainingPlans: List<TrainingPlanState>,
-    val currentPlanId: Int,
-    val workoutProgress: WorkoutProgressState? = null,
-    val workoutSession: WorkoutSessionState = WorkoutSessionState(),
-    val planDestination: PlanDestination = PlanDestination.Overview,
-    val planIdPendingDelete: Int? = null,
-    val motionPendingDelete: MotionDeleteTarget? = null,
-    val planEditor: PlanEditorState? = null,
-    val workoutStopPendingConfirmation: Boolean = false
-) {
-    val selectedTabIndex: Int
-        get() = selectedTab.ordinal
-}
-
-data class PlanEditorState(
-    val planId: Int? = null,
-    val title: String = "",
-    val cyclePeriod: Int? = null,
-    val currentIndex: Int = 1,
-    val selectedDayIndex: Int? = null,
-    val motions: List<PlanMotionState> = emptyList(),
-    val nextTemporaryMotionEntryId: Int = -1,
-    val titleError: Boolean = false,
-    val cyclePeriodError: Boolean = false
-) {
-    val isNewPlan: Boolean
-        get() = planId == null
-}
-
-sealed interface PlanDestination {
-    data object Overview : PlanDestination
-
-    data object List : PlanDestination
-
-    data object Editor : PlanDestination
-
-    data object MotionPicker : PlanDestination
-
-    data class Motion(val motionEntryId: Int) : PlanDestination
-}
-
-data class MotionDeleteTarget(
-    val planId: Int,
-    val motionEntryId: Int
-)
-
-fun planDestinationDepth(destination: PlanDestination): Int {
-    return when (destination) {
-        PlanDestination.Overview -> 0
-        PlanDestination.List -> 1
-        PlanDestination.Editor -> 2
-        PlanDestination.MotionPicker -> 3
-        is PlanDestination.Motion -> 3
-    }
-}
-
-class HomeController(
+class PlanController(
     private val trainingPlanStore: TrainingPlanStore,
     private val shouldSeedDebugPlans: Boolean = false,
     private val nowProvider: () -> Long = { System.currentTimeMillis() },
     private val logger: AppLogger = AndroidAppLogger
 ) {
-    fun emptyState(): HomeState {
-        return HomeState(
-            bodyMetrics = defaultBodyMetrics(),
+    fun emptyState(): PlanState {
+        return PlanState(
             availableMotions = emptyList(),
             trainingPlans = emptyList(),
             currentPlanId = -1
         )
     }
 
-    suspend fun loadState(seedCatalog: TrainingPlanSeedCatalog): HomeState {
+    suspend fun loadState(seedCatalog: TrainingPlanSeedCatalog): PlanState {
         logDebug(
-            "Loading home state: availableMotionSeeds=${seedCatalog.availableMotions.size}, debugPlanSeedEnabled=$shouldSeedDebugPlans"
+            "Loading plan state: availableMotionSeeds=${seedCatalog.availableMotions.size}, debugPlanSeedEnabled=$shouldSeedDebugPlans"
         )
 
         return withContext(Dispatchers.IO) {
@@ -152,48 +78,24 @@ class HomeController(
                 currentPlanId = currentPlanId,
                 workoutProgress = workoutProgress,
                 workoutSession = workoutSession,
-                requestedDestination = PlanDestination.Overview,
+                requestedRoute = PlanRoute.Overview,
                 planIdPendingDelete = null,
                 motionPendingDelete = null,
                 planEditor = null,
                 workoutStopPendingConfirmation = false
             ).also { loadedState ->
                 logDebug(
-                    "Loaded home state: motions=${loadedState.availableMotions.size}, plans=${loadedState.trainingPlans.size}, currentPlanId=${loadedState.currentPlanId}"
+                    "Loaded plan state: motions=${loadedState.availableMotions.size}, plans=${loadedState.trainingPlans.size}, currentPlanId=${loadedState.currentPlanId}"
                 )
             }
         }
     }
 
-    fun selectTab(state: HomeState, tabIndex: Int): HomeState {
-        val selectedTab = MainTab.fromIndex(tabIndex)
-
-        logDebug("Selecting main tab: requestedIndex=$tabIndex, resolvedTab=$selectedTab")
-
-        return state.copy(selectedTab = selectedTab)
-    }
-
-    fun updateBodyMetric(
-        state: HomeState,
-        metricId: Int,
-        newValue: String
-    ): HomeState {
-        logDebug("Updating body metric: metricId=$metricId")
-
-        return state.copy(
-            bodyMetrics = applyBodyMetricUpdate(
-                metrics = state.bodyMetrics,
-                metricId = metricId,
-                newValue = newValue
-            )
-        )
-    }
-
-    fun createPlan(state: HomeState): HomeState {
+    fun createPlan(state: PlanState): PlanState {
         logDebug("Opening new plan editor")
 
         return state.copy(
-            planDestination = PlanDestination.Editor,
+            planRoute = PlanRoute.Editor,
             planIdPendingDelete = null,
             motionPendingDelete = null,
             planEditor = PlanEditorState()
@@ -201,9 +103,9 @@ class HomeController(
     }
 
     suspend fun selectPlan(
-        state: HomeState,
+        state: PlanState,
         planId: Int
-    ): HomeState {
+    ): PlanState {
         logDebug("Selecting training plan: planId=$planId")
 
         val updateSucceeded = withContext(Dispatchers.IO) {
@@ -232,17 +134,17 @@ class HomeController(
         return reloadState(state)
     }
 
-    fun showPlanList(state: HomeState): HomeState {
+    fun showPlanList(state: PlanState): PlanState {
         logDebug("Showing training plan list")
-        return state.copy(planDestination = PlanDestination.List)
+        return state.copy(planRoute = PlanRoute.List)
     }
 
-    fun showPlanOverview(state: HomeState): HomeState {
+    fun showPlanOverview(state: PlanState): PlanState {
         logDebug("Showing training plan overview")
-        return state.copy(planDestination = PlanDestination.Overview)
+        return state.copy(planRoute = PlanRoute.Overview)
     }
 
-    suspend fun startWorkout(state: HomeState): HomeState {
+    suspend fun startWorkout(state: PlanState): PlanState {
         if (state.workoutSession.isWorkoutGoing) {
             logWarn("Ignoring workout start because a workout session is already running")
             return state
@@ -279,7 +181,7 @@ class HomeController(
         return reloadState(state)
     }
 
-    suspend fun startNextWorkoutSet(state: HomeState): HomeState {
+    suspend fun startNextWorkoutSet(state: PlanState): PlanState {
         val workoutSession = state.workoutSession
 
         if (!workoutSession.isWorkoutGoing || workoutSession.isPaused) {
@@ -307,7 +209,7 @@ class HomeController(
         return reloadState(state)
     }
 
-    suspend fun skipWorkoutSet(state: HomeState): HomeState {
+    suspend fun skipWorkoutSet(state: PlanState): PlanState {
         val workoutProgress = state.workoutProgress ?: run {
             logWarn("Ignoring workout set skip because no workout progress is available")
             return state
@@ -345,9 +247,9 @@ class HomeController(
     }
 
     suspend fun finishCurrentWorkoutSet(
-        state: HomeState,
+        state: PlanState,
         performance: WorkoutSetPerformanceInput
-    ): HomeState {
+    ): PlanState {
         val workoutProgress = state.workoutProgress ?: run {
             logWarn("Ignoring workout set completion because no workout progress is available")
             return state
@@ -387,7 +289,7 @@ class HomeController(
         return reloadState(state)
     }
 
-    suspend fun toggleWorkoutPause(state: HomeState): HomeState {
+    suspend fun toggleWorkoutPause(state: PlanState): PlanState {
         val workoutSession = state.workoutSession
 
         if (!workoutSession.isWorkoutGoing) {
@@ -410,7 +312,7 @@ class HomeController(
         return reloadState(state)
     }
 
-    fun requestWorkoutStop(state: HomeState): HomeState {
+    fun requestWorkoutStop(state: PlanState): PlanState {
         if (!state.workoutSession.isWorkoutGoing) {
             logWarn("Ignoring workout stop request because no workout session is active")
             return state
@@ -421,12 +323,12 @@ class HomeController(
         return state.copy(workoutStopPendingConfirmation = true)
     }
 
-    fun dismissWorkoutStop(state: HomeState): HomeState {
+    fun dismissWorkoutStop(state: PlanState): PlanState {
         logDebug("Dismissing workout stop confirmation")
         return state.copy(workoutStopPendingConfirmation = false)
     }
 
-    suspend fun confirmWorkoutStop(state: HomeState): HomeState {
+    suspend fun confirmWorkoutStop(state: PlanState): PlanState {
         if (!state.workoutStopPendingConfirmation) {
             logWarn("Ignoring workout stop confirmation because no workout stop is pending")
             return state
@@ -446,20 +348,20 @@ class HomeController(
     }
 
     fun showPlanDetail(
-        state: HomeState,
+        state: PlanState,
         planId: Int
-    ): HomeState {
+    ): PlanState {
         val plan = trainingPlan(state.trainingPlans, planId)
 
         if (plan == null) {
             logWarn("Cannot show plan detail because the plan was not found: planId=$planId")
-            return state.copy(planDestination = PlanDestination.List)
+            return state.copy(planRoute = PlanRoute.List)
         }
 
         logDebug("Showing plan detail editor: planId=$planId")
 
         return state.copy(
-            planDestination = PlanDestination.Editor,
+            planRoute = PlanRoute.Editor,
             planIdPendingDelete = null,
             motionPendingDelete = null,
             planEditor = plan.toEditorState()
@@ -467,61 +369,61 @@ class HomeController(
     }
 
     fun showMotionDetail(
-        state: HomeState,
+        state: PlanState,
         motionEntryId: Int
-    ): HomeState {
+    ): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Cannot show plan motion detail without an active plan editor: motionEntryId=$motionEntryId")
-            return state.copy(planDestination = PlanDestination.List)
+            return state.copy(planRoute = PlanRoute.List)
         }
         val motion = editor.motions.firstOrNull { planMotion -> planMotion.entryId == motionEntryId }
 
         if (motion == null) {
             logWarn("Cannot show plan motion detail because the motion entry was not found: motionEntryId=$motionEntryId")
-            return state.copy(planDestination = PlanDestination.List)
+            return state.copy(planRoute = PlanRoute.List)
         }
 
         logDebug("Showing plan motion detail: motionEntryId=$motionEntryId")
 
-        return state.copy(planDestination = PlanDestination.Motion(motionEntryId = motionEntryId))
+        return state.copy(planRoute = PlanRoute.Motion(motionEntryId = motionEntryId))
     }
 
-    suspend fun handlePlanBack(state: HomeState): HomeState {
-        logDebug("Handling plan back navigation from destination=${state.planDestination}")
+    suspend fun handlePlanBack(state: PlanState): PlanState {
+        logDebug("Handling plan back navigation from route=${state.planRoute}")
 
-        return when (state.planDestination) {
-            PlanDestination.Overview -> state
+        return when (state.planRoute) {
+            PlanRoute.Overview -> state
 
-            PlanDestination.List -> state.copy(
-                planDestination = PlanDestination.Overview,
+            PlanRoute.List -> state.copy(
+                planRoute = PlanRoute.Overview,
                 planIdPendingDelete = null,
                 motionPendingDelete = null,
                 planEditor = null
             )
 
-            PlanDestination.Editor -> state.copy(
-                planDestination = PlanDestination.List,
+            PlanRoute.Editor -> state.copy(
+                planRoute = PlanRoute.List,
                 planIdPendingDelete = null,
                 motionPendingDelete = null,
                 planEditor = null
             )
 
-            PlanDestination.MotionPicker -> state.copy(
-                planDestination = PlanDestination.Editor,
+            PlanRoute.MotionPicker -> state.copy(
+                planRoute = PlanRoute.Editor,
                 motionPendingDelete = null
             )
 
-            is PlanDestination.Motion -> state.copy(
-                planDestination = PlanDestination.Editor,
+            is PlanRoute.Motion -> state.copy(
+                planRoute = PlanRoute.Editor,
                 motionPendingDelete = null
             )
         }
     }
 
     suspend fun updatePlanEditorTitle(
-        state: HomeState,
+        state: PlanState,
         newName: String
-    ): HomeState {
+    ): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring plan title update because no plan editor is open")
             return state
@@ -548,9 +450,9 @@ class HomeController(
     }
 
     suspend fun updatePlanEditorCyclePeriod(
-        state: HomeState,
+        state: PlanState,
         cyclePeriod: Int?
-    ): HomeState {
+    ): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring cycle period update because no plan editor is open")
             return state
@@ -599,9 +501,9 @@ class HomeController(
     }
 
     fun selectPlanEditorDay(
-        state: HomeState,
+        state: PlanState,
         dayIndex: Int
-    ): HomeState {
+    ): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring plan editor day selection because no plan editor is open")
             return state
@@ -622,10 +524,10 @@ class HomeController(
     }
 
     suspend fun updatePlanCurrentDay(
-        state: HomeState,
+        state: PlanState,
         planId: Int,
         dayIndex: Int
-    ): HomeState {
+    ): PlanState {
         logDebug("Updating current plan day: planId=$planId, requestedDayIndex=$dayIndex")
 
         val updateSucceeded = withContext(Dispatchers.IO) {
@@ -667,10 +569,10 @@ class HomeController(
     }
 
     suspend fun movePlanMotion(
-        state: HomeState,
+        state: PlanState,
         motionEntryId: Int,
         direction: Int
-    ): HomeState {
+    ): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring plan motion reorder because no plan editor is open: motionEntryId=$motionEntryId")
             return state
@@ -697,10 +599,10 @@ class HomeController(
     }
 
     suspend fun updateMotionSets(
-        state: HomeState,
+        state: PlanState,
         motionEntryId: Int,
         sets: Int
-    ): HomeState {
+    ): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring motion sets update because no plan editor is open: motionEntryId=$motionEntryId")
             return state
@@ -733,10 +635,10 @@ class HomeController(
     }
 
     suspend fun updateMotionRepsPerSet(
-        state: HomeState,
+        state: PlanState,
         motionEntryId: Int,
         repsPerSet: Int
-    ): HomeState {
+    ): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring motion reps update because no plan editor is open: motionEntryId=$motionEntryId")
             return state
@@ -771,10 +673,10 @@ class HomeController(
     }
 
     suspend fun updateMotionWeight(
-        state: HomeState,
+        state: PlanState,
         motionEntryId: Int,
         weight: Double
-    ): HomeState {
+    ): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring motion weight update because no plan editor is open: motionEntryId=$motionEntryId")
             return state
@@ -807,9 +709,9 @@ class HomeController(
     }
 
     fun requestPlanDeletion(
-        state: HomeState,
+        state: PlanState,
         planId: Int
-    ): HomeState {
+    ): PlanState {
         if (trainingPlan(state.trainingPlans, planId) == null) {
             logWarn("Ignoring plan deletion request because the plan was not found: planId=$planId")
             return state
@@ -820,12 +722,12 @@ class HomeController(
         return state.copy(planIdPendingDelete = planId)
     }
 
-    fun cancelPlanDeletion(state: HomeState): HomeState {
+    fun cancelPlanDeletion(state: PlanState): PlanState {
         logDebug("Cancelling plan deletion request")
         return state.copy(planIdPendingDelete = null)
     }
 
-    suspend fun confirmPlanDeletion(state: HomeState): HomeState {
+    suspend fun confirmPlanDeletion(state: PlanState): PlanState {
         val pendingPlanId = state.planIdPendingDelete ?: run {
             logWarn("Ignoring plan deletion confirmation because no plan is pending deletion")
             return state
@@ -844,7 +746,7 @@ class HomeController(
 
         return reloadState(
             state = state,
-            requestedDestination = PlanDestination.List,
+            requestedRoute = PlanRoute.List,
             planIdPendingDelete = null,
             motionPendingDelete = null,
             planEditor = state.planEditor?.takeUnless { editor -> editor.planId == pendingPlanId }
@@ -852,9 +754,9 @@ class HomeController(
     }
 
     fun requestMotionDeletion(
-        state: HomeState,
+        state: PlanState,
         motionEntryId: Int
-    ): HomeState {
+    ): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring motion deletion request because no plan editor is open: motionEntryId=$motionEntryId")
             return state
@@ -880,12 +782,12 @@ class HomeController(
         )
     }
 
-    fun cancelMotionDeletion(state: HomeState): HomeState {
+    fun cancelMotionDeletion(state: PlanState): PlanState {
         logDebug("Cancelling motion deletion request")
         return state.copy(motionPendingDelete = null)
     }
 
-    suspend fun confirmMotionDeletion(state: HomeState): HomeState {
+    suspend fun confirmMotionDeletion(state: PlanState): PlanState {
         val pendingTarget = state.motionPendingDelete ?: run {
             logWarn("Ignoring motion deletion confirmation because no motion is pending deletion")
             return state
@@ -911,7 +813,7 @@ class HomeController(
         val updatedState = persistEditorPlan(
             state = state.copy(planEditor = updatedEditor),
             editor = updatedEditor,
-            requestedDestination = PlanDestination.Editor,
+            requestedRoute = PlanRoute.Editor,
             motionPendingDelete = null
         )
 
@@ -925,7 +827,7 @@ class HomeController(
         return updatedState
     }
 
-    fun openAddMotionPicker(state: HomeState): HomeState {
+    fun openAddMotionPicker(state: PlanState): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring add motion picker request because no plan editor is open")
             return state
@@ -938,18 +840,18 @@ class HomeController(
 
         logDebug("Opening add motion picker: planId=${editor.planId ?: -1}, selectedDayIndex=${editor.selectedDayIndex}")
 
-        return state.copy(planDestination = PlanDestination.MotionPicker)
+        return state.copy(planRoute = PlanRoute.MotionPicker)
     }
 
-    fun closeAddMotionPicker(state: HomeState): HomeState {
+    fun closeAddMotionPicker(state: PlanState): PlanState {
         logDebug("Closing add motion picker")
-        return state.copy(planDestination = PlanDestination.Editor)
+        return state.copy(planRoute = PlanRoute.Editor)
     }
 
     suspend fun addMotionToPlan(
-        state: HomeState,
+        state: PlanState,
         motion: AvailableMotionState
-    ): HomeState {
+    ): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring add motion request because no plan editor is open: motionId=${motion.id}")
             return state
@@ -988,7 +890,7 @@ class HomeController(
 
         if (updatedEditor.isNewPlan) {
             return state.copy(
-                planDestination = PlanDestination.Motion(motionEntryId = addedMotionEntryId),
+                planRoute = PlanRoute.Motion(motionEntryId = addedMotionEntryId),
                 planEditor = updatedEditor
             )
         }
@@ -996,14 +898,14 @@ class HomeController(
         return persistEditorPlan(
             state = state,
             editor = updatedEditor,
-            requestedDestination = PlanDestination.Motion(motionEntryId = addedMotionEntryId)
+            requestedRoute = PlanRoute.Motion(motionEntryId = addedMotionEntryId)
         ) ?: run {
             logWarn("Failed to persist added motion: planId=${editor.planId}, motionId=${motion.id}")
             state
         }
     }
 
-    suspend fun submitPlanEditor(state: HomeState): HomeState {
+    suspend fun submitPlanEditor(state: PlanState): PlanState {
         val editor = state.planEditor ?: run {
             logWarn("Ignoring plan submission because no plan editor is open")
             return state
@@ -1051,24 +953,24 @@ class HomeController(
 
         return reloadState(
             state = state,
-            requestedDestination = PlanDestination.Editor,
+            requestedRoute = PlanRoute.Editor,
             planEditor = storedPlan.toEditorState()
         )
     }
 
-    suspend fun refreshState(state: HomeState): HomeState {
-        logDebug("Refreshing home state")
+    suspend fun refreshState(state: PlanState): PlanState {
+        logDebug("Refreshing plan state")
         return reloadState(state)
     }
 
     private suspend fun reloadState(
-        state: HomeState,
-        requestedDestination: PlanDestination = state.planDestination,
+        state: PlanState,
+        requestedRoute: PlanRoute = state.planRoute,
         planIdPendingDelete: Int? = state.planIdPendingDelete,
         motionPendingDelete: MotionDeleteTarget? = state.motionPendingDelete,
         planEditor: PlanEditorState? = state.planEditor,
         workoutStopPendingConfirmation: Boolean = state.workoutStopPendingConfirmation
-    ): HomeState {
+    ): PlanState {
         return withContext(Dispatchers.IO) {
             val availableMotions = trainingPlanStore.getAvailableMotions()
             val now = nowProvider()
@@ -1089,7 +991,7 @@ class HomeController(
                 currentPlanId = currentPlanId,
                 workoutProgress = workoutProgress,
                 workoutSession = workoutSession,
-                requestedDestination = requestedDestination,
+                requestedRoute = requestedRoute,
                 planIdPendingDelete = planIdPendingDelete,
                 motionPendingDelete = motionPendingDelete,
                 planEditor = planEditor,
@@ -1099,18 +1001,18 @@ class HomeController(
     }
 
     private fun buildLoadedState(
-        state: HomeState,
+        state: PlanState,
         availableMotions: List<AvailableMotionState>,
         trainingPlans: List<TrainingPlanState>,
         currentPlanId: Int,
         workoutProgress: WorkoutProgressState?,
         workoutSession: WorkoutSessionState,
-        requestedDestination: PlanDestination,
+        requestedRoute: PlanRoute,
         planIdPendingDelete: Int?,
         motionPendingDelete: MotionDeleteTarget?,
         planEditor: PlanEditorState?,
         workoutStopPendingConfirmation: Boolean
-    ): HomeState {
+    ): PlanState {
         val sanitizedPlanEditor = sanitizePlanEditor(trainingPlans, availableMotions, planEditor)
         val currentPlan = trainingPlan(trainingPlans, currentPlanId)
         val todayTargets = currentPlan?.let { plan ->
@@ -1134,8 +1036,8 @@ class HomeController(
             workoutProgress = sanitizedWorkoutProgress,
             workoutSession = workoutSession,
             planEditor = sanitizedPlanEditor,
-            planDestination = sanitizePlanDestination(
-                requestedDestination = requestedDestination,
+            planRoute = sanitizePlanRoute(
+                requestedRoute = requestedRoute,
                 planEditor = sanitizedPlanEditor
             ),
             planIdPendingDelete = planIdPendingDelete?.takeIf { planId ->
@@ -1151,49 +1053,49 @@ class HomeController(
         )
     }
 
-    private fun sanitizePlanDestination(
-        requestedDestination: PlanDestination,
+    private fun sanitizePlanRoute(
+        requestedRoute: PlanRoute,
         planEditor: PlanEditorState?
-    ): PlanDestination {
-        return when (requestedDestination) {
-            PlanDestination.Overview -> PlanDestination.Overview
+    ): PlanRoute {
+        return when (requestedRoute) {
+            PlanRoute.Overview -> PlanRoute.Overview
 
-            PlanDestination.List -> PlanDestination.List
+            PlanRoute.List -> PlanRoute.List
 
-            PlanDestination.Editor -> {
+            PlanRoute.Editor -> {
                 if (planEditor == null) {
-                    PlanDestination.List
+                    PlanRoute.List
                 } else {
-                    PlanDestination.Editor
+                    PlanRoute.Editor
                 }
             }
 
-            PlanDestination.MotionPicker -> {
+            PlanRoute.MotionPicker -> {
                 if (planEditor == null || planEditor.selectedDayIndex == null || planEditor.cyclePeriod == null) {
-                    PlanDestination.List
+                    PlanRoute.List
                 } else {
-                    PlanDestination.MotionPicker
+                    PlanRoute.MotionPicker
                 }
             }
 
-            is PlanDestination.Motion -> {
+            is PlanRoute.Motion -> {
                 if (planEditor == null) {
-                    PlanDestination.List
-                } else if (planEditor.motions.none { motion -> motion.entryId == requestedDestination.motionEntryId }) {
-                    PlanDestination.Editor
+                    PlanRoute.List
+                } else if (planEditor.motions.none { motion -> motion.entryId == requestedRoute.motionEntryId }) {
+                    PlanRoute.Editor
                 } else {
-                    requestedDestination
+                    requestedRoute
                 }
             }
         }
     }
 
     private suspend fun persistEditorPlan(
-        state: HomeState,
+        state: PlanState,
         editor: PlanEditorState,
-        requestedDestination: PlanDestination = state.planDestination,
+        requestedRoute: PlanRoute = state.planRoute,
         motionPendingDelete: MotionDeleteTarget? = state.motionPendingDelete
-    ): HomeState? {
+    ): PlanState? {
         val planId = editor.planId ?: return state.copy(planEditor = editor)
         val storedPlan = withContext(Dispatchers.IO) {
             trainingPlanStore.getTrainingPlan(planId)
@@ -1246,8 +1148,8 @@ class HomeController(
 
         return reloadState(
             state = state,
-            requestedDestination = resolvePersistedPlanDestination(
-                requestedDestination = requestedDestination,
+            requestedRoute = resolvePersistedPlanRoute(
+                requestedRoute = requestedRoute,
                 persistedMotionEntryIds = persistedMotionEntryIds
             ),
             motionPendingDelete = motionPendingDelete?.toPersistedTarget(
@@ -1320,7 +1222,7 @@ class HomeController(
     }
 
     companion object {
-        private const val TAG = "HomeController"
+        private const val TAG = "PlanController"
     }
 }
 
@@ -1481,18 +1383,18 @@ private fun persistedMotionEntryIds(
     return persistedIds
 }
 
-private fun resolvePersistedPlanDestination(
-    requestedDestination: PlanDestination,
+private fun resolvePersistedPlanRoute(
+    requestedRoute: PlanRoute,
     persistedMotionEntryIds: Map<Int, Int>
-): PlanDestination {
-    if (requestedDestination !is PlanDestination.Motion) {
-        return requestedDestination
+): PlanRoute {
+    if (requestedRoute !is PlanRoute.Motion) {
+        return requestedRoute
     }
 
-    val persistedMotionEntryId = persistedMotionEntryIds[requestedDestination.motionEntryId]
-        ?: return PlanDestination.Editor
+    val persistedMotionEntryId = persistedMotionEntryIds[requestedRoute.motionEntryId]
+        ?: return PlanRoute.Editor
 
-    return PlanDestination.Motion(motionEntryId = persistedMotionEntryId)
+    return PlanRoute.Motion(motionEntryId = persistedMotionEntryId)
 }
 
 private fun MotionDeleteTarget.toPersistedTarget(
@@ -1502,6 +1404,3 @@ private fun MotionDeleteTarget.toPersistedTarget(
 
     return copy(motionEntryId = persistedMotionEntryId)
 }
-
-
-

@@ -45,13 +45,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
 import com.potato.liftinsight.common.MetricCard
+import com.potato.liftinsight.settings.route.SettingsRoute
 import com.potato.liftinsight.ui.theme.AppThemeMode
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
-
-private enum class SettingsDestination {
-    Overview,
-    Theme
-}
 
 @Composable
 internal fun SettingsScreen(
@@ -59,26 +55,26 @@ internal fun SettingsScreen(
     onThemeModeSelected: (AppThemeMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var destination by rememberSaveable { mutableStateOf(SettingsDestination.Overview) }
+    var route by rememberSaveable { mutableStateOf(SettingsRoute.Overview) }
 
-    BackHandler(enabled = destination != SettingsDestination.Overview) {
-        destination = SettingsDestination.Overview
+    BackHandler(enabled = route != SettingsRoute.Overview) {
+        route = SettingsRoute.Overview
     }
 
-    when (destination) {
-        SettingsDestination.Overview -> SettingsOverviewScreen(
+    when (route) {
+        SettingsRoute.Overview -> SettingsOverviewScreen(
             currentThemeMode = currentThemeMode,
             onOpenThemeSettings = {
-                destination = SettingsDestination.Theme
+                route = SettingsRoute.Theme
             },
             modifier = modifier
         )
 
-        SettingsDestination.Theme -> ThemeSettingsScreen(
+        SettingsRoute.Theme -> ThemeSettingsScreen(
             currentThemeMode = currentThemeMode,
             onThemeModeSelected = onThemeModeSelected,
             onBack = {
-                destination = SettingsDestination.Overview
+                route = SettingsRoute.Overview
             },
             modifier = modifier
         )

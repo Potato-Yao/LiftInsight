@@ -51,7 +51,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
-import com.potato.liftinsight.home.controller.PlanEditorState
+import com.potato.liftinsight.plan.route.PlanEditorState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
