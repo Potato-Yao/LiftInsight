@@ -33,6 +33,7 @@ import com.potato.liftinsight.plan.PlanTabHost
 import com.potato.liftinsight.plan.PlanTabFloatingActionButton
 import com.potato.liftinsight.plan.controller.PlanController
 import com.potato.liftinsight.plan.model.PlanState
+import com.potato.liftinsight.plan.route.isPlanRouteFullScreen
 import com.potato.liftinsight.settings.SettingsScreen
 import com.potato.liftinsight.ui.theme.AppThemeMode
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
@@ -57,12 +58,13 @@ internal fun HomeShell(
     onThemeModeSelected: (AppThemeMode) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val isFullScreenRoute = isPlanRouteFullScreen(planState.planRoute)
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            if (selectedTab == MainTab.Plan) {
+            if (selectedTab == MainTab.Plan && !isFullScreenRoute) {
                 PlanTabFloatingActionButton(
                     planState = planState,
                     onPlanStateChange = onPlanStateChange,
@@ -72,11 +74,13 @@ internal fun HomeShell(
             }
         },
         bottomBar = {
-            LiftInsightBottomBar(
-                items = bottomBarItems,
-                selectedTabIndex = selectedTab.ordinal,
-                onTabSelected = onTabSelected
-            )
+            if (!isFullScreenRoute) {
+                LiftInsightBottomBar(
+                    items = bottomBarItems,
+                    selectedTabIndex = selectedTab.ordinal,
+                    onTabSelected = onTabSelected
+                )
+            }
         }
     ) { innerPadding ->
         AnimatedContent(

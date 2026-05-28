@@ -12,6 +12,16 @@ sealed interface PlanRoute {
     data object MotionPicker : PlanRoute
 
     data class Motion(val motionEntryId: Int) : PlanRoute
+
+    data class Camera(
+        val motionId: Int,
+        val motionTitle: String,
+        val setIndex: Int,
+        val setsInMotion: Int,
+        val expectedReps: Int,
+        val expectedWeight: Double,
+        val expectedIntensity: Double
+    ) : PlanRoute
 }
 
 fun planRouteDepth(route: PlanRoute): Int {
@@ -21,7 +31,12 @@ fun planRouteDepth(route: PlanRoute): Int {
         PlanRoute.Editor -> 2
         PlanRoute.MotionPicker -> 3
         is PlanRoute.Motion -> 3
+        is PlanRoute.Camera -> 4
     }
+}
+
+fun isPlanRouteFullScreen(route: PlanRoute): Boolean {
+    return route is PlanRoute.Camera
 }
 
 data class PlanEditorState(

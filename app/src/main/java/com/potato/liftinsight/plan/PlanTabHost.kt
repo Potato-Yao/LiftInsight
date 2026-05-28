@@ -1,8 +1,5 @@
 package com.potato.liftinsight.plan
 
-import android.content.Intent
-import android.provider.MediaStore
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -16,6 +13,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -35,10 +33,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
+import com.potato.liftinsight.camera.CameraScreen
 import com.potato.liftinsight.motion.MotionScreen
 import com.potato.liftinsight.motion.controller.MotionController
 import com.potato.liftinsight.motion.model.MotionState
@@ -48,7 +46,6 @@ import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.todaysPlanMotions
 import com.potato.liftinsight.plan.model.trainingPlan
-import com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput
 import com.potato.liftinsight.plan.route.PlanRoute
 import com.potato.liftinsight.plan.route.planRouteDepth
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
@@ -65,7 +62,6 @@ internal fun PlanTabHost(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     val shouldHandlePlanBack =
@@ -163,18 +159,11 @@ internal fun PlanTabHost(
                         }
                     },
                     onCameraClick = {
-                        val intent = Intent(MediaStore.ACTION_VIDEO_CAPTURE).apply {
-                            putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 1)
-                        }
-                        if (intent.resolveActivity(context.packageManager) != null) {
-                            context.startActivity(intent)
-                        } else {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.plan_camera_no_app),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                        onPlanStateChange(planController.openCamera(planState))
+                    },
+                    pendingCameraVideo = planState.cameraVideoName,
+                    onCameraVideoCleared = {
+                        onPlanStateChange(planController.clearCameraVideo(planState))
                     },
                     modifier = Modifier.padding(contentPadding)
                 )
@@ -341,6 +330,31 @@ internal fun PlanTabHost(
                 )
             }
 
+            is PlanRoute.Camera -> {
+                CameraScreen(
+                    motionTitle = route.motionTitle,
+                    motionId = route.motionId,
+                    setIndex = route.setIndex,
+                    setsInMotion = route.setsInMotion,
+                    expectedReps = route.expectedReps,
+                    expectedWeight = route.expectedWeight,
+                    expectedIntensity = route.expectedIntensity,
+                    onRecordingFinished = { videoName ->
+                        coroutineScope.launch {
+                            onPlanStateChange(
+                                planController.closeCameraWithVideo(planState, videoName ?: "")
+                            )
+                        }
+                    },
+                    onBack = {
+                        coroutineScope.launch {
+                            onPlanStateChange(planController.closeCamera(planState))
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
             is PlanRoute.Motion -> {
                 val editor = planState.planEditor
                 val motion = editor?.motions?.firstOrNull { planMotion ->
@@ -494,6 +508,8 @@ internal fun PlanTabFloatingActionButton(
         PlanRoute.MotionPicker -> Unit
 
         is PlanRoute.Motion -> Unit
+
+        is PlanRoute.Camera -> Unit
     }
 }
 

@@ -183,6 +183,57 @@ class PlanController(
         return reloadState(state)
     }
 
+    fun openCamera(state: PlanState): PlanState {
+        val workoutProgress = state.workoutProgress ?: run {
+            logWarn("Ignoring camera open because no workout progress is available")
+            return state
+        }
+
+        if (!state.workoutSession.isWorkoutGoing || state.workoutSession.isPaused) {
+            logWarn("Ignoring camera open because the workout session is not active")
+            return state
+        }
+
+        val currentPlan = trainingPlan(state.trainingPlans, state.currentPlanId)
+        val todayMotions = currentPlan?.let { todaysPlanMotions(it) }.orEmpty()
+        val todayTargets = workoutSetTargetsForDay(todayMotions)
+        val activeTarget = workoutProgress.activeSetIndex
+            ?.let { index -> todayTargets.getOrNull(index) }
+
+        if (activeTarget == null) {
+            logWarn("Ignoring camera open because no active set was found")
+            return state
+        }
+
+        logDebug("Opening camera for motion: motionId=${activeTarget.motionId}, setIndex=${activeTarget.setIndex}")
+
+        return state.copy(
+            planRoute = PlanRoute.Camera(
+                motionId = activeTarget.motionId,
+                motionTitle = activeTarget.motionTitle,
+                setIndex = activeTarget.setIndex,
+                setsInMotion = activeTarget.setsInMotion,
+                expectedReps = activeTarget.reps,
+                expectedWeight = activeTarget.weight,
+                expectedIntensity = activeTarget.intensity
+            )
+        )
+    }
+
+    fun closeCamera(state: PlanState): PlanState {
+        logDebug("Closing camera, returning to plan overview")
+        return state.copy(planRoute = PlanRoute.Overview)
+    }
+
+    fun closeCameraWithVideo(state: PlanState, videoName: String): PlanState {
+        logDebug("Closing camera with video, returning to plan overview to mark performance")
+        return state.copy(planRoute = PlanRoute.Overview, cameraVideoName = videoName)
+    }
+
+    fun clearCameraVideo(state: PlanState): PlanState {
+        return state.copy(cameraVideoName = null)
+    }
+
     suspend fun startNextWorkoutSet(state: PlanState): PlanState {
         val workoutSession = state.workoutSession
 
@@ -289,7 +340,7 @@ class PlanController(
             rpe = performance.feeling.toRpe(),
             weight = performance.weightDone,
             motionId = motionId,
-            videoName = null
+            videoName = performance.videoName
         )
 
         withContext(Dispatchers.IO) {
@@ -439,6 +490,8 @@ class PlanController(
                 planRoute = PlanRoute.Editor,
                 motionPendingDelete = null
             )
+
+            is PlanRoute.Camera -> state.copy(planRoute = PlanRoute.Overview)
         }
     }
 
@@ -1091,6 +1144,8 @@ class PlanController(
                     PlanRoute.Editor
                 }
             }
+
+            is PlanRoute.Camera -> requestedRoute
 
             PlanRoute.MotionPicker -> {
                 if (planEditor == null || planEditor.selectedDayIndex == null || planEditor.cyclePeriod == null) {

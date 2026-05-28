@@ -18,5 +18,6 @@ data class PlanState(
     val planIdPendingDelete: Int? = null,
     val motionPendingDelete: MotionDeleteTarget? = null,
     val planEditor: PlanEditorState? = null,
-    val workoutStopPendingConfirmation: Boolean = false
+    val workoutStopPendingConfirmation: Boolean = false,
+    val cameraVideoName: String? = null
 )

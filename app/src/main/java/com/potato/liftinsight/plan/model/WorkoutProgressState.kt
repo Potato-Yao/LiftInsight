@@ -36,7 +36,8 @@ data class WorkoutSetPerformanceInput(
     val repsDone: Int,
     val weightDone: Double,
     val feeling: WorkoutSetFeeling,
-    val breakDurationSeconds: Int
+    val breakDurationSeconds: Int,
+    val videoName: String? = null
 )
 
 fun WorkoutSetFeeling.toRpe(): Int {

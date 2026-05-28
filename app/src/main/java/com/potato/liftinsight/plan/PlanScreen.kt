@@ -78,6 +78,8 @@ internal fun PlanScreen(
     onSkipWorkoutSet: () -> Unit,
     onFinishCurrentWorkoutSet: (WorkoutSetPerformanceInput) -> Unit,
     onCameraClick: (() -> Unit)? = null,
+    pendingCameraVideo: String? = null,
+    onCameraVideoCleared: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showContent by remember { mutableStateOf(false) }
@@ -197,6 +199,8 @@ internal fun PlanScreen(
                     onSkipWorkoutSet = onSkipWorkoutSet,
                     onFinishCurrentWorkoutSet = onFinishCurrentWorkoutSet,
                     onCameraClick = onCameraClick,
+                    pendingCameraVideo = pendingCameraVideo,
+                    onCameraVideoCleared = onCameraVideoCleared,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -295,6 +299,8 @@ private fun TodayPlanSection(
     onSkipWorkoutSet: () -> Unit,
     onFinishCurrentWorkoutSet: (WorkoutSetPerformanceInput) -> Unit,
     onCameraClick: (() -> Unit)? = null,
+    pendingCameraVideo: String? = null,
+    onCameraVideoCleared: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     when (content) {
@@ -351,6 +357,8 @@ private fun TodayPlanSection(
                 actionsEnabled = workoutSession.isWorkoutGoing && !workoutSession.isPaused,
                 onFinishCurrentWorkoutSet = onFinishCurrentWorkoutSet,
                 onCameraClick = onCameraClick,
+                pendingCameraVideo = pendingCameraVideo,
+                onCameraVideoCleared = onCameraVideoCleared,
                 modifier = modifier
             )
         }
@@ -418,10 +426,12 @@ private fun ActiveWorkoutSection(
     actionsEnabled: Boolean,
     onFinishCurrentWorkoutSet: (WorkoutSetPerformanceInput) -> Unit,
     onCameraClick: (() -> Unit)? = null,
+    pendingCameraVideo: String? = null,
+    onCameraVideoCleared: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showPerformanceDialog by remember(currentTarget.orderIndex) {
-        mutableStateOf(false)
+        mutableStateOf(pendingCameraVideo != null)
     }
 
     Column(
@@ -456,11 +466,14 @@ private fun ActiveWorkoutSection(
     if (showPerformanceDialog) {
         WorkoutPerformanceDialog(
             target = currentTarget,
+            videoName = pendingCameraVideo,
             onDismiss = {
                 showPerformanceDialog = false
+                onCameraVideoCleared()
             },
             onConfirm = { performance ->
                 showPerformanceDialog = false
+                onCameraVideoCleared()
                 onFinishCurrentWorkoutSet(performance)
             }
         )
@@ -683,6 +696,7 @@ private fun WorkoutMetricCard(
 @Composable
 private fun WorkoutPerformanceDialog(
     target: WorkoutSetTargetState,
+    videoName: String? = null,
     onDismiss: () -> Unit,
     onConfirm: (WorkoutSetPerformanceInput) -> Unit
 ) {
@@ -998,7 +1012,8 @@ private fun WorkoutPerformanceDialog(
                             repsDone = parsedRepsDone,
                             weightDone = parsedWeightDone,
                             feeling = selectedFeeling,
-                            breakDurationSeconds = parsedBreakSeconds
+                            breakDurationSeconds = parsedBreakSeconds,
+                            videoName = videoName
                         )
                     )
                 }
