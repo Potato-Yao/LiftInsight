@@ -39,6 +39,15 @@ data class WorkoutSetPerformanceInput(
     val breakDurationSeconds: Int
 )
 
+fun WorkoutSetFeeling.toRpe(): Int {
+    return when (this) {
+        WorkoutSetFeeling.TooEasy -> 3
+        WorkoutSetFeeling.Simple -> 5
+        WorkoutSetFeeling.HardButControlled -> 8
+        WorkoutSetFeeling.AlmostLostControl -> 10
+    }
+}
+
 fun workoutSetTargetsForDay(todayMotions: List<PlanMotionState>): List<WorkoutSetTargetState> {
     if (todayMotions.isEmpty()) {
         return emptyList()

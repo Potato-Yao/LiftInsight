@@ -34,11 +34,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
 import com.potato.liftinsight.common.MetricCard
+import com.potato.liftinsight.plan.model.PlanState
+import com.potato.liftinsight.plan.model.todaysPlanMotions
+import com.potato.liftinsight.plan.model.trainingPlan
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 
 @Composable
-internal fun HomeScreen(modifier: Modifier = Modifier) {
+internal fun HomeScreen(
+    planState: PlanState,
+    onStartTraining: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     var showContent by remember { mutableStateOf(false) }
+
+    val currentPlan = trainingPlan(planState.trainingPlans, planState.currentPlanId)
+    val todayMotions = if (currentPlan != null) todaysPlanMotions(currentPlan) else emptyList()
+    val motionCount = todayMotions.size
 
     LaunchedEffect(Unit) {
         showContent = true
@@ -90,7 +101,11 @@ internal fun HomeScreen(modifier: Modifier = Modifier) {
                 }
             ) {
                 Text(
-                    text = stringResource(R.string.home_no_task_placeholder),
+                    text = if (motionCount > 0) {
+                        stringResource(R.string.home_todays_motion_count, motionCount)
+                    } else {
+                        stringResource(R.string.home_take_rest)
+                    },
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -106,7 +121,7 @@ internal fun HomeScreen(modifier: Modifier = Modifier) {
                 title = stringResource(R.string.home_start_training_title),
                 subtitle = stringResource(R.string.home_start_training_subtitle),
                 modifier = Modifier.fillMaxWidth(),
-                onClick = {},
+                onClick = onStartTraining,
                 leadingContent = {
                     Icon(
                         imageVector = Icons.Rounded.PlayArrow,

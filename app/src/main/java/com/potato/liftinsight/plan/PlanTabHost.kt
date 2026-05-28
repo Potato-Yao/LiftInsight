@@ -1,5 +1,8 @@
 package com.potato.liftinsight.plan
 
+import android.content.Intent
+import android.provider.MediaStore
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -32,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
@@ -61,6 +65,7 @@ internal fun PlanTabHost(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     val shouldHandlePlanBack =
@@ -155,6 +160,20 @@ internal fun PlanTabHost(
                             onPlanStateChange(
                                 planController.finishCurrentWorkoutSet(planState, performance)
                             )
+                        }
+                    },
+                    onCameraClick = {
+                        val intent = Intent(MediaStore.ACTION_VIDEO_CAPTURE).apply {
+                            putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 1)
+                        }
+                        if (intent.resolveActivity(context.packageManager) != null) {
+                            context.startActivity(intent)
+                        } else {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.plan_camera_no_app),
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     },
                     modifier = Modifier.padding(contentPadding)

@@ -127,6 +127,31 @@ data class MetaPlanEntity(
     val orderIndex: Int
 )
 
+@Entity(
+    tableName = "metahistory",
+    foreignKeys = [
+        ForeignKey(
+            entity = MotionEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["motion_id"],
+            onDelete = ForeignKey.RESTRICT
+        )
+    ],
+    indices = [Index(value = ["motion_id"])]
+)
+data class MetaHistoryEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+    val date: String,
+    val rep: Int,
+    val rpe: Int,
+    val weight: Double,
+    @ColumnInfo(name = "motion_id")
+    val motionId: Int,
+    @ColumnInfo(name = "video_name")
+    val videoName: String? = null
+)
+
 data class MetaPlanRow(
     val id: Int,
     @ColumnInfo(name = "plan_id")

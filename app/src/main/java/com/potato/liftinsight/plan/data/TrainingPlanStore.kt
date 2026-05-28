@@ -12,10 +12,12 @@ import com.potato.liftinsight.plan.model.advancePlanDayIndex
 import com.potato.liftinsight.plan.model.workoutElapsedTimeMs
 import com.potato.liftinsight.plan.model.normalizePlanDayIndex
 import com.potato.liftinsight.plan.model.sortPlansByLastApplied
+import com.potato.liftinsight.training.data.CreateMetaHistoryRequest
 import com.potato.liftinsight.training.data.CreateMotionRequest
 import com.potato.liftinsight.training.data.CreateMetaPlanRequest
 import com.potato.liftinsight.training.data.CreatePlanRequest
 import com.potato.liftinsight.training.data.LiftInsightDatabase
+import com.potato.liftinsight.training.data.MetaHistoryEntity
 import com.potato.liftinsight.training.data.MetaPlanRecord
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.training.data.PlanSelectionEntity
@@ -301,6 +303,19 @@ class TrainingPlanStore private constructor(
         logTrace("stopWorkout result: stopped=true")
     }
 
+    fun insertMetaHistory(request: CreateMetaHistoryRequest): Long {
+        logTrace(
+            "insertMetaHistory start: rep=${request.rep}, rpe=${request.rpe}, weight=${request.weight}, motionId=${request.motionId}, date=${request.date}"
+        )
+
+        val insertedId = database.planDao().insertMetaHistory(request.toEntity())
+
+        logger.info(TAG, "Inserted metahistory record: id=$insertedId")
+        logTrace("insertMetaHistory result: insertedId=$insertedId")
+
+        return insertedId
+    }
+
     fun createTrainingPlan(
         plan: TrainingPlanState
     ): Int {
@@ -500,6 +515,17 @@ private fun WorkoutProgressState.toEntity(): WorkoutProgressEntity {
         breakEndsAt = breakEndsAt,
         isFinished = isFinished,
         completedElapsedTimeMs = completedElapsedTimeMs
+    )
+}
+
+private fun CreateMetaHistoryRequest.toEntity(): MetaHistoryEntity {
+    return MetaHistoryEntity(
+        date = date,
+        rep = rep,
+        rpe = rpe,
+        weight = weight,
+        motionId = motionId,
+        videoName = videoName
     )
 }
 

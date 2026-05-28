@@ -50,6 +50,7 @@ internal fun HomeShell(
     onMotionStateChange: (MotionState) -> Unit,
     motionController: MotionController,
     selectedTab: MainTab,
+    onStartTraining: () -> Unit,
     currentThemeMode: AppThemeMode,
     bottomBarItems: List<BottomBarItem>,
     onTabSelected: (Int) -> Unit,
@@ -129,7 +130,11 @@ internal fun HomeShell(
         ) { tab ->
             when (tab) {
                 MainTab.Home -> {
-                    HomeScreen(modifier = Modifier.padding(innerPadding))
+                    HomeScreen(
+                        planState = planState,
+                        onStartTraining = onStartTraining,
+                        modifier = Modifier.padding(innerPadding)
+                    )
                 }
 
                 MainTab.Body -> {

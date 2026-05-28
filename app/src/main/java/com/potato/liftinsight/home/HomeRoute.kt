@@ -108,6 +108,7 @@ fun HomeRoute(
         onMotionStateChange = { motionState = it },
         motionController = motionController,
         selectedTab = selectedTab,
+        onStartTraining = { selectedTab = MainTab.Plan },
         currentThemeMode = currentThemeMode,
         bottomBarItems = bottomBarItems,
         onTabSelected = { selectedTab = MainTab.fromIndex(it) },

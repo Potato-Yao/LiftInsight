@@ -57,6 +57,9 @@ abstract class PlanDao {
     @Query("DELETE FROM workout_progress")
     abstract fun clearWorkoutProgress()
 
+    @Insert
+    abstract fun insertMetaHistory(metaHistory: MetaHistoryEntity): Long
+
     @Query(
         """
         SELECT

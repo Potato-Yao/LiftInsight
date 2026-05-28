@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalIconButton
@@ -76,6 +77,7 @@ internal fun PlanScreen(
     onStartNextWorkoutSet: () -> Unit,
     onSkipWorkoutSet: () -> Unit,
     onFinishCurrentWorkoutSet: (WorkoutSetPerformanceInput) -> Unit,
+    onCameraClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showContent by remember { mutableStateOf(false) }
@@ -194,6 +196,7 @@ internal fun PlanScreen(
                     onStartNextWorkoutSet = onStartNextWorkoutSet,
                     onSkipWorkoutSet = onSkipWorkoutSet,
                     onFinishCurrentWorkoutSet = onFinishCurrentWorkoutSet,
+                    onCameraClick = onCameraClick,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -291,6 +294,7 @@ private fun TodayPlanSection(
     onStartNextWorkoutSet: () -> Unit,
     onSkipWorkoutSet: () -> Unit,
     onFinishCurrentWorkoutSet: (WorkoutSetPerformanceInput) -> Unit,
+    onCameraClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     when (content) {
@@ -346,6 +350,7 @@ private fun TodayPlanSection(
                 currentTarget = content.currentTarget,
                 actionsEnabled = workoutSession.isWorkoutGoing && !workoutSession.isPaused,
                 onFinishCurrentWorkoutSet = onFinishCurrentWorkoutSet,
+                onCameraClick = onCameraClick,
                 modifier = modifier
             )
         }
@@ -412,6 +417,7 @@ private fun ActiveWorkoutSection(
     currentTarget: WorkoutSetTargetState,
     actionsEnabled: Boolean,
     onFinishCurrentWorkoutSet: (WorkoutSetPerformanceInput) -> Unit,
+    onCameraClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showPerformanceDialog by remember(currentTarget.orderIndex) {
@@ -440,6 +446,7 @@ private fun ActiveWorkoutSection(
             target = currentTarget,
             primaryActionLabel = stringResource(R.string.plan_workout_finish_set_action),
             actionsEnabled = actionsEnabled,
+            onCameraClick = onCameraClick,
             onPrimaryAction = {
                 showPerformanceDialog = true
             }
@@ -523,6 +530,7 @@ private fun WorkoutTargetCard(
     modifier: Modifier = Modifier,
     secondaryActionLabel: String? = null,
     onSecondaryAction: (() -> Unit)? = null,
+    onCameraClick: (() -> Unit)? = null,
     onPrimaryAction: () -> Unit
 ) {
     Surface(
@@ -602,6 +610,18 @@ private fun WorkoutTargetCard(
                         enabled = actionsEnabled
                     ) {
                         Text(text = secondaryActionLabel)
+                    }
+                }
+
+                if (onCameraClick != null) {
+                    FilledTonalIconButton(
+                        onClick = onCameraClick,
+                        enabled = actionsEnabled
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Videocam,
+                            contentDescription = stringResource(R.string.plan_workout_camera_action)
+                        )
                     }
                 }
 

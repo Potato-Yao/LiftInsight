@@ -48,4 +48,13 @@ data class CreatePlanRequest(
     val metaPlans: List<CreateMetaPlanRequest> = emptyList()
 )
 
+data class CreateMetaHistoryRequest(
+    val date: String,
+    val rep: Int,
+    val rpe: Int,
+    val weight: Double,
+    val motionId: Int,
+    val videoName: String? = null
+)
+
 

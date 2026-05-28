@@ -17,12 +17,14 @@ import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
 import com.potato.liftinsight.plan.model.sanitizeWorkoutProgressState
 import com.potato.liftinsight.plan.model.sortPlansByLastApplied
 import com.potato.liftinsight.plan.model.todaysPlanMotions
+import com.potato.liftinsight.plan.model.toRpe
 import com.potato.liftinsight.plan.model.trainingPlan
 import com.potato.liftinsight.plan.model.workoutElapsedTimeMs
 import com.potato.liftinsight.plan.model.workoutSetTargetsForDay
 import com.potato.liftinsight.plan.route.MotionDeleteTarget
 import com.potato.liftinsight.plan.route.PlanEditorState
 import com.potato.liftinsight.plan.route.PlanRoute
+import com.potato.liftinsight.training.data.CreateMetaHistoryRequest
 import com.potato.liftinsight.plan.model.finishWorkoutSet as finishWorkoutSetProgress
 import com.potato.liftinsight.plan.model.skipWorkoutSet as skipWorkoutSetProgress
 import com.potato.liftinsight.plan.model.startWorkoutSet as startWorkoutSetProgress
@@ -274,8 +276,28 @@ class PlanController(
             return state
         }
 
+        val currentPlan = trainingPlan(state.trainingPlans, state.currentPlanId)
+        val todayMotions = currentPlan?.let { todaysPlanMotions(it) }.orEmpty()
+        val todayTargets = workoutSetTargetsForDay(todayMotions)
+        val motionId = workoutProgress.activeSetIndex
+            ?.let { index -> todayTargets.getOrNull(index)?.motionId }
+            ?: -1
+
+        val metaHistoryRequest = CreateMetaHistoryRequest(
+            date = localDateTimeString(now),
+            rep = performance.repsDone,
+            rpe = performance.feeling.toRpe(),
+            weight = performance.weightDone,
+            motionId = motionId,
+            videoName = null
+        )
+
         withContext(Dispatchers.IO) {
             trainingPlanStore.saveWorkoutProgress(updatedProgress)
+
+            if (motionId > 0) {
+                trainingPlanStore.insertMetaHistory(metaHistoryRequest)
+            }
 
             if (updatedProgress.isFinished) {
                 trainingPlanStore.stopWorkout()
@@ -283,7 +305,7 @@ class PlanController(
         }
 
         logDebug(
-            "Finished workout set: repsDone=${performance.repsDone}, weightDone=${performance.weightDone}, feeling=${performance.feeling}, breakDurationSeconds=${performance.breakDurationSeconds}, finished=${updatedProgress.isFinished}"
+            "Finished workout set: repsDone=${performance.repsDone}, weightDone=${performance.weightDone}, feeling=${performance.feeling}, motionId=$motionId, breakDurationSeconds=${performance.breakDurationSeconds}, finished=${updatedProgress.isFinished}"
         )
 
         return reloadState(state)
@@ -1223,6 +1245,14 @@ class PlanController(
 
     companion object {
         private const val TAG = "PlanController"
+
+        private fun localDateTimeString(timestamp: Long): String {
+            val instant = java.time.Instant.ofEpochMilli(timestamp)
+            val formatter = java.time.format.DateTimeFormatter
+                .ofPattern("yyyy-MM-dd-HH-mm-ss")
+                .withZone(java.time.ZoneId.systemDefault())
+            return formatter.format(instant)
+        }
     }
 }
 

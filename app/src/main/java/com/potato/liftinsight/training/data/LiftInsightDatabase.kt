@@ -15,9 +15,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlanSelectionEntity::class,
         WorkoutSessionEntity::class,
         WorkoutProgressEntity::class,
-        MetaPlanEntity::class
+        MetaPlanEntity::class,
+        MetaHistoryEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -84,6 +85,13 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS metahistory (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `rep` INTEGER NOT NULL, `rpe` INTEGER NOT NULL, `weight` REAL NOT NULL, `motion_id` INTEGER NOT NULL, `video_name` TEXT, FOREIGN KEY(`motion_id`) REFERENCES `motion`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_motion_id ON metahistory (`motion_id`)")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -115,7 +123,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                             MIGRATION_5_6,
                             MIGRATION_6_7,
                             MIGRATION_7_8,
-                            MIGRATION_8_9
+                            MIGRATION_8_9,
+                            MIGRATION_9_10
                         )
                         .build()
 
