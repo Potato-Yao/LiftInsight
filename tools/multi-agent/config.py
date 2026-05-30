@@ -15,12 +15,28 @@ PROJECT_ROOT = str(_project_root)
 
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
+
+DEEPSEEK_PRO_MODEL = os.getenv("DEEPSEEK_PRO_MODEL", "deepseek-chat")
+DEEPSEEK_LIGHT_MODEL = os.getenv("DEEPSEEK_LIGHT_MODEL", DEEPSEEK_PRO_MODEL)
+
 MAX_REVIEW_ITERATIONS = int(os.getenv("MAX_REVIEW_ITERATIONS", "3"))
 MAX_TEMPERATURE = float(os.getenv("MAX_TEMPERATURE", "0.3"))
 
 SKILL_MD_PATH = _project_root / "skill.md"
 AGENTS_MD_PATH = _project_root / "AGENTS.md"
+
+SKILL_MD_CONTENT: str | None = None
+AGENTS_MD_CONTENT: str | None = None
+
+try:
+    SKILL_MD_CONTENT = SKILL_MD_PATH.read_text(encoding="utf-8")
+except Exception:
+    pass
+
+try:
+    AGENTS_MD_CONTENT = AGENTS_MD_PATH.read_text(encoding="utf-8")
+except Exception:
+    pass
 
 if not DEEPSEEK_API_KEY:
     raise RuntimeError(

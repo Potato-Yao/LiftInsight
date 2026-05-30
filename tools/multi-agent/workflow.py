@@ -1,7 +1,10 @@
 import operator
+import sys
+import uuid
 from typing import TypedDict, Annotated
 
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import interrupt
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
@@ -16,7 +19,7 @@ from prompts import (
     CODE_REVIEWER_SYSTEM,
     CHANGE_SUMMARIZER_SYSTEM,
 )
-from config import MAX_REVIEW_ITERATIONS
+from config import MAX_REVIEW_ITERATIONS, SKILL_MD_CONTENT, AGENTS_MD_CONTENT
 
 
 class WorkflowState(TypedDict):
@@ -33,8 +36,11 @@ class WorkflowState(TypedDict):
     error: str
 
 
+def _log(emoji: str, msg: str):
+    print(f"  {emoji} {msg}", flush=True)
+
+
 def _parse_clarification_output(text: str) -> tuple[bool, str, str]:
-    """Parse the refiner output for CLARIFICATION_NEEDED and QUESTION or REFINED_PROMPT."""
     needs = False
     question = ""
     refined = ""
@@ -49,7 +55,6 @@ def _parse_clarification_output(text: str) -> tuple[bool, str, str]:
             refined = line[len("REFINED_PROMPT:"):].strip()
 
     if needs and not question:
-        refined_marker = text.find("REFINED_PROMPT:")
         question_marker = text.find("QUESTION:")
         if question_marker >= 0:
             question_end = text.find("\n", question_marker)
@@ -62,7 +67,6 @@ def _parse_clarification_output(text: str) -> tuple[bool, str, str]:
 
 
 def _parse_review_output(text: str) -> tuple[bool, str]:
-    """Parse the reviewer output for PASS and ISSUES."""
     passed = False
     issues = ""
 
@@ -84,7 +88,17 @@ def _parse_review_output(text: str) -> tuple[bool, str]:
     return passed, issues
 
 
+def _build_project_context() -> str:
+    parts = []
+    if AGENTS_MD_CONTENT:
+        parts.append(f"=== AGENTS.md (Project Guide) ===\n{AGENTS_MD_CONTENT}")
+    if SKILL_MD_CONTENT:
+        parts.append(f"=== skill.md (Coding Standards) ===\n{SKILL_MD_CONTENT}")
+    return "\n\n".join(parts) if parts else "Project guides not available."
+
+
 def refine_prompt_node(state: WorkflowState) -> dict:
+    _log("1", "Prompt Refiner — analyzing request...")
     llm = create_refiner_llm()
 
     clarification_context = ""
@@ -93,21 +107,49 @@ def refine_prompt_node(state: WorkflowState) -> dict:
             f"\n\nUser's answer to the clarification question: {state['user_clarification']}"
         )
 
-    context_prompt = f"""{PROMPT_REFINER_SYSTEM}
+    project_context = _build_project_context()
 
+    context_prompt = f"""You have the full project context below. Use it to refine the user's request.
+
+{project_context}
+
+---
 User's request: {state["user_request"]}{clarification_context}
+---
 
-First, read the project guides (AGENTS.md and skill.md) using the read_project_guides tool to understand the project context. Then refine the prompt.
+Now refine this request into a clear, detailed, actionable coding task. Identify:
+- Which files/packages/features are involved
+- The exact behavior expected
+- Technical constraints (Kotlin, Compose, Material 3, Room, etc.)
+- Project conventions from AGENTS.md and skill.md that apply
 
-Remember: if any detail is unclear, set CLARIFICATION_NEEDED: YES and ask a clear question.
-Otherwise, set CLARIFICATION_NEEDED: NO and provide the REFINED_PROMPT."""
+If any detail is unclear, set CLARIFICATION_NEEDED: YES and ask ONE clear question.
 
-    response = llm.invoke([SystemMessage(content=PROMPT_REFINER_SYSTEM), HumanMessage(content=context_prompt)])
+Output format:
+CLARIFICATION_NEEDED: YES/NO
+QUESTION: <question if YES>
+REFINED_PROMPT: <detailed prompt>"""
+
+    response = llm.invoke([HumanMessage(content=context_prompt)])
 
     needs, question, refined = _parse_clarification_output(response.content)
 
     if state.get("user_clarification"):
         needs = False
+
+    if not needs and not refined.strip():
+        refined = (
+            f"Implement the following in the LiftInsight Android project:\n\n"
+            f"{state['user_request']}\n\n"
+            f"Follow the coding standards in skill.md and project patterns in AGENTS.md. "
+            f"Read existing code for conventions before making changes."
+        )
+
+    if needs:
+        _log("?", f"Clarification needed: {question}")
+    else:
+        preview = refined[:120].replace("\n", " ")
+        _log("1", f"Refined prompt: {preview}{'...' if len(refined) > 120 else ''}")
 
     return {
         "needs_clarification": needs,
@@ -123,19 +165,31 @@ def clarify_node(state: WorkflowState) -> dict:
 
 
 def generate_code_node(state: WorkflowState) -> dict:
-    agent = create_generator_agent()
+    _log("2", "Code Generator — implementing changes...")
 
     refined = state["refined_prompt"]
     if state.get("review_feedback"):
+        _log("2", f"Fixing review issues (iteration {state.get('review_iteration', 0) + 1})...")
         refined = (
             f"ORIGINAL TASK:\n{state['refined_prompt']}\n\n"
-            f"REVIEW FEEDBACK - YOU MUST FIX THESE ISSUES:\n{state['review_feedback']}\n\n"
+            f"REVIEW FEEDBACK — YOU MUST FIX THESE ISSUES:\n{state['review_feedback']}\n\n"
             f"Read the relevant files, make the fixes, and verify compilation."
         )
 
+    agent = create_generator_agent()
+    agent_config = {"configurable": {"thread_id": f"gen-{uuid.uuid4().hex[:8]}"}}
     agent_input = {"messages": [HumanMessage(content=refined)]}
 
-    result = agent.invoke(agent_input)
+    try:
+        result = agent.invoke(agent_input, agent_config)
+    except Exception as e:
+        _log("!", f"Code generator error: {e}")
+        return {
+            "messages": [AIMessage(content=f"Generation failed: {e}")],
+            "error": str(e),
+        }
+
+    _log("2", "Code generation complete.")
 
     return {
         "messages": result.get("messages", []),
@@ -143,23 +197,31 @@ def generate_code_node(state: WorkflowState) -> dict:
 
 
 def review_code_node(state: WorkflowState) -> dict:
+    _log("3", "Code Reviewer — checking against standards...")
     llm = create_reviewer_llm()
 
     iteration = state.get("review_iteration", 0) + 1
 
-    prompt = f"""{CODE_REVIEWER_SYSTEM}
+    project_context = _build_project_context()
 
-Review the code changes made in this session. Use the available tools to:
-1. Read the files that were modified or created
-2. Compare them against skill.md and AGENTS.md standards
-3. Check for compilation errors and test failures
+    prompt = f"""Review the code changes made in this session against the project standards below.
+
+{project_context}
+
+---
+Review the changes (use the run_command tool to check git diff). Check for:
+1. Style violations from skill.md (over-abstraction, naming, control flow, blank lines, etc.)
+2. Project violations from AGENTS.md (Compose patterns, product focus, missing string resources, DB migrations)
+3. Test coverage for non-UI code
+4. Compilation errors
+---
 
 After your review, output in the exact format:
 PASS: YES/NO
 If NO:
 ISSUES:
-- <specific issues>
-ACTION_REQUIRED: <fix instructions>"""
+- <specific issue with file path and line reference>
+ACTION_REQUIRED: <concrete fix instructions>"""
 
     response = llm.invoke([
         SystemMessage(content=CODE_REVIEWER_SYSTEM),
@@ -169,8 +231,14 @@ ACTION_REQUIRED: <fix instructions>"""
     passed, issues = _parse_review_output(response.content)
 
     if iteration >= MAX_REVIEW_ITERATIONS:
+        _log("3", f"Max review iterations ({MAX_REVIEW_ITERATIONS}) reached — accepting as-is.")
         passed = True
         issues = ""
+
+    if passed:
+        _log("3", "Review passed.")
+    else:
+        _log("3", f"Review found issues — sending back for fixes.")
 
     return {
         "review_passed": passed,
@@ -181,25 +249,27 @@ ACTION_REQUIRED: <fix instructions>"""
 
 
 def summarize_node(state: WorkflowState) -> dict:
+    _log("4", "Change Summarizer — generating summary...")
+
     import subprocess
     from config import PROJECT_ROOT
 
+    diff_output = ""
     try:
         result = subprocess.run(
-            ["git", "diff", "--stat"],
-            capture_output=True, text=True, cwd=PROJECT_ROOT
+            ["git", "-C", PROJECT_ROOT, "diff", "--stat"],
+            capture_output=True, text=True
         )
         diff_output = result.stdout.strip()
-        if not diff_output:
-            diff_output = "No changes detected in git diff."
     except Exception as e:
         diff_output = f"Unable to get git diff: {e}"
 
+    if not diff_output:
+        diff_output = "No changes detected in git diff."
+
     llm = create_summarizer_llm()
 
-    prompt = f"""{CHANGE_SUMMARIZER_SYSTEM}
-
-Here is the git diff summary for this session:
+    prompt = f"""Here is the git diff summary for this session:
 
 {diff_output}
 
@@ -255,4 +325,4 @@ def create_workflow():
 
     builder.add_edge("summarize", END)
 
-    return builder.compile()
+    return builder.compile(checkpointer=MemorySaver())

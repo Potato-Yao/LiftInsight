@@ -20,7 +20,7 @@ if _sys_path not in sys.path:
 from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
 
-from config import PROJECT_ROOT
+from config import PROJECT_ROOT, DEEPSEEK_API_KEY
 from workflow import create_workflow, WorkflowState
 
 
@@ -29,10 +29,6 @@ def print_banner():
     print("  LiftInsight Multi-Agent Workflow")
     print("  " + "-" * 33)
     print()
-
-
-def print_phase(label: str):
-    print(f"\n  [{label}]")
 
 
 def main():
@@ -46,8 +42,7 @@ def main():
             print("  No request provided. Exiting.")
             return
 
-    print_phase("1 - Prompt Refiner")
-    print(f"  Analyzing: {user_request[:80]}{'...' if len(user_request) > 80 else ''}")
+    print(f"  Request: {user_request[:100]}{'...' if len(user_request) > 100 else ''}")
 
     workflow = create_workflow()
     config = {"configurable": {"thread_id": f"session-{uuid.uuid4().hex[:8]}"}}
@@ -75,20 +70,25 @@ def main():
         except GraphInterrupt as e:
             question = str(e)
             if question and question != "None":
-                print_phase("? - Clarification Needed")
-                print(f"  {question}")
+                print(f"\n  [?] {question}")
 
             answer = input("\n  Your answer: ").strip()
             if not answer:
                 answer = "no additional details"
 
             input_data = Command(resume=answer)
+        except Exception as e:
+            print(f"\n  [!] Workflow error: {e}")
+            print(f"  Check that your DEEPSEEK_API_KEY in .env is valid.")
+            return
 
-    if isinstance(result, dict) and result.get("changes_summary"):
-        print_phase("4 - Change Summary")
-        print()
-        print(result["changes_summary"])
-        print()
+    if isinstance(result, dict):
+        if result.get("error"):
+            print(f"\n  [!] Error: {result['error']}")
+        if result.get("changes_summary"):
+            print()
+            print(result["changes_summary"])
+            print()
 
     print("  Done.")
 
