@@ -13,8 +13,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,10 +37,12 @@ import com.potato.liftinsight.body.model.BodyMetricSection
 import com.potato.liftinsight.body.model.BodyMetricState
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun BodyScreen(
     metrics: List<BodyMetricState>,
     onMetricValueChange: (metricId: Int, newValue: String) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showContent by remember { mutableStateOf(false) }
@@ -44,49 +53,56 @@ internal fun BodyScreen(
         showContent = true
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        AnimatedVisibility(
-            visible = showContent,
-            enter = bodySectionEnter(delayMillis = 0),
-            exit = ExitTransition.None
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(text = stringResource(R.string.body_detail_title))
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(innerPadding)
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = stringResource(R.string.nav_body),
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.SemiBold
+            AnimatedVisibility(
+                visible = showContent,
+                enter = bodySectionEnter(delayMillis = 50),
+                exit = ExitTransition.None
+            ) {
+                BodyMetricSection(
+                    title = stringResource(R.string.body_section_profile),
+                    metrics = summaryMetrics,
+                    onMetricValueChange = onMetricValueChange
                 )
             }
-        }
 
-        AnimatedVisibility(
-            visible = showContent,
-            enter = bodySectionEnter(delayMillis = 50),
-            exit = ExitTransition.None
-        ) {
-            BodyMetricSection(
-                title = stringResource(R.string.body_section_profile),
-                metrics = summaryMetrics,
-                onMetricValueChange = onMetricValueChange
-            )
-        }
-
-        AnimatedVisibility(
-            visible = showContent,
-            enter = bodySectionEnter(delayMillis = 120),
-            exit = ExitTransition.None
-        ) {
-            BodyMetricSection(
-                title = stringResource(R.string.body_section_best_lifts),
-                metrics = strengthMetrics,
-                onMetricValueChange = onMetricValueChange
-            )
+            AnimatedVisibility(
+                visible = showContent,
+                enter = bodySectionEnter(delayMillis = 120),
+                exit = ExitTransition.None
+            ) {
+                BodyMetricSection(
+                    title = stringResource(R.string.body_section_best_lifts),
+                    metrics = strengthMetrics,
+                    onMetricValueChange = onMetricValueChange
+                )
+            }
         }
     }
 }

@@ -63,6 +63,24 @@ abstract class PlanDao {
     @Query(
         """
         SELECT
+            metahistory.id,
+            metahistory.date,
+            metahistory.rep,
+            metahistory.rpe,
+            metahistory.weight,
+            metahistory.motion_id,
+            motion.name AS motion_name,
+            metahistory.video_name
+        FROM metahistory
+        INNER JOIN motion ON motion.id = metahistory.motion_id
+        ORDER BY metahistory.date DESC, metahistory.id DESC
+        """
+    )
+    abstract fun getMetaHistoryWithMotions(): List<MetaHistoryRow>
+
+    @Query(
+        """
+        SELECT
             metaplan.id,
             metaplan.plan_id,
             metaplan.motion_id,

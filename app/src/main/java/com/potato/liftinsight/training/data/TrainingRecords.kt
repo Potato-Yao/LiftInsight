@@ -57,4 +57,15 @@ data class CreateMetaHistoryRequest(
     val videoName: String? = null
 )
 
+data class MetaHistoryRecord(
+    val id: Int,
+    val date: String,
+    val rep: Int,
+    val rpe: Int,
+    val weight: Double,
+    val motionId: Int,
+    val motionName: String,
+    val videoName: String? = null
+)
+
 

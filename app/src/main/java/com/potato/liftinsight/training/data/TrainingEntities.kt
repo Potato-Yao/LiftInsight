@@ -170,6 +170,20 @@ data class MetaPlanRow(
     val orderIndex: Int
 )
 
+data class MetaHistoryRow(
+    val id: Int,
+    val date: String,
+    val rep: Int,
+    val rpe: Int,
+    val weight: Double,
+    @ColumnInfo(name = "motion_id")
+    val motionId: Int,
+    @ColumnInfo(name = "motion_name")
+    val motionName: String,
+    @ColumnInfo(name = "video_name")
+    val videoName: String? = null
+)
+
 internal fun MotionEntity.toRecord(): MotionRecord {
     return MotionRecord(
         id = id,
@@ -216,6 +230,19 @@ internal fun MetaPlanRow.toRecord(): MetaPlanRecord {
         intensity = intensity,
         weight = weight,
         orderIndex = orderIndex
+    )
+}
+
+internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
+    return MetaHistoryRecord(
+        id = id,
+        date = date,
+        rep = rep,
+        rpe = rpe,
+        weight = weight,
+        motionId = motionId,
+        motionName = motionName,
+        videoName = videoName
     )
 }
 

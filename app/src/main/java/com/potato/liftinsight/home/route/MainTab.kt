@@ -2,7 +2,7 @@ package com.potato.liftinsight.home.route
 
 enum class MainTab {
     Home,
-    Body,
+    Record,
     Motion,
     Plan,
     Settings;

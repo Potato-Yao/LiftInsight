@@ -11,7 +11,7 @@
     <string name="home_todays_task_intensity">Session intensity</string>
     <string name="home_no_data_placeholder">Not available yet</string>
     <string name="nav_home">Home</string>
-    <string name="nav_body">Body</string>
+    <string name="nav_record">Record</string>
     <string name="nav_motion">Motion</string>
     <string name="nav_plan">Plan</string>
     <string name="nav_settings">Settings</string>
@@ -167,6 +167,19 @@
     <string name="motion_detail_increase_value_content_description">Increase %1$s</string>
     <string name="motion_delete_dialog_title">Delete motion?</string>
     <string name="motion_delete_dialog_message">Delete %1$s from %2$s?</string>
+    <string name="record_body_card_title">Body</string>
+    <string name="record_body_card_subtitle">Track your weight, height, best lifts, and body metrics</string>
+    <string name="record_training_card_title">Training</string>
+    <string name="record_training_card_subtitle">Log your training sessions and review progress</string>
+    <string name="body_detail_title">Body</string>
+    <string name="training_no_records">No training records yet</string>
+    <string name="training_weight_value">%.1f kg</string>
+    <string name="training_rep_value">%d reps</string>
+    <string name="training_detail_date">Date</string>
+    <string name="training_detail_reps">Reps</string>
+    <string name="training_detail_rpe">RPE</string>
+    <string name="training_detail_weight">Weight</string>
+    <string name="training_play_video">Play video</string>
     <string name="body_age">Age</string>
     <string name="body_sex">Sex</string>
     <string name="body_weight">Weight</string>
@@ -192,4 +205,14 @@
     <string name="common_back">Back</string>
     <string name="common_ok">OK</string>
     <string name="common_cancel">Cancel</string>
+
+    <!-- Motion video player -->
+    <string name="motion_video_close">Close video</string>
+    <string name="motion_video_play">Play</string>
+    <string name="motion_video_pause">Pause</string>
+    <string name="motion_video_speed_btn_025">Playback speed 0.25x</string>
+    <string name="motion_video_speed_btn_05">Playback speed 0.5x</string>
+    <string name="motion_video_speed_btn_1">Normal playback speed</string>
+    <string name="motion_video_speed_btn_125">Playback speed 1.25x</string>
+    <string name="motion_video_speed_btn_15">Playback speed 1.5x</string>
 </resources>

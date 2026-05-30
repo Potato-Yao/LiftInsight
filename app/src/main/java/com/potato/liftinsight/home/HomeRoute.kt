@@ -3,11 +3,11 @@ package com.potato.liftinsight.home
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.automirrored.rounded.Assignment
-import androidx.compose.material.icons.outlined.AccessibilityNew
+import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Videocam
-import androidx.compose.material.icons.rounded.AccessibilityNew
+import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Videocam
@@ -76,9 +76,9 @@ fun HomeRoute(
             selectedIcon = Icons.Rounded.Home
         ),
         BottomBarItem(
-            label = stringResource(R.string.nav_body),
-            icon = Icons.Outlined.AccessibilityNew,
-            selectedIcon = Icons.Rounded.AccessibilityNew
+            label = stringResource(R.string.nav_record),
+            icon = Icons.Outlined.FitnessCenter,
+            selectedIcon = Icons.Rounded.FitnessCenter
         ),
         BottomBarItem(
             label = stringResource(R.string.nav_motion),
@@ -104,6 +104,7 @@ fun HomeRoute(
         bodyState = bodyState,
         onBodyStateChange = { bodyState = it },
         bodyController = bodyController,
+        trainingPlanStore = trainingPlanStore,
         motionState = motionState,
         onMotionStateChange = { motionState = it },
         motionController = motionController,

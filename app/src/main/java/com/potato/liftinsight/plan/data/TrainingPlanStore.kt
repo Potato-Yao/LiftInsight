@@ -18,6 +18,8 @@ import com.potato.liftinsight.training.data.CreateMetaPlanRequest
 import com.potato.liftinsight.training.data.CreatePlanRequest
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.MetaHistoryEntity
+import com.potato.liftinsight.training.data.MetaHistoryRecord
+import com.potato.liftinsight.training.data.MetaHistoryRow
 import com.potato.liftinsight.training.data.MetaPlanRecord
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.training.data.PlanSelectionEntity
@@ -25,6 +27,7 @@ import com.potato.liftinsight.training.data.PlanStore
 import com.potato.liftinsight.training.data.PlanRecord
 import com.potato.liftinsight.training.data.WorkoutSessionEntity
 import com.potato.liftinsight.training.data.WorkoutProgressEntity
+import com.potato.liftinsight.training.data.toRecord
 import java.util.TimeZone
 
 class TrainingPlanStore private constructor(
@@ -314,6 +317,17 @@ class TrainingPlanStore private constructor(
         logTrace("insertMetaHistory result: insertedId=$insertedId")
 
         return insertedId
+    }
+
+    fun getMetaHistoryRecords(): List<MetaHistoryRecord> {
+        logTrace("getMetaHistoryRecords start")
+
+        val rows = database.planDao().getMetaHistoryWithMotions()
+        val records = rows.map { row -> row.toRecord() }
+
+        logTrace("getMetaHistoryRecords result: count=${records.size}")
+
+        return records
     }
 
     fun createTrainingPlan(
