@@ -9,6 +9,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,19 +27,23 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.VideocamOff
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -202,7 +208,7 @@ internal fun TrainingHistoryScreen(
     }
 
     selectedRecord?.let { record ->
-        TrainingHistoryDetailDialog(
+        TrainingHistoryDetailSheet(
             record = record,
             processState = processStateLabel(
                 status = selectedVideoStatus,
@@ -213,7 +219,7 @@ internal fun TrainingHistoryScreen(
                 val videoName = record.videoName
 
                 if (videoName.isNullOrBlank()) {
-                    return@TrainingHistoryDetailDialog
+                    return@TrainingHistoryDetailSheet
                 }
 
                 selectedRecord = null
@@ -257,9 +263,9 @@ private fun TrainingHistoryCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 20.dp, vertical = 18.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             Surface(
                 color = MaterialTheme.colorScheme.secondaryContainer,
@@ -273,78 +279,162 @@ private fun TrainingHistoryCard(
                 )
             }
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = record.motionName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 Text(
-                    text = record.motionName,
+                    text = stringResource(
+                        R.string.training_detail_summary,
+                        record.weight,
+                        record.rep,
+                        record.rpe
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    text = stringResource(R.string.training_weight_value, record.weight),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.training_weight_value, record.weight),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = stringResource(R.string.training_rep_value, record.rep),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = stringResource(R.string.training_rep_value, record.rep),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun TrainingHistoryDetailDialog(
+private fun TrainingHistoryDetailSheet(
     record: MetaHistoryRecord,
     processState: String,
     onDismiss: () -> Unit,
     onPlayVideo: () -> Unit
 ) {
     val hasVideo = !record.videoName.isNullOrBlank()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = record.motionName,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                DetailRow(
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = record.motionName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = stringResource(
+                        R.string.training_detail_summary,
+                        record.weight,
+                        record.rep,
+                        record.rpe
+                    ),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                DetailChip(
                     label = stringResource(R.string.training_detail_date),
                     value = record.date
                 )
-                DetailRow(
-                    label = stringResource(R.string.training_detail_reps),
-                    value = record.rep.toString()
-                )
-                DetailRow(
-                    label = stringResource(R.string.training_detail_rpe),
-                    value = record.rpe.toString()
-                )
-                DetailRow(
-                    label = stringResource(R.string.training_detail_weight),
-                    value = stringResource(R.string.training_weight_value, record.weight)
-                )
-                DetailRow(
-                    label = stringResource(R.string.training_detail_process_state),
-                    value = processState
+                DetailChip(
+                    label = stringResource(R.string.training_detail_video_status),
+                    value = processState,
+                    highlighted = hasVideo
                 )
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onPlayVideo() },
-                enabled = hasVideo
+
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = RoundedCornerShape(28.dp),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.training_detail_section_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    DetailRow(
+                        label = stringResource(R.string.training_detail_weight),
+                        value = stringResource(R.string.training_weight_value, record.weight)
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+
+                    DetailRow(
+                        label = stringResource(R.string.training_detail_reps),
+                        value = stringResource(R.string.training_detail_reps_value, record.rep)
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+
+                    DetailRow(
+                        label = stringResource(R.string.training_detail_rpe),
+                        value = stringResource(R.string.training_detail_rpe_value, record.rpe)
+                    )
+                }
+            }
+
+            Button(
+                onClick = onPlayVideo,
+                enabled = hasVideo,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(
                     imageVector = if (hasVideo) {
@@ -355,18 +445,26 @@ private fun TrainingHistoryDetailDialog(
                     contentDescription = null,
                     modifier = Modifier.size(20.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.training_play_video))
+            }
+
+            if (!hasVideo) {
                 Text(
-                    text = stringResource(R.string.training_play_video)
+                    text = stringResource(R.string.training_video_unavailable_message),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
+
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.End)
+            ) {
                 Text(text = stringResource(R.string.common_cancel))
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -390,6 +488,42 @@ private fun DetailRow(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+@Composable
+private fun DetailChip(
+    label: String,
+    value: String,
+    highlighted: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val containerColor = if (highlighted) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+
+    Surface(
+        modifier = modifier,
+        color = containerColor,
+        shape = RoundedCornerShape(18.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 
@@ -446,4 +580,3 @@ private fun processStateLabel(
 
     return stringResource(R.string.training_process_state_no)
 }
-
