@@ -179,7 +179,11 @@
     <string name="training_detail_reps">Reps</string>
     <string name="training_detail_rpe">RPE</string>
     <string name="training_detail_weight">Weight</string>
+    <string name="training_detail_process_state">Process State</string>
     <string name="training_play_video">Play video</string>
+    <string name="training_process_state_yes">Yes</string>
+    <string name="training_process_state_no">No</string>
+    <string name="training_process_state_progress">%1$d%%</string>
     <string name="body_age">Age</string>
     <string name="body_sex">Sex</string>
     <string name="body_weight">Weight</string>

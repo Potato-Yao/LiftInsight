@@ -57,6 +57,13 @@ data class CreateMetaHistoryRequest(
     val videoName: String? = null
 )
 
+enum class VideoProcessState {
+    NOT_STARTED,
+    PROCESSING,
+    DONE,
+    ERROR
+}
+
 data class MetaHistoryRecord(
     val id: Int,
     val date: String,

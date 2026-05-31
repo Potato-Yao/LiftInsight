@@ -342,7 +342,7 @@ internal fun PlanTabHost(
                     onRecordingFinished = { videoName ->
                         coroutineScope.launch {
                             onPlanStateChange(
-                                planController.closeCameraWithVideo(planState, videoName ?: "")
+                                planController.closeCameraWithVideo(planState, videoName)
                             )
                         }
                     },

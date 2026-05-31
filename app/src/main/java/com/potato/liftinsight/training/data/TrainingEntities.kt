@@ -152,6 +152,21 @@ data class MetaHistoryEntity(
     val videoName: String? = null
 )
 
+@Entity(
+    tableName = "video_process_state",
+    indices = [Index(value = ["video_name"], unique = true)]
+)
+data class VideoProcessStateEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+    @ColumnInfo(name = "video_name")
+    val videoName: String,
+    val state: String,
+    val progress: Int,
+    @ColumnInfo(name = "processed_video_name")
+    val processedVideoName: String? = null
+)
+
 data class MetaPlanRow(
     val id: Int,
     @ColumnInfo(name = "plan_id")

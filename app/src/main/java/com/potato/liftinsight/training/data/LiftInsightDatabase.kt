@@ -16,9 +16,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSessionEntity::class,
         WorkoutProgressEntity::class,
         MetaPlanEntity::class,
-        MetaHistoryEntity::class
+        MetaHistoryEntity::class,
+        VideoProcessStateEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -92,6 +93,13 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS video_process_state (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `video_name` TEXT NOT NULL, `state` TEXT NOT NULL, `progress` INTEGER NOT NULL, `processed_video_name` TEXT)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_video_process_state_video_name ON video_process_state (`video_name`)")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -124,7 +132,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                             MIGRATION_6_7,
                             MIGRATION_7_8,
                             MIGRATION_8_9,
-                            MIGRATION_9_10
+                            MIGRATION_9_10,
+                            MIGRATION_10_11
                         )
                         .build()
 

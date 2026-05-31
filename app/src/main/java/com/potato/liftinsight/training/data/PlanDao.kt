@@ -57,6 +57,19 @@ abstract class PlanDao {
     @Query("DELETE FROM workout_progress")
     abstract fun clearWorkoutProgress()
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract fun upsertVideoProcessState(state: VideoProcessStateEntity)
+
+    @Query(
+        "SELECT * FROM video_process_state WHERE video_name = :videoName ORDER BY id DESC LIMIT 1"
+    )
+    abstract fun getVideoProcessState(videoName: String): VideoProcessStateEntity?
+
+    @Query(
+        "UPDATE video_process_state SET state = :state, progress = :progress WHERE video_name = :videoName"
+    )
+    abstract fun updateVideoProcessProgress(videoName: String, state: String, progress: Int): Int
+
     @Insert
     abstract fun insertMetaHistory(metaHistory: MetaHistoryEntity): Long
 

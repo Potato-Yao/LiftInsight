@@ -13,6 +13,7 @@ import com.potato.liftinsight.home.HomeRoute
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.settings.data.ThemeStore
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
+import com.potato.liftinsight.video.VideoProcessor
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,6 +22,7 @@ class MainActivity : ComponentActivity() {
 
         val themeStore = ThemeStore.from(applicationContext)
         val trainingPlanStore = TrainingPlanStore.from(applicationContext)
+        val videoProcessor = VideoProcessor.from(applicationContext)
         val enableDebugPlanSeed = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
         setContent {
@@ -31,6 +33,7 @@ class MainActivity : ComponentActivity() {
             LiftInsightTheme(themeMode = themeMode) {
                 HomeRoute(
                     trainingPlanStore = trainingPlanStore,
+                    videoProcessor = videoProcessor,
                     enableDebugPlanSeed = enableDebugPlanSeed,
                     currentThemeMode = themeMode,
                     onThemeModeSelected = { selectedThemeMode ->

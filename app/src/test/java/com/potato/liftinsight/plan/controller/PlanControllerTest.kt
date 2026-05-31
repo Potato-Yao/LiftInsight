@@ -15,6 +15,9 @@ import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.route.PlanRoute
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.training.data.LiftInsightDatabase
+import com.potato.liftinsight.training.data.VideoProcessState
+import com.potato.liftinsight.video.VideoProcessingStatus
+import com.potato.liftinsight.video.VideoProcessor
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -113,13 +116,15 @@ class PlanControllerTest {
 
     private fun controller(
         nowProvider: () -> Long = { 123L },
-        logger: AppLogger = AndroidAppLogger
+        logger: AppLogger = AndroidAppLogger,
+        videoProcessor: VideoProcessor = FakeVideoProcessor()
     ): PlanController {
         return PlanController(
             trainingPlanStore = trainingPlanStore,
             shouldSeedDebugPlans = true,
             nowProvider = nowProvider,
-            logger = logger
+            logger = logger,
+            videoProcessor = videoProcessor
         )
     }
 
@@ -323,6 +328,27 @@ class PlanControllerTest {
     }
 
     @Test
+    fun closeCameraWithVideo_submitsProcessingAndStoresPendingVideo() {
+        val fakeVideoProcessor = FakeVideoProcessor()
+        val controller = controller(videoProcessor = fakeVideoProcessor)
+        val state = controller.emptyState().copy(planRoute = PlanRoute.Camera(
+            motionId = 1,
+            motionTitle = "Snatch",
+            setIndex = 1,
+            setsInMotion = 3,
+            expectedReps = 2,
+            expectedWeight = 80.0,
+            expectedIntensity = 0.8
+        ))
+
+        val updatedState = controller.closeCameraWithVideo(state, "lift-1.mp4")
+
+        assertEquals(PlanRoute.Overview, updatedState.planRoute)
+        assertEquals("lift-1.mp4", updatedState.cameraVideoName)
+        assertEquals(listOf("lift-1.mp4"), fakeVideoProcessor.submittedVideoNames)
+    }
+
+    @Test
     fun confirmPlanDeletion_removesPlanClearsDialogAndReturnsToList() = runBlocking {
         val controller = controller()
         val state = controller.requestPlanDeletion(initialState(controller), 2)
@@ -419,3 +445,31 @@ class PlanControllerTest {
         )
     }
 }
+
+private class FakeVideoProcessor : VideoProcessor {
+    val submittedVideoNames = mutableListOf<String>()
+
+    override fun submitForProcessing(videoName: String) {
+        submittedVideoNames += videoName
+    }
+
+    override fun hasProcessedCopy(videoName: String): Boolean = false
+
+    override fun isProcessing(videoName: String): Boolean = false
+
+    override fun getProgress(videoName: String): Int = 0
+
+    override fun getStatus(videoName: String): VideoProcessingStatus {
+        return VideoProcessingStatus(
+            videoName = videoName,
+            state = VideoProcessState.NOT_STARTED,
+            progress = 0,
+            processedVideoName = null
+        )
+    }
+
+    override fun getProcessedVideoFile(videoName: String) = null
+
+    override fun getPlaybackVideoFile(videoName: String) = null
+}
+

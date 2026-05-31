@@ -43,6 +43,7 @@ import com.potato.liftinsight.record.TrainingHistoryScreen
 import com.potato.liftinsight.settings.SettingsScreen
 import com.potato.liftinsight.ui.theme.AppThemeMode
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
+import com.potato.liftinsight.video.VideoProcessor
 import kotlinx.coroutines.launch
 
 @Composable
@@ -54,6 +55,7 @@ internal fun HomeShell(
     onBodyStateChange: (BodyState) -> Unit,
     bodyController: BodyController,
     trainingPlanStore: TrainingPlanStore,
+    videoProcessor: VideoProcessor,
     motionState: MotionState,
     onMotionStateChange: (MotionState) -> Unit,
     motionController: MotionController,
@@ -246,6 +248,7 @@ internal fun HomeShell(
                             BodyRoute.Training -> {
                                 TrainingHistoryScreen(
                                     trainingPlanStore = trainingPlanStore,
+                                    videoProcessor = videoProcessor,
                                     onBack = {
                                         onBodyStateChange(
                                             bodyController.closeBodyDetail(bodyState)

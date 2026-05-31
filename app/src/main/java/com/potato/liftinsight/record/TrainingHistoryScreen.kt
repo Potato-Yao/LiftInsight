@@ -43,12 +43,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import android.net.Uri
-import android.os.Environment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,29 +55,60 @@ import com.potato.liftinsight.R
 import com.potato.liftinsight.motion.MotionVideoPlayer
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.training.data.MetaHistoryRecord
+import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
+import com.potato.liftinsight.video.VideoProcessingStatus
+import com.potato.liftinsight.video.VideoProcessor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 internal fun TrainingHistoryScreen(
     trainingPlanStore: TrainingPlanStore,
+    videoProcessor: VideoProcessor,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var records by remember { mutableStateOf<List<MetaHistoryRecord>>(emptyList()) }
     var selectedRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
-    var videoPlayerFile by remember { mutableStateOf<String?>(null) }
+    var selectedVideoStatus by remember { mutableStateOf<VideoProcessingStatus?>(null) }
+    var videoPlayerUri by remember { mutableStateOf<Uri?>(null) }
     var showContent by remember { mutableStateOf(false) }
-
-    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         records = withContext(Dispatchers.IO) {
             trainingPlanStore.getMetaHistoryRecords()
         }
         showContent = true
+    }
+
+    LaunchedEffect(selectedRecord?.videoName) {
+        val videoName = selectedRecord?.videoName
+
+        if (videoName.isNullOrBlank()) {
+            selectedVideoStatus = null
+            return@LaunchedEffect
+        }
+
+        selectedVideoStatus = null
+
+        while (true) {
+            val status = withContext(Dispatchers.IO) {
+                videoProcessor.getStatus(videoName)
+            }
+
+            selectedVideoStatus = status
+
+            if (status.state != VideoProcessState.PROCESSING) {
+                break
+            }
+
+            delay(1_000L)
+        }
     }
 
     Scaffold(
@@ -174,27 +204,35 @@ internal fun TrainingHistoryScreen(
     selectedRecord?.let { record ->
         TrainingHistoryDetailDialog(
             record = record,
+            processState = processStateLabel(
+                status = selectedVideoStatus,
+                hasVideo = !record.videoName.isNullOrBlank()
+            ),
             onDismiss = { selectedRecord = null },
             onPlayVideo = {
+                val videoName = record.videoName
+
+                if (videoName.isNullOrBlank()) {
+                    return@TrainingHistoryDetailDialog
+                }
+
                 selectedRecord = null
-                videoPlayerFile = record.videoName
+
+                coroutineScope.launch {
+                    val playbackFile = withContext(Dispatchers.IO) {
+                        videoProcessor.getPlaybackVideoFile(videoName)
+                    }
+
+                    videoPlayerUri = playbackFile?.let(Uri::fromFile)
+                }
             }
         )
     }
 
-    videoPlayerFile?.let { fileName ->
-        val videoUri = remember(fileName) {
-            val moviesDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
-            val file = if (moviesDir != null) {
-                java.io.File(moviesDir, fileName)
-            } else {
-                java.io.File(context.filesDir, fileName)
-            }
-            Uri.fromFile(file)
-        }
+    videoPlayerUri?.let { videoUri ->
         MotionVideoPlayer(
             videoUri = videoUri,
-            onDismiss = { videoPlayerFile = null }
+            onDismiss = { videoPlayerUri = null }
         )
     }
 }
@@ -264,9 +302,12 @@ private fun TrainingHistoryCard(
 @Composable
 private fun TrainingHistoryDetailDialog(
     record: MetaHistoryRecord,
+    processState: String,
     onDismiss: () -> Unit,
     onPlayVideo: () -> Unit
 ) {
+    val hasVideo = !record.videoName.isNullOrBlank()
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -294,15 +335,19 @@ private fun TrainingHistoryDetailDialog(
                     label = stringResource(R.string.training_detail_weight),
                     value = stringResource(R.string.training_weight_value, record.weight)
                 )
+                DetailRow(
+                    label = stringResource(R.string.training_detail_process_state),
+                    value = processState
+                )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = { onPlayVideo() },
-                enabled = record.videoName != null
+                enabled = hasVideo
             ) {
                 Icon(
-                    imageVector = if (record.videoName != null) {
+                    imageVector = if (hasVideo) {
                         Icons.Rounded.PlayArrow
                     } else {
                         Icons.Rounded.VideocamOff
@@ -378,3 +423,27 @@ private fun trainingSectionEnter(delayMillis: Int): EnterTransition {
         initialOffsetY = { fullHeight -> fullHeight / 12 }
     )
 }
+
+@Composable
+private fun processStateLabel(
+    status: VideoProcessingStatus?,
+    hasVideo: Boolean
+): String {
+    if (!hasVideo) {
+        return stringResource(R.string.training_process_state_no)
+    }
+
+    if (status?.hasProcessedCopy == true) {
+        return stringResource(R.string.training_process_state_yes)
+    }
+
+    if (status?.isProcessing == true) {
+        return stringResource(
+            R.string.training_process_state_progress,
+            status.progress.coerceIn(0, 99)
+        )
+    }
+
+    return stringResource(R.string.training_process_state_no)
+}
+

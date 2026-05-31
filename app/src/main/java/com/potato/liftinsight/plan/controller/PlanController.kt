@@ -25,6 +25,8 @@ import com.potato.liftinsight.plan.route.MotionDeleteTarget
 import com.potato.liftinsight.plan.route.PlanEditorState
 import com.potato.liftinsight.plan.route.PlanRoute
 import com.potato.liftinsight.training.data.CreateMetaHistoryRequest
+import com.potato.liftinsight.video.NoOpVideoProcessor
+import com.potato.liftinsight.video.VideoProcessor
 import com.potato.liftinsight.plan.model.finishWorkoutSet as finishWorkoutSetProgress
 import com.potato.liftinsight.plan.model.skipWorkoutSet as skipWorkoutSetProgress
 import com.potato.liftinsight.plan.model.startWorkoutSet as startWorkoutSetProgress
@@ -36,7 +38,8 @@ class PlanController(
     private val trainingPlanStore: TrainingPlanStore,
     private val shouldSeedDebugPlans: Boolean = false,
     private val nowProvider: () -> Long = { System.currentTimeMillis() },
-    private val logger: AppLogger = AndroidAppLogger
+    private val logger: AppLogger = AndroidAppLogger,
+    private val videoProcessor: VideoProcessor = NoOpVideoProcessor
 ) {
     fun emptyState(): PlanState {
         return PlanState(
@@ -225,9 +228,21 @@ class PlanController(
         return state.copy(planRoute = PlanRoute.Overview)
     }
 
-    fun closeCameraWithVideo(state: PlanState, videoName: String): PlanState {
+    fun closeCameraWithVideo(state: PlanState, videoName: String?): PlanState {
         logDebug("Closing camera with video, returning to plan overview to mark performance")
-        return state.copy(planRoute = PlanRoute.Overview, cameraVideoName = videoName)
+
+        val normalizedVideoName = videoName
+            ?.trim()
+            ?.takeIf { recordedVideoName -> recordedVideoName.isNotEmpty() }
+
+        if (normalizedVideoName != null) {
+            videoProcessor.submitForProcessing(normalizedVideoName)
+        }
+
+        return state.copy(
+            planRoute = PlanRoute.Overview,
+            cameraVideoName = normalizedVideoName
+        )
     }
 
     fun clearCameraVideo(state: PlanState): PlanState {
@@ -1302,11 +1317,12 @@ class PlanController(
         private const val TAG = "PlanController"
 
         private fun localDateTimeString(timestamp: Long): String {
-            val instant = java.time.Instant.ofEpochMilli(timestamp)
-            val formatter = java.time.format.DateTimeFormatter
-                .ofPattern("yyyy-MM-dd-HH-mm-ss")
-                .withZone(java.time.ZoneId.systemDefault())
-            return formatter.format(instant)
+            val formatter = java.text.SimpleDateFormat(
+                "yyyy-MM-dd-HH-mm-ss",
+                java.util.Locale.getDefault()
+            )
+
+            return formatter.format(java.util.Date(timestamp))
         }
     }
 }

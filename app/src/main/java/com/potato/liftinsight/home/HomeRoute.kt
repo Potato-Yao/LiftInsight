@@ -32,20 +32,23 @@ import com.potato.liftinsight.plan.data.defaultTrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.ui.theme.AppThemeMode
+import com.potato.liftinsight.video.VideoProcessor
 
 @Composable
 fun HomeRoute(
     trainingPlanStore: TrainingPlanStore,
+    videoProcessor: VideoProcessor,
     enableDebugPlanSeed: Boolean,
     currentThemeMode: AppThemeMode,
     onThemeModeSelected: (AppThemeMode) -> Unit
 ) {
     val context = LocalContext.current
 
-    val planController = remember(trainingPlanStore, enableDebugPlanSeed) {
+    val planController = remember(trainingPlanStore, enableDebugPlanSeed, videoProcessor) {
         PlanController(
             trainingPlanStore = trainingPlanStore,
-            shouldSeedDebugPlans = enableDebugPlanSeed
+            shouldSeedDebugPlans = enableDebugPlanSeed,
+            videoProcessor = videoProcessor
         )
     }
     val bodyController = remember { BodyController() }
@@ -105,6 +108,7 @@ fun HomeRoute(
         onBodyStateChange = { bodyState = it },
         bodyController = bodyController,
         trainingPlanStore = trainingPlanStore,
+        videoProcessor = videoProcessor,
         motionState = motionState,
         onMotionStateChange = { motionState = it },
         motionController = motionController,
