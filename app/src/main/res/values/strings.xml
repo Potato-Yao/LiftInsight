@@ -184,6 +184,8 @@
     <string name="training_detail_video_status">Video status</string>
     <string name="training_detail_section_title">Session details</string>
     <string name="training_detail_summary">%.1f kg • %2$d reps • RPE %3$d</string>
+    <string name="training_detail_edit_content_description">Edit %1$s details</string>
+    <string name="training_detail_save_content_description">Save %1$s details</string>
     <string name="training_play_video">Play video</string>
     <string name="training_import_video">Import video</string>
     <string name="training_import_video_title">Import video</string>

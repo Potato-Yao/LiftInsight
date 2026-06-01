@@ -30,10 +30,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Videocam
@@ -46,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -64,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -279,6 +284,21 @@ internal fun TrainingHistoryScreen(
             canProcessVideo = !record.videoName.isNullOrBlank() && selectedVideoStatus?.hasProcessedCopy != true && selectedVideoStatus?.isProcessing != true,
             canEditVideo = !record.videoName.isNullOrBlank() && selectedVideoStatus?.isProcessing != true,
             onDismiss = { selectedRecord = null },
+            onSaveDetails = { weight, rep, rpe ->
+                coroutineScope.launch {
+                    updateTrainingRecordDetails(
+                        trainingPlanStore = trainingPlanStore,
+                        records = records,
+                        selectedRecord = selectedRecord,
+                        historyId = record.id,
+                        weight = weight,
+                        rep = rep,
+                        rpe = rpe,
+                        onRecordsChange = { records = it },
+                        onSelectedRecordChange = { selectedRecord = it }
+                    )
+                }
+            },
             onPlayVideo = {
                 val videoName = record.videoName
 
@@ -526,6 +546,7 @@ private fun TrainingHistoryDetailSheet(
     canProcessVideo: Boolean,
     canEditVideo: Boolean,
     onDismiss: () -> Unit,
+    onSaveDetails: (weight: Double, rep: Int, rpe: Int) -> Unit,
     onPlayVideo: () -> Unit,
     onImportVideo: () -> Unit,
     onEditVideo: () -> Unit,
@@ -533,6 +554,33 @@ private fun TrainingHistoryDetailSheet(
 ) {
     val hasVideo = !record.videoName.isNullOrBlank()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var isEditing by remember(record.id, record.weight, record.rep, record.rpe) { mutableStateOf(false) }
+    var weightInput by remember(record.id, record.weight) { mutableStateOf(record.weight.toString()) }
+    var repInput by remember(record.id, record.rep) { mutableStateOf(record.rep.toString()) }
+    var rpeInput by remember(record.id, record.rpe) { mutableStateOf(record.rpe.toString()) }
+    val parsedWeight = weightInput.toDoubleOrNull()
+    val parsedRep = repInput.toIntOrNull()
+    val parsedRpe = rpeInput.toIntOrNull()
+    val canSaveDetails = parsedWeight != null && parsedRep != null && parsedRpe != null && (
+        parsedWeight != record.weight || parsedRep != record.rep || parsedRpe != record.rpe
+    )
+
+    fun saveDetails() {
+        val weight = parsedWeight
+        val rep = parsedRep
+        val rpe = parsedRpe
+
+        if (weight != null && rep != null && rpe != null) {
+            onSaveDetails(weight, rep, rpe)
+            isEditing = false
+        }
+    }
+
+    fun resetEditableFields() {
+        weightInput = record.weight.toString()
+        repInput = record.rep.toString()
+        rpeInput = record.rpe.toString()
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -546,18 +594,52 @@ private fun TrainingHistoryDetailSheet(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = record.motionName,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = record.motionName,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    IconButton(
+                        onClick = {
+                            if (isEditing) {
+                                saveDetails()
+                            } else {
+                                isEditing = true
+                            }
+                        },
+                        enabled = if (isEditing) canSaveDetails else true
+                    ) {
+                        Icon(
+                            imageVector = if (isEditing) {
+                                Icons.Rounded.Check
+                            } else {
+                                Icons.Rounded.Edit
+                            },
+                            contentDescription = stringResource(
+                                if (isEditing) {
+                                    R.string.training_detail_save_content_description
+                                } else {
+                                    R.string.training_detail_edit_content_description
+                                },
+                                record.motionName
+                            )
+                        )
+                    }
+                }
 
                 Text(
                     text = stringResource(
                         R.string.training_detail_summary,
-                        record.weight,
-                        record.rep,
-                        record.rpe
+                        parsedWeight ?: record.weight,
+                        parsedRep ?: record.rep,
+                        parsedRpe ?: record.rpe
                     ),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -605,24 +687,57 @@ private fun TrainingHistoryDetailSheet(
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    DetailRow(
-                        label = stringResource(R.string.training_detail_weight),
-                        value = stringResource(R.string.training_weight_value, record.weight)
-                    )
+                    if (isEditing) {
+                        OutlinedTextField(
+                            value = weightInput,
+                            onValueChange = { weightInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(text = stringResource(R.string.training_detail_weight)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true
+                        )
+                    } else {
+                        DetailRow(
+                            label = stringResource(R.string.training_detail_weight),
+                            value = stringResource(R.string.training_weight_value, record.weight)
+                        )
+                    }
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
 
-                    DetailRow(
-                        label = stringResource(R.string.training_detail_reps),
-                        value = stringResource(R.string.training_detail_reps_value, record.rep)
-                    )
+                    if (isEditing) {
+                        OutlinedTextField(
+                            value = repInput,
+                            onValueChange = { repInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(text = stringResource(R.string.training_detail_reps)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true
+                        )
+                    } else {
+                        DetailRow(
+                            label = stringResource(R.string.training_detail_reps),
+                            value = stringResource(R.string.training_detail_reps_value, record.rep)
+                        )
+                    }
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
 
-                    DetailRow(
-                        label = stringResource(R.string.training_detail_rpe),
-                        value = stringResource(R.string.training_detail_rpe_value, record.rpe)
-                    )
+                    if (isEditing) {
+                        OutlinedTextField(
+                            value = rpeInput,
+                            onValueChange = { rpeInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(text = stringResource(R.string.training_detail_rpe)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true
+                        )
+                    } else {
+                        DetailRow(
+                            label = stringResource(R.string.training_detail_rpe),
+                            value = stringResource(R.string.training_detail_rpe_value, record.rpe)
+                        )
+                    }
                 }
             }
 
@@ -684,11 +799,34 @@ private fun TrainingHistoryDetailSheet(
                 )
             }
 
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(text = stringResource(R.string.common_cancel))
+            if (isEditing) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = {
+                            resetEditableFields()
+                            isEditing = false
+                        }
+                    ) {
+                        Text(text = stringResource(R.string.common_cancel))
+                    }
+
+                    Button(
+                        onClick = ::saveDetails,
+                        enabled = canSaveDetails
+                    ) {
+                        Text(text = stringResource(R.string.common_save))
+                    }
+                }
+            } else {
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
             }
         }
     }
@@ -852,6 +990,47 @@ private suspend fun attachVideoToRecord(
         selectedRecord
             ?.takeIf { it.id == historyId }
             ?.copy(videoName = normalizedVideoName)
+            ?: updatedRecords.firstOrNull { it.id == historyId }
+    )
+}
+
+private suspend fun updateTrainingRecordDetails(
+    trainingPlanStore: TrainingPlanStore,
+    records: List<MetaHistoryRecord>,
+    selectedRecord: MetaHistoryRecord?,
+    historyId: Int,
+    weight: Double,
+    rep: Int,
+    rpe: Int,
+    onRecordsChange: (List<MetaHistoryRecord>) -> Unit,
+    onSelectedRecordChange: (MetaHistoryRecord?) -> Unit
+) {
+    val didUpdate = withContext(Dispatchers.IO) {
+        trainingPlanStore.updateMetaHistoryDetails(
+            historyId = historyId,
+            weight = weight,
+            rep = rep,
+            rpe = rpe
+        )
+    }
+
+    if (!didUpdate) {
+        return
+    }
+
+    val updatedRecords = records.map { historyRecord ->
+        if (historyRecord.id == historyId) {
+            historyRecord.copy(weight = weight, rep = rep, rpe = rpe)
+        } else {
+            historyRecord
+        }
+    }
+    onRecordsChange(updatedRecords)
+
+    onSelectedRecordChange(
+        selectedRecord
+            ?.takeIf { it.id == historyId }
+            ?.copy(weight = weight, rep = rep, rpe = rpe)
             ?: updatedRecords.firstOrNull { it.id == historyId }
     )
 }

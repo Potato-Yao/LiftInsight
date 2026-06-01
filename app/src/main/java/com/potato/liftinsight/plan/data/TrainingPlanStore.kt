@@ -340,6 +340,23 @@ class TrainingPlanStore private constructor(
         return updatedRows > 0
     }
 
+    fun updateMetaHistoryDetails(historyId: Int, weight: Double, rep: Int, rpe: Int): Boolean {
+        logTrace(
+            "updateMetaHistoryDetails start: historyId=$historyId, weight=$weight, rep=$rep, rpe=$rpe"
+        )
+
+        val updatedRows = database.planDao().updateMetaHistoryDetails(
+            historyId = historyId,
+            weight = weight,
+            rep = rep,
+            rpe = rpe
+        )
+
+        logTrace("updateMetaHistoryDetails result: updatedRows=$updatedRows")
+
+        return updatedRows > 0
+    }
+
     fun createTrainingPlan(
         plan: TrainingPlanState
     ): Int {
@@ -552,5 +569,4 @@ private fun CreateMetaHistoryRequest.toEntity(): MetaHistoryEntity {
         videoName = videoName
     )
 }
-
 
