@@ -230,6 +230,12 @@
     <string name="motion_video_close">Close video</string>
     <string name="motion_video_play">Play</string>
     <string name="motion_video_pause">Pause</string>
+    <string name="playback_speed_label_01">0.1x</string>
+    <string name="playback_speed_label_025">0.25x</string>
+    <string name="playback_speed_label_05">0.5x</string>
+    <string name="playback_speed_label_1">1x</string>
+    <string name="playback_speed_label_125">1.25x</string>
+    <string name="playback_speed_label_15">1.5x</string>
     <string name="motion_video_speed_btn_025">Playback speed 0.25x</string>
     <string name="motion_video_speed_btn_05">Playback speed 0.5x</string>
     <string name="motion_video_speed_btn_1">Normal playback speed</string>

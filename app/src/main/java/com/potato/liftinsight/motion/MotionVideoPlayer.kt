@@ -334,7 +334,7 @@ fun MotionVideoPlayer(
 
                                     gestureState = gestureState.copy(
                                         isSpeedBoosting = true,
-                                        boostSpeedLabel = speedLabel(longPressSpeedValue!!),
+                                        boostSpeedLabel = speedLabel(context, longPressSpeedValue!!),
                                         boostOffsetY = startPosition.y
                                     )
                                     longPressSpeed = longPressSpeedValue
@@ -768,7 +768,7 @@ private fun SpeedButtonRow(
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         SPEED_OPTIONS.forEach { speed ->
-            val label = speedLabel(speed)
+            val label = speedLabel(LocalContext.current, speed)
             val isSelected = baseSpeed == speed
 
             val contentDescriptionRes = when (speed) {
@@ -832,5 +832,16 @@ internal fun formatTime(millis: Long): String {
 /**
  * Returns a human-readable label for a playback speed multiplier.
  */
-private fun speedLabel(speed: Float): String =
-    if (speed == 1f) "1×" else "${speed}×"
+private fun speedLabel(context: android.content.Context, speed: Float): String {
+    val labelRes = when (speed) {
+        0.1f -> R.string.playback_speed_label_01
+        0.25f -> R.string.playback_speed_label_025
+        0.5f -> R.string.playback_speed_label_05
+        1f -> R.string.playback_speed_label_1
+        1.25f -> R.string.playback_speed_label_125
+        1.5f -> R.string.playback_speed_label_15
+        else -> R.string.playback_speed_label_1
+    }
+
+    return context.getString(labelRes)
+}

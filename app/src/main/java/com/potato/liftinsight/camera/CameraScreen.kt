@@ -74,11 +74,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.potato.liftinsight.R
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import java.io.File
 import java.time.Instant
@@ -109,6 +111,8 @@ fun CameraScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    val defaultResolution = stringResource(R.string.camera_default_resolution)
+    val defaultFrameRate = stringResource(R.string.camera_default_frame_rate)
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -142,8 +146,8 @@ fun CameraScreen(
     var recordingState by remember { mutableStateOf(RecordingState.IDLE) }
     var showControls by remember { mutableStateOf(true) }
     var flashEnabled by remember { mutableStateOf(false) }
-    var resolutionText by remember { mutableStateOf("1080p") }
-    var frameRateText by remember { mutableStateOf("30fps") }
+    var resolutionText by remember(defaultResolution) { mutableStateOf(defaultResolution) }
+    var frameRateText by remember(defaultFrameRate) { mutableStateOf(defaultFrameRate) }
     var activeRecording by remember { mutableStateOf<Recording?>(null) }
     var recorderRef by remember { mutableStateOf<Recorder?>(null) }
     var camera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
@@ -234,7 +238,7 @@ fun CameraScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Camera permission is required to record lifts.",
+                    text = stringResource(R.string.camera_permission_required),
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color.White.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center
@@ -253,7 +257,7 @@ fun CameraScreen(
                     color = MaterialTheme.colorScheme.primary
                 ) {
                     Text(
-                        text = "Grant Permission",
+                        text = stringResource(R.string.camera_grant_permission),
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                         color = MaterialTheme.colorScheme.onPrimary,
                         style = MaterialTheme.typography.labelLarge
@@ -312,7 +316,11 @@ fun CameraScreen(
                             if (success) {
                                 recordingState = RecordingState.RECORDING
                             } else {
-                                Toast.makeText(context, "Failed to start recording", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.camera_start_recording_failed),
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         }
                     },
@@ -380,7 +388,7 @@ private fun TopControlBar(
         IconButton(onClick = onBack) {
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = "Back",
+                contentDescription = stringResource(R.string.common_back),
                 tint = Color.White
             )
         }
@@ -423,7 +431,11 @@ private fun TopControlBar(
                     } else {
                         Icons.Rounded.FlashOff
                     },
-                    contentDescription = if (flashEnabled) "Turn off flash" else "Turn on flash",
+                    contentDescription = if (flashEnabled) {
+                        stringResource(R.string.camera_flash_turn_off)
+                    } else {
+                        stringResource(R.string.camera_flash_turn_on)
+                    },
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -531,9 +543,9 @@ private fun BottomControlBar(
                         Icons.Rounded.Pause
                     },
                     contentDescription = if (recordingState == RecordingState.PAUSED) {
-                        "Resume"
+                        stringResource(R.string.camera_recording_resume)
                     } else {
-                        "Pause"
+                        stringResource(R.string.camera_recording_pause)
                     },
                     modifier = Modifier.size(28.dp)
                 )
@@ -563,8 +575,8 @@ private fun BottomControlBar(
                     else -> Icons.Rounded.Stop
                 },
                 contentDescription = when (recordingState) {
-                    RecordingState.IDLE -> "Start recording"
-                    else -> "Stop recording"
+                    RecordingState.IDLE -> stringResource(R.string.camera_start_recording)
+                    else -> stringResource(R.string.camera_stop_recording)
                 },
                 modifier = Modifier.size(32.dp)
             )

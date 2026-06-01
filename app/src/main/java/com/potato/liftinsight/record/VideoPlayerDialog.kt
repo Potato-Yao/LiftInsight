@@ -45,6 +45,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -52,6 +53,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import com.potato.liftinsight.R
 import kotlinx.coroutines.delay
 
 private const val SEEK_FACTOR = 0.002f
@@ -298,7 +300,14 @@ internal fun VideoPlayerDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val speeds = listOf(0.1f, 0.25f, 0.5f, 1f, 1.25f, 1.5f)
-                    val speedLabels = listOf("0.1x", "0.25x", "0.5x", "1x", "1.25x", "1.5x")
+                    val speedLabels = listOf(
+                        stringResource(R.string.playback_speed_label_01),
+                        stringResource(R.string.playback_speed_label_025),
+                        stringResource(R.string.playback_speed_label_05),
+                        stringResource(R.string.playback_speed_label_1),
+                        stringResource(R.string.playback_speed_label_125),
+                        stringResource(R.string.playback_speed_label_15)
+                    )
 
                     speeds.forEachIndexed { index, speed ->
                         val isSelected = playbackSpeed == speed

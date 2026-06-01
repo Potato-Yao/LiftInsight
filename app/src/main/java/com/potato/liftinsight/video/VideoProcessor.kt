@@ -22,6 +22,7 @@ import com.google.mlkit.vision.pose.PoseDetection
 import com.google.mlkit.vision.pose.PoseDetector
 import com.google.mlkit.vision.pose.PoseLandmark
 import com.google.mlkit.vision.pose.accurate.AccuratePoseDetectorOptions
+import com.potato.liftinsight.R
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.training.data.VideoProcessStateEntity
@@ -53,14 +54,24 @@ internal data class PoseOverlayAngles(
     val leftKneeAngle: Double?,
     val rightKneeAngle: Double?
 ) {
-    fun toDisplayLines(): List<String> {
+    fun toDisplayLines(context: Context): List<String> {
         val lines = mutableListOf<String>()
 
-        spineAngle?.let { lines += "Spine: ${"%.1f".format(it)} deg" }
-        leftLegSpineAngle?.let { lines += "L Leg-Spine: ${"%.1f".format(it)} deg" }
-        rightLegSpineAngle?.let { lines += "R Leg-Spine: ${"%.1f".format(it)} deg" }
-        leftKneeAngle?.let { lines += "L Knee: ${"%.1f".format(it)} deg" }
-        rightKneeAngle?.let { lines += "R Knee: ${"%.1f".format(it)} deg" }
+        spineAngle?.let {
+            lines += context.getString(R.string.training_video_overlay_spine_angle, it)
+        }
+        leftLegSpineAngle?.let {
+            lines += context.getString(R.string.training_video_overlay_left_leg_spine_angle, it)
+        }
+        rightLegSpineAngle?.let {
+            lines += context.getString(R.string.training_video_overlay_right_leg_spine_angle, it)
+        }
+        leftKneeAngle?.let {
+            lines += context.getString(R.string.training_video_overlay_left_knee_angle, it)
+        }
+        rightKneeAngle?.let {
+            lines += context.getString(R.string.training_video_overlay_right_knee_angle, it)
+        }
 
         return lines
     }
@@ -772,7 +783,7 @@ private class PoseLandmarkVideoProcessor(
         canvas: Canvas,
         angles: PoseOverlayAngles
     ) {
-        val lines = angles.toDisplayLines()
+        val lines = angles.toDisplayLines(context)
         if (lines.isEmpty()) {
             return
         }

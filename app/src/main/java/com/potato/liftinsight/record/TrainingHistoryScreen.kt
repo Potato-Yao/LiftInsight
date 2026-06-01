@@ -77,9 +77,11 @@ import com.potato.liftinsight.video.VideoProcessingStatus
 import com.potato.liftinsight.video.VideoProcessor
 import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -711,17 +713,10 @@ private fun DetailChip(
 }
 
 private fun formatDateLabel(dateKey: String): String {
-    val parts = dateKey.split("-")
-    if (parts.size != 3) return dateKey
-    val year = parts[0]
-    val month = parts[1].toIntOrNull() ?: return dateKey
-    val day = parts[2].toIntOrNull() ?: return dateKey
-    val months = listOf(
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    )
-    val monthName = months.getOrElse(month - 1) { month.toString() }
-    return "$monthName $day, $year"
+    val parser = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val formatter = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+    val parsedDate = parser.parse(dateKey) ?: return dateKey
+    return formatter.format(parsedDate)
 }
 
 private fun trainingSectionEnter(delayMillis: Int): EnterTransition {

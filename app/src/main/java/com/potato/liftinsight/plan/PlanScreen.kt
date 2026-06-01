@@ -767,7 +767,9 @@ private fun WorkoutPerformanceDialog(
                     ) {
                         Icon(
                             Icons.Rounded.Remove,
-                            contentDescription = "Decrease weight by 5 kg"
+                            contentDescription = stringResource(
+                                R.string.plan_workout_decrease_weight_content_description
+                            )
                         )
                     }
 
@@ -796,7 +798,9 @@ private fun WorkoutPerformanceDialog(
                     ) {
                         Icon(
                             Icons.Rounded.Add,
-                            contentDescription = "Increase weight by 5 kg"
+                            contentDescription = stringResource(
+                                R.string.plan_workout_increase_weight_content_description
+                            )
                         )
                     }
                 }
@@ -860,7 +864,9 @@ private fun WorkoutPerformanceDialog(
                             ) {
                                 Icon(
                                     Icons.Rounded.Remove,
-                                    contentDescription = "Subtract 1 minute",
+                                    contentDescription = stringResource(
+                                        R.string.plan_workout_subtract_minute_content_description
+                                    ),
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -890,7 +896,9 @@ private fun WorkoutPerformanceDialog(
                             ) {
                                 Icon(
                                     Icons.Rounded.Add,
-                                    contentDescription = "Add 1 minute",
+                                    contentDescription = stringResource(
+                                        R.string.plan_workout_add_minute_content_description
+                                    ),
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -930,7 +938,9 @@ private fun WorkoutPerformanceDialog(
                             ) {
                                 Icon(
                                     Icons.Rounded.Remove,
-                                    contentDescription = "Subtract 30 seconds",
+                                    contentDescription = stringResource(
+                                        R.string.plan_workout_subtract_seconds_content_description
+                                    ),
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -974,7 +984,9 @@ private fun WorkoutPerformanceDialog(
                             ) {
                                 Icon(
                                     Icons.Rounded.Add,
-                                    contentDescription = "Add 30 seconds",
+                                    contentDescription = stringResource(
+                                        R.string.plan_workout_add_seconds_content_description
+                                    ),
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
