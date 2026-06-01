@@ -104,10 +104,6 @@ internal fun PlanControllerEnvironment.closeCameraWithVideo(
         ?.trim()
         ?.takeIf { recordedVideoName -> recordedVideoName.isNotEmpty() }
 
-    if (normalizedVideoName != null) {
-        videoProcessor.submitForProcessing(normalizedVideoName)
-    }
-
     return state.copy(
         planRoute = PlanRoute.Overview,
         cameraVideoName = normalizedVideoName

@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Videocam
@@ -100,6 +101,8 @@ internal fun TrainingHistoryScreen(
     var selectedRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var selectedVideoStatus by remember { mutableStateOf<VideoProcessingStatus?>(null) }
     var videoPlayerUri by remember { mutableStateOf<Uri?>(null) }
+    var videoEditorRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
+    var videoEditorHasProcessedCopy by remember { mutableStateOf(false) }
     var importTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var cameraTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var videoStatusRefreshKey by remember { mutableStateOf(0) }
@@ -129,7 +132,6 @@ internal fun TrainingHistoryScreen(
             if (importedVideoName != null) {
                 attachVideoToRecord(
                     trainingPlanStore = trainingPlanStore,
-                    videoProcessor = videoProcessor,
                     records = records,
                     selectedRecord = selectedRecord,
                     historyId = targetRecord.id,
@@ -275,6 +277,7 @@ internal fun TrainingHistoryScreen(
                 hasVideo = !record.videoName.isNullOrBlank()
             ),
             canProcessVideo = !record.videoName.isNullOrBlank() && selectedVideoStatus?.hasProcessedCopy != true && selectedVideoStatus?.isProcessing != true,
+            canEditVideo = !record.videoName.isNullOrBlank() && selectedVideoStatus?.isProcessing != true,
             onDismiss = { selectedRecord = null },
             onPlayVideo = {
                 val videoName = record.videoName
@@ -295,6 +298,11 @@ internal fun TrainingHistoryScreen(
             },
             onImportVideo = {
                 importTargetRecord = record
+            },
+            onEditVideo = {
+                videoEditorHasProcessedCopy = selectedVideoStatus?.hasProcessedCopy == true
+                videoEditorRecord = record
+                selectedRecord = null
             },
             onProcessVideo = {
                 record.videoName
@@ -362,7 +370,6 @@ internal fun TrainingHistoryScreen(
                         coroutineScope.launch {
                             attachVideoToRecord(
                                 trainingPlanStore = trainingPlanStore,
-                                videoProcessor = videoProcessor,
                                 records = records,
                                 selectedRecord = selectedRecord,
                                 historyId = targetRecord.id,
@@ -388,6 +395,35 @@ internal fun TrainingHistoryScreen(
             videoUri = videoUri,
             onDismiss = { videoPlayerUri = null }
         )
+    }
+
+    videoEditorRecord?.let { record ->
+        val videoName = record.videoName
+
+        if (!videoName.isNullOrBlank()) {
+            Dialog(
+                onDismissRequest = { videoEditorRecord = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                TrainingVideoEditorDialog(
+                    videoFileName = videoName,
+                    videoProcessor = videoProcessor,
+                    hasProcessedCopy = videoEditorHasProcessedCopy,
+                    onDismiss = {
+                        videoEditorRecord = null
+                        videoEditorHasProcessedCopy = false
+                    },
+                    onSaved = {
+                        videoEditorRecord = null
+                        videoEditorHasProcessedCopy = false
+                        selectedRecord = record
+                        selectedVideoStatus = null
+                        videoStatusRefreshKey += 1
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
     }
 }
 
@@ -488,9 +524,11 @@ private fun TrainingHistoryDetailSheet(
     record: MetaHistoryRecord,
     processState: String,
     canProcessVideo: Boolean,
+    canEditVideo: Boolean,
     onDismiss: () -> Unit,
     onPlayVideo: () -> Unit,
     onImportVideo: () -> Unit,
+    onEditVideo: () -> Unit,
     onProcessVideo: () -> Unit
 ) {
     val hasVideo = !record.videoName.isNullOrBlank()
@@ -606,17 +644,36 @@ private fun TrainingHistoryDetailSheet(
                 Text(text = stringResource(R.string.training_play_video))
             }
 
-            Button(
-                onClick = onImportVideo,
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Videocam,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(R.string.training_import_video))
+                Button(
+                    onClick = onImportVideo,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Videocam,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.training_import_video))
+                }
+
+                Button(
+                    onClick = onEditVideo,
+                    enabled = canEditVideo,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ContentCut,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.training_edit_video))
+                }
             }
 
             if (!hasVideo) {
@@ -761,7 +818,6 @@ private fun processStateLabel(
 
 private suspend fun attachVideoToRecord(
     trainingPlanStore: TrainingPlanStore,
-    videoProcessor: VideoProcessor,
     records: List<MetaHistoryRecord>,
     selectedRecord: MetaHistoryRecord?,
     historyId: Int,
@@ -782,8 +838,6 @@ private suspend fun attachVideoToRecord(
     if (!didUpdate) {
         return
     }
-
-    videoProcessor.submitForProcessing(normalizedVideoName)
 
     val updatedRecords = records.map { record ->
         if (record.id == historyId) {
