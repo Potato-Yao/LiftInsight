@@ -14,7 +14,6 @@ import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.os.Build
 import android.os.Environment
-import android.util.Log
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.Pose
@@ -23,6 +22,8 @@ import com.google.mlkit.vision.pose.PoseDetector
 import com.google.mlkit.vision.pose.PoseLandmark
 import com.google.mlkit.vision.pose.accurate.AccuratePoseDetectorOptions
 import com.potato.liftinsight.R
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.training.data.VideoProcessStateEntity
@@ -106,10 +107,14 @@ interface VideoProcessor {
     fun getPlaybackVideoFile(videoName: String): File?
 
     companion object {
-        fun from(context: Context): VideoProcessor {
+        fun from(
+            context: Context,
+            logger: AppLogger = AndroidAppLogger
+        ): VideoProcessor {
             return PoseLandmarkVideoProcessor(
                 context = context.applicationContext,
-                database = LiftInsightDatabase.from(context.applicationContext)
+                database = LiftInsightDatabase.from(context.applicationContext),
+                logger = logger
             )
         }
     }
@@ -140,7 +145,8 @@ object NoOpVideoProcessor : VideoProcessor {
 
 private class PoseLandmarkVideoProcessor(
     private val context: Context,
-    private val database: LiftInsightDatabase
+    private val database: LiftInsightDatabase,
+    private val logger: AppLogger
 ) : VideoProcessor {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val queuedVideoNames = ConcurrentHashMap.newKeySet<String>()
@@ -202,18 +208,26 @@ private class PoseLandmarkVideoProcessor(
         val normalizedVideoName = videoName.trim()
 
         if (normalizedVideoName.isBlank()) {
+            logger.warn(TAG, "Ignoring blank video processing request")
             return
         }
 
         if (!queuedVideoNames.add(normalizedVideoName)) {
+            logger.debug(TAG, "Skipping duplicate queued video processing request: videoName=$normalizedVideoName")
             return
         }
+
+        logger.info(TAG, "Queueing video for processing: videoName=$normalizedVideoName")
 
         scope.launch {
             try {
                 val status = loadStatus(normalizedVideoName, includeQueuedState = false)
 
                 if (status.isProcessing || status.hasProcessedCopy) {
+                    logger.debug(
+                        TAG,
+                        "Skipping video processing because work already exists: videoName=$normalizedVideoName, state=${status.state}, hasProcessedCopy=${status.hasProcessedCopy}"
+                    )
                     return@launch
                 }
 
@@ -326,7 +340,7 @@ private class PoseLandmarkVideoProcessor(
         val inputFile = awaitInputVideoFile(videoName)
 
         if (inputFile == null) {
-            Log.w(TAG, "Cannot process video because the finalized source file was not ready: videoName=$videoName")
+            logger.warn(TAG, "Cannot process video because the finalized source file was not ready: videoName=$videoName")
             persistState(
                 VideoProcessStateEntity(
                     videoName = videoName,
@@ -341,7 +355,7 @@ private class PoseLandmarkVideoProcessor(
         val processedVideoName = processedVideoName(videoName)
         val outputFile = resolveVideoFile(processedVideoName)
 
-        Log.d(TAG, "Starting pose landmark processing: videoName=$videoName, output=${outputFile.name}")
+        logger.debug(TAG, "Starting pose landmark processing: videoName=$videoName, output=${outputFile.name}")
 
         persistState(
             VideoProcessStateEntity(
@@ -369,11 +383,11 @@ private class PoseLandmarkVideoProcessor(
                     processedVideoName = processedVideoName
                 )
             )
-            Log.d(TAG, "Finished pose landmark processing: videoName=$videoName, output=${outputFile.name}")
+            logger.info(TAG, "Finished pose landmark processing: videoName=$videoName, output=${outputFile.name}")
         } catch (error: Exception) {
             outputFile.delete()
 
-            Log.e(TAG, "Video processing failed: videoName=$videoName", error)
+            logger.error(TAG, "Video processing failed: videoName=$videoName", error)
 
             persistState(
                 VideoProcessStateEntity(
@@ -442,6 +456,13 @@ private class PoseLandmarkVideoProcessor(
 
                 lastQueuedPresentationTimeUs = normalizedPresentationTimeUs
                 encodedFrameCount++
+
+                if (encodedFrameCount % 100 == 0) {
+                    logger.trace(
+                        TAG,
+                        "Processed video frames: videoName=$videoName, framesProcessed=$encodedFrameCount"
+                    )
+                }
 
                 if (processedFrame !== preparedFrame) {
                     processedFrame.recycle()

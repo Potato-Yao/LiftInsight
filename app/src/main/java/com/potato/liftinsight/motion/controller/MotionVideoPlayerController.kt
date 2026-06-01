@@ -9,6 +9,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.potato.liftinsight.R
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.motion.formatTime
 import com.potato.liftinsight.motion.model.MotionVideoGestureState
 
@@ -31,7 +33,8 @@ data class MotionVideoPlayerState(
 
 class MotionVideoPlayerController(
     context: Context,
-    videoUri: Uri
+    videoUri: Uri,
+    private val logger: AppLogger = AndroidAppLogger
 ) {
     val player = ExoPlayer.Builder(context).build().apply {
         playWhenReady = true
@@ -41,6 +44,10 @@ class MotionVideoPlayerController(
 
     var state by mutableStateOf(MotionVideoPlayerState())
         private set
+
+    init {
+        logger.info(TAG, "Prepared motion video player: videoUri=$videoUri")
+    }
 
     fun syncPlayerState() {
         player.playWhenReady = state.isPlaying
@@ -80,6 +87,7 @@ class MotionVideoPlayerController(
     }
 
     fun setBasePlaybackSpeed(speed: Float) {
+        logger.debug(TAG, "Updating playback speed: speed=$speed")
         state = state.copy(basePlaybackSpeed = speed)
         syncPlayerState()
         showControls()
@@ -90,6 +98,7 @@ class MotionVideoPlayerController(
     }
 
     fun beginSwipeSeek() {
+        logger.debug(TAG, "Beginning swipe seek")
         player.playWhenReady = false
         state = state.copy(
             gestureState = state.gestureState.copy(
@@ -130,6 +139,7 @@ class MotionVideoPlayerController(
             player.seekTo(seekTo)
         }
 
+        logger.debug(TAG, "Ending swipe seek: seekTo=$seekTo, resumePlayback=$resumePlayback")
         player.playWhenReady = resumePlayback
         state = state.copy(
             currentPosition = seekTo,
@@ -141,6 +151,7 @@ class MotionVideoPlayerController(
     }
 
     fun beginSpeedBoost(speed: Float, touchY: Float, context: Context) {
+        logger.debug(TAG, "Beginning speed boost: speed=$speed")
         state = state.copy(
             longPressSpeed = speed,
             gestureState = state.gestureState.copy(
@@ -157,6 +168,7 @@ class MotionVideoPlayerController(
     }
 
     fun endSpeedBoost() {
+        logger.debug(TAG, "Ending speed boost")
         state = state.copy(
             longPressSpeed = null,
             gestureState = state.gestureState.copy(isSpeedBoosting = false)
@@ -166,11 +178,13 @@ class MotionVideoPlayerController(
 
     fun registerTap(uptimeMs: Long): Boolean {
         if (state.lastTapUptimeMs == 0L || uptimeMs - state.lastTapUptimeMs >= DOUBLE_TAP_WINDOW_MS) {
+            logger.trace(TAG, "Registered first tap: uptimeMs=$uptimeMs")
             state = state.copy(lastTapUptimeMs = uptimeMs)
             return false
         }
 
         val nextPlaying = !player.playWhenReady
+        logger.debug(TAG, "Double tap toggled playback: isPlaying=$nextPlaying")
         player.playWhenReady = nextPlaying
         state = state.copy(
             isPlaying = nextPlaying,
@@ -181,6 +195,7 @@ class MotionVideoPlayerController(
     }
 
     fun beginThumbDrag() {
+        logger.debug(TAG, "Beginning thumb drag")
         player.playWhenReady = false
         state = state.copy(
             isDraggingThumb = true,
@@ -215,6 +230,7 @@ class MotionVideoPlayerController(
             player.seekTo(seekTo)
         }
 
+        logger.debug(TAG, "Ending thumb drag: seekTo=$seekTo, resumePlayback=$resumePlayback")
         player.playWhenReady = resumePlayback
         state = state.copy(
             isDraggingThumb = false,
@@ -225,17 +241,20 @@ class MotionVideoPlayerController(
     }
 
     fun cancelThumbDrag(resumePlayback: Boolean) {
+        logger.debug(TAG, "Cancelling thumb drag: resumePlayback=$resumePlayback")
         player.playWhenReady = resumePlayback
         state = state.copy(isDraggingThumb = false)
         showControls()
     }
 
     fun release() {
+        logger.info(TAG, "Releasing motion video player")
         player.release()
     }
 
     companion object {
         const val DOUBLE_TAP_WINDOW_MS = 300L
+        private const val TAG = "MotionVideoPlayer"
     }
 }
 

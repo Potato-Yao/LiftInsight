@@ -3,6 +3,7 @@ package com.potato.liftinsight.video
 import android.content.Context
 import android.os.Environment
 import androidx.test.core.app.ApplicationProvider
+import com.potato.liftinsight.common.logging.RecordingAppLogger
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.VideoProcessState
 import kotlinx.coroutines.Dispatchers
@@ -25,12 +26,14 @@ class VideoProcessorTest {
     private lateinit var context: Context
     private lateinit var database: LiftInsightDatabase
     private lateinit var videoProcessor: VideoProcessor
+    private lateinit var logger: RecordingAppLogger
 
     @Before
     fun setUp() = runBlocking {
         context = ApplicationProvider.getApplicationContext()
         database = LiftInsightDatabase.from(context)
-        videoProcessor = VideoProcessor.from(context)
+        logger = RecordingAppLogger()
+        videoProcessor = VideoProcessor.from(context, logger)
 
         withContext(Dispatchers.IO) {
             database.clearAllTables()
@@ -50,6 +53,14 @@ class VideoProcessorTest {
         assertEquals(VideoProcessState.ERROR, status.state)
         assertFalse(status.hasProcessedCopy)
         assertFalse(status.isProcessing)
+        assertEquals(
+            true,
+            logger.entries().any { entry ->
+                entry.level == "warn" &&
+                    entry.tag == "VideoProcessor" &&
+                    entry.message == "Cannot process video because the finalized source file was not ready: videoName=missing-lift.mp4"
+            }
+        )
         assertEquals(
             null,
             withContext(Dispatchers.IO) {
@@ -133,4 +144,3 @@ class VideoProcessorTest {
         return file
     }
 }
-

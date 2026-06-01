@@ -19,6 +19,8 @@ import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -35,7 +37,9 @@ data class CameraSession(
     val camera: Camera
 )
 
-class CameraController {
+class CameraController(
+    private val logger: AppLogger = AndroidAppLogger
+) {
     fun missingPermissions(
         hasCameraPermission: Boolean,
         hasAudioPermission: Boolean
@@ -62,6 +66,7 @@ class CameraController {
         onSessionReady: (CameraSession) -> Unit,
         onCaptureDetailsChanged: (CameraCaptureDetails) -> Unit
     ) {
+        logger.debug(TAG, "Binding camera preview and recorder")
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
         cameraProviderFuture.addListener({
@@ -86,14 +91,19 @@ class CameraController {
             )
 
             onSessionReady(CameraSession(recorder = recorder, camera = camera))
-            onCaptureDetailsChanged(
-                captureDetails(
-                    camera = camera,
-                    preview = preview,
-                    defaultResolution = defaultResolution,
-                    defaultFrameRate = defaultFrameRate
-                )
+            val captureDetails = captureDetails(
+                camera = camera,
+                preview = preview,
+                defaultResolution = defaultResolution,
+                defaultFrameRate = defaultFrameRate
             )
+
+            logger.info(
+                TAG,
+                "Camera session ready: resolution=${captureDetails.resolutionText}, frameRate=${captureDetails.frameRateText}"
+            )
+
+            onCaptureDetailsChanged(captureDetails)
         }, ContextCompat.getMainExecutor(context))
     }
 
@@ -115,6 +125,10 @@ class CameraController {
         }
 
         val videoFile = File(outputDir, videoFileName(motionId, setIndex))
+        logger.info(
+            TAG,
+            "Starting camera recording: motionId=$motionId, setIndex=$setIndex, output=${videoFile.name}"
+        )
         onFileReady(videoFile)
 
         val outputOptions = FileOutputOptions.Builder(videoFile).build()
@@ -123,6 +137,19 @@ class CameraController {
         var recording: Recording? = null
         recording = pendingRecording.start(cameraExecutor) { event ->
             if (event is VideoRecordEvent.Finalize) {
+                if (event.hasError()) {
+                    logger.error(
+                        TAG,
+                        "Camera recording finalized with error: motionId=$motionId, setIndex=$setIndex, output=${videoFile.name}, errorCode=${event.error}",
+                        event.cause
+                    )
+                } else {
+                    logger.info(
+                        TAG,
+                        "Camera recording finalized: motionId=$motionId, setIndex=$setIndex, output=${videoFile.name}"
+                    )
+                }
+
                 try {
                     recording?.close()
                 } catch (_: Exception) {
@@ -132,7 +159,14 @@ class CameraController {
             }
         }
 
-        val activeRecording = recording ?: return false
+        val activeRecording = recording ?: run {
+            logger.warn(
+                TAG,
+                "Camera recording did not start: motionId=$motionId, setIndex=$setIndex, output=${videoFile.name}"
+            )
+            return false
+        }
+
         onRecording(activeRecording)
         return true
     }
@@ -181,6 +215,10 @@ class CameraController {
         }
 
         return CamcorderProfile.get(numericCameraId, profileQuality).videoFrameRate
+    }
+
+    companion object {
+        private const val TAG = "CameraController"
     }
 }
 
