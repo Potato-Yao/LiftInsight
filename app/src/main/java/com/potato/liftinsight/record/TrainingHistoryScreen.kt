@@ -1,5 +1,10 @@
 package com.potato.liftinsight.record
 
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -30,7 +35,9 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.VideocamOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -51,13 +58,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import android.net.Uri
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.potato.liftinsight.R
+import com.potato.liftinsight.camera.CameraScreen
 import com.potato.liftinsight.motion.MotionVideoPlayer
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.training.data.MetaHistoryRecord
@@ -65,6 +75,11 @@ import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import com.potato.liftinsight.video.VideoProcessingStatus
 import com.potato.liftinsight.video.VideoProcessor
+import java.io.File
+import java.io.IOException
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -78,12 +93,55 @@ internal fun TrainingHistoryScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var records by remember { mutableStateOf<List<MetaHistoryRecord>>(emptyList()) }
     var selectedRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var selectedVideoStatus by remember { mutableStateOf<VideoProcessingStatus?>(null) }
     var videoPlayerUri by remember { mutableStateOf<Uri?>(null) }
+    var importTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
+    var cameraTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
+    var videoStatusRefreshKey by remember { mutableStateOf(0) }
     var showContent by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+
+    val localVideoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        val targetRecord = importTargetRecord
+        importTargetRecord = null
+
+        if (uri == null || targetRecord == null) {
+            return@rememberLauncherForActivityResult
+        }
+
+        coroutineScope.launch {
+            val importedVideoName = withContext(Dispatchers.IO) {
+                importVideoIntoAppStorage(
+                    context = context,
+                    uri = uri,
+                    motionId = targetRecord.motionId,
+                    setIndex = 1
+                )
+            }
+
+            if (importedVideoName != null) {
+                attachVideoToRecord(
+                    trainingPlanStore = trainingPlanStore,
+                    videoProcessor = videoProcessor,
+                    records = records,
+                    selectedRecord = selectedRecord,
+                    historyId = targetRecord.id,
+                    videoName = importedVideoName,
+                    onRecordsChange = { records = it },
+                    onSelectedRecordChange = {
+                        selectedRecord = it
+                        selectedVideoStatus = null
+                        videoStatusRefreshKey += 1
+                    }
+                )
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         records = withContext(Dispatchers.IO) {
@@ -92,7 +150,7 @@ internal fun TrainingHistoryScreen(
         showContent = true
     }
 
-    LaunchedEffect(selectedRecord?.videoName) {
+    LaunchedEffect(selectedRecord?.videoName, videoStatusRefreshKey) {
         val videoName = selectedRecord?.videoName
 
         if (videoName.isNullOrBlank()) {
@@ -214,6 +272,7 @@ internal fun TrainingHistoryScreen(
                 status = selectedVideoStatus,
                 hasVideo = !record.videoName.isNullOrBlank()
             ),
+            canProcessVideo = !record.videoName.isNullOrBlank() && selectedVideoStatus?.hasProcessedCopy != true && selectedVideoStatus?.isProcessing != true,
             onDismiss = { selectedRecord = null },
             onPlayVideo = {
                 val videoName = record.videoName
@@ -231,8 +290,95 @@ internal fun TrainingHistoryScreen(
 
                     videoPlayerUri = playbackFile?.let(Uri::fromFile)
                 }
+            },
+            onImportVideo = {
+                importTargetRecord = record
+            },
+            onProcessVideo = {
+                record.videoName
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { videoName ->
+                        videoProcessor.submitForProcessing(videoName)
+                        selectedVideoStatus = null
+                        videoStatusRefreshKey += 1
+                    }
             }
         )
+    }
+
+    importTargetRecord?.let {
+        AlertDialog(
+            onDismissRequest = { importTargetRecord = null },
+            title = { Text(text = stringResource(R.string.training_import_video_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { localVideoPicker.launch("video/*") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = stringResource(R.string.training_import_video_local))
+                    }
+
+                    Button(
+                        onClick = {
+                            cameraTargetRecord = importTargetRecord
+                            importTargetRecord = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = stringResource(R.string.training_import_video_camera))
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { importTargetRecord = null }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
+    cameraTargetRecord?.let { record ->
+        Dialog(
+            onDismissRequest = { cameraTargetRecord = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            CameraScreen(
+                motionTitle = record.motionName,
+                motionId = record.motionId,
+                setIndex = 1,
+                setsInMotion = 1,
+                expectedReps = record.rep,
+                expectedWeight = record.weight,
+                expectedIntensity = record.rpe.toDouble(),
+                onRecordingFinished = { videoName ->
+                    val targetRecord = cameraTargetRecord
+                    cameraTargetRecord = null
+
+                    if (targetRecord != null && !videoName.isNullOrBlank()) {
+                        coroutineScope.launch {
+                            attachVideoToRecord(
+                                trainingPlanStore = trainingPlanStore,
+                                videoProcessor = videoProcessor,
+                                records = records,
+                                selectedRecord = selectedRecord,
+                                historyId = targetRecord.id,
+                                videoName = videoName,
+                                onRecordsChange = { records = it },
+                                onSelectedRecordChange = {
+                                    selectedRecord = it
+                                    selectedVideoStatus = null
+                                    videoStatusRefreshKey += 1
+                                }
+                            )
+                        }
+                    }
+                },
+                onBack = { cameraTargetRecord = null },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
 
     videoPlayerUri?.let { videoUri ->
@@ -339,8 +485,11 @@ private fun TrainingHistoryCard(
 private fun TrainingHistoryDetailSheet(
     record: MetaHistoryRecord,
     processState: String,
+    canProcessVideo: Boolean,
     onDismiss: () -> Unit,
-    onPlayVideo: () -> Unit
+    onPlayVideo: () -> Unit,
+    onImportVideo: () -> Unit,
+    onProcessVideo: () -> Unit
 ) {
     val hasVideo = !record.videoName.isNullOrBlank()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -386,7 +535,13 @@ private fun TrainingHistoryDetailSheet(
                 DetailChip(
                     label = stringResource(R.string.training_detail_video_status),
                     value = processState,
-                    highlighted = hasVideo
+                    highlighted = hasVideo,
+                    supportingText = if (canProcessVideo) {
+                        stringResource(R.string.training_video_status_action)
+                    } else {
+                        null
+                    },
+                    onClick = if (canProcessVideo) onProcessVideo else null
                 )
             }
 
@@ -449,6 +604,19 @@ private fun TrainingHistoryDetailSheet(
                 Text(text = stringResource(R.string.training_play_video))
             }
 
+            Button(
+                onClick = onImportVideo,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Videocam,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.training_import_video))
+            }
+
             if (!hasVideo) {
                 Text(
                     text = stringResource(R.string.training_video_unavailable_message),
@@ -496,6 +664,8 @@ private fun DetailChip(
     label: String,
     value: String,
     highlighted: Boolean = false,
+    supportingText: String? = null,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val containerColor = if (highlighted) {
@@ -505,7 +675,13 @@ private fun DetailChip(
     }
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.then(
+            if (onClick != null) {
+                Modifier.clickable(onClick = onClick)
+            } else {
+                Modifier
+            }
+        ),
         color = containerColor,
         shape = RoundedCornerShape(18.dp)
     ) {
@@ -523,6 +699,13 @@ private fun DetailChip(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium
             )
+            supportingText?.let { text ->
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
@@ -578,5 +761,84 @@ private fun processStateLabel(
         )
     }
 
-    return stringResource(R.string.training_process_state_no)
+    return stringResource(R.string.training_process_state_not_processed)
+}
+
+private suspend fun attachVideoToRecord(
+    trainingPlanStore: TrainingPlanStore,
+    videoProcessor: VideoProcessor,
+    records: List<MetaHistoryRecord>,
+    selectedRecord: MetaHistoryRecord?,
+    historyId: Int,
+    videoName: String,
+    onRecordsChange: (List<MetaHistoryRecord>) -> Unit,
+    onSelectedRecordChange: (MetaHistoryRecord?) -> Unit
+) {
+    val normalizedVideoName = videoName.trim()
+
+    if (normalizedVideoName.isBlank()) {
+        return
+    }
+
+    val didUpdate = withContext(Dispatchers.IO) {
+        trainingPlanStore.updateMetaHistoryVideoName(historyId, normalizedVideoName)
+    }
+
+    if (!didUpdate) {
+        return
+    }
+
+    videoProcessor.submitForProcessing(normalizedVideoName)
+
+    val updatedRecords = records.map { record ->
+        if (record.id == historyId) {
+            record.copy(videoName = normalizedVideoName)
+        } else {
+            record
+        }
+    }
+    onRecordsChange(updatedRecords)
+
+    onSelectedRecordChange(
+        selectedRecord
+            ?.takeIf { it.id == historyId }
+            ?.copy(videoName = normalizedVideoName)
+            ?: updatedRecords.firstOrNull { it.id == historyId }
+    )
+}
+
+private fun importVideoIntoAppStorage(
+    context: Context,
+    uri: Uri,
+    motionId: Int,
+    setIndex: Int
+): String? {
+    val outputDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
+        ?: context.filesDir
+
+    if (!outputDir.exists()) {
+        outputDir.mkdirs()
+    }
+
+    val outputFile = File(outputDir, importedVideoFileName(motionId, setIndex))
+
+    return try {
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            outputFile.outputStream().use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+        } ?: return null
+
+        outputFile.name
+    } catch (_: IOException) {
+        null
+    }
+}
+
+private fun importedVideoFileName(motionId: Int, setIndex: Int): String {
+    val formatter = DateTimeFormatter
+        .ofPattern("yyyy-MM-dd-HH-mm-ss")
+        .withZone(ZoneId.systemDefault())
+
+    return "${formatter.format(Instant.now())}-${motionId}-${setIndex}.mp4"
 }

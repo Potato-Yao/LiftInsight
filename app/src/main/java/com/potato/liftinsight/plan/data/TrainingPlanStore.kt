@@ -330,6 +330,16 @@ class TrainingPlanStore private constructor(
         return records
     }
 
+    fun updateMetaHistoryVideoName(historyId: Int, videoName: String?): Boolean {
+        logTrace("updateMetaHistoryVideoName start: historyId=$historyId, videoName=$videoName")
+
+        val updatedRows = database.planDao().updateMetaHistoryVideoName(historyId, videoName)
+
+        logTrace("updateMetaHistoryVideoName result: updatedRows=$updatedRows")
+
+        return updatedRows > 0
+    }
+
     fun createTrainingPlan(
         plan: TrainingPlanState
     ): Int {
@@ -542,6 +552,5 @@ private fun CreateMetaHistoryRequest.toEntity(): MetaHistoryEntity {
         videoName = videoName
     )
 }
-
 
 

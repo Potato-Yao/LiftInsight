@@ -73,6 +73,9 @@ abstract class PlanDao {
     @Insert
     abstract fun insertMetaHistory(metaHistory: MetaHistoryEntity): Long
 
+    @Query("UPDATE metahistory SET video_name = :videoName WHERE id = :historyId")
+    abstract fun updateMetaHistoryVideoName(historyId: Int, videoName: String?): Int
+
     @Query(
         """
         SELECT
@@ -195,5 +198,4 @@ abstract class PlanDao {
         }
     }
 }
-
 
