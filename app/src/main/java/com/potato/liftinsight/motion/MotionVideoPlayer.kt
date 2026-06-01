@@ -1,5 +1,6 @@
 package com.potato.liftinsight.motion
 
+import android.content.Context
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -37,12 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,80 +57,27 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.potato.liftinsight.R
-import com.potato.liftinsight.motion.model.MotionVideoGestureState
+import com.potato.liftinsight.motion.controller.MotionVideoPlayerController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-// ── Constants ────────────────────────────────────────────────────
-
-/** Fraction of screen width that maps to full-duration seek during swipe */
 private const val SWIPE_SEEK_FACTOR = 2.0f
-
-/** Duration in ms before long-press triggers speed override */
 private const val LONG_PRESS_THRESHOLD_MS = 400L
-
-/** Duration in ms the play/pause icon stays visible after a double-tap */
 private const val PLAY_PAUSE_ICON_DURATION_MS = 500L
-
-/** Maximum interval between two taps to count as a double-tap */
-private const val DOUBLE_TAP_WINDOW_MS = 300L
-
-/** Auto-hide delay in ms after last interaction (close button, progress bar) */
 private const val CONTROLS_HIDE_DELAY_MS = 2000L
-
-/** Polling interval for position updates */
 private const val POLLING_INTERVAL_MS = 100L
-
-/** Progress bar line height in dp */
 private val PROGRESS_BAR_HEIGHT = 3.dp
-
-/** Progress bar touchable (draggable) height in dp */
 private val PROGRESS_BAR_TOUCH_HEIGHT = 40.dp
-
-/** Thumb radius in dp */
 private val THUMB_RADIUS = 6.dp
-
-/** Fraction of video height for the top speed-zone (0.5×) */
 private const val TOP_ZONE_FRACTION = 0.40f
-
-/** Fraction of video height for the bottom speed-zone (1.5×) */
 private const val BOTTOM_ZONE_FRACTION = 0.40f
-
-/** Minimum fraction of screen height for a vertical swipe to trigger next/prev */
 private const val VERTICAL_SWIPE_THRESHOLD_FRACTION = 0.20f
-
-/** Available playback speed options for the button row */
 private val SPEED_OPTIONS = listOf(0.25f, 0.5f, 1f, 1.25f, 1.5f)
 
-// ── Public API ───────────────────────────────────────────────────
-
-/**
- * Gesture-rich video player built on Media3 ExoPlayer.
- *
- * ### Gesture interactions
- *
- * | Gesture                  | Behaviour                                                   |
- * |--------------------------|-------------------------------------------------------------|
- * | Single tap               | Toggle play/pause; large icon overlay fades after 0.5 s     |
- * | Horizontal swipe         | Seek through video; translucent overlay shows target time   |
- * | Vertical swipe           | Switch next/previous video (if callbacks provided)          |
- * | Long-press top 40 %      | Play at 0.5× speed while holding; badge near touch          |
- * | Long-press bottom 40 %   | Play at 1.5× speed while holding; badge near touch          |
- * | Speed button tap         | Set persistent playback speed; highlight active button      |
- * | Drag progress bar        | Real-time seek with floating timestamp above the thumb      |
- *
- * @param videoUri       content URI of the video to play (file://, content://, or https://).
- * @param onDismiss      called when the user taps the close button.
- * @param modifier       optional [Modifier] applied to the root [Box].
- * @param onNextVideo    optional callback when the user swipes up for next video.
- * @param onPreviousVideo optional callback when the user swipes down for previous video.
- */
 @Composable
 fun MotionVideoPlayer(
     videoUri: Uri,
@@ -145,146 +88,52 @@ fun MotionVideoPlayer(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
+    val controller = remember(videoUri) { MotionVideoPlayerController(context, videoUri) }
+    val state = controller.state
 
-    // ── Core player state ────────────────────────────────────────
-
-    var isPlaying by remember { mutableStateOf(true) }
-    var progress by remember { mutableFloatStateOf(0f) }
-    var duration by remember { mutableLongStateOf(0L) }
-    var currentPosition by remember { mutableLongStateOf(0L) }
-
-    // ── Speed state ──────────────────────────────────────────────
-
-    /** Speed set by the button row – persists after tap and after long-press ends. */
-    var basePlaybackSpeed by remember { mutableFloatStateOf(1f) }
-
-    /** Non-null while a long-press speed-zone gesture is active. Overrides [basePlaybackSpeed]. */
-    var longPressSpeed by remember { mutableStateOf<Float?>(null) }
-
-    /** The actual playback speed applied to the player. */
-    val effectiveSpeed = longPressSpeed ?: basePlaybackSpeed
-
-    // ── Gesture UI state ─────────────────────────────────────────
-
-    var gestureState by remember { mutableStateOf(MotionVideoGestureState()) }
-
-    // ── Double-tap detection ──────────────────────────────────────
-
-    /** [SystemClock.uptimeMillis] of the previous tap, for double-tap detection. */
-    var lastTapUptimeMs by remember { mutableLongStateOf(0L) }
-
-    // ── Progress-bar drag state (separate for Canvas rendering) ──
-
-    var thumbDragProgress by remember { mutableFloatStateOf(0f) }
-    var isDraggingThumb by remember { mutableStateOf(false) }
-    var barWidthPx by remember { mutableFloatStateOf(0f) }
-
-    // ── ExoPlayer lifecycle ──────────────────────────────────────
-
-    val player = remember {
-        ExoPlayer.Builder(context).build().apply {
-            playWhenReady = true
-            setMediaItem(MediaItem.fromUri(videoUri))
-            prepare()
-        }
+    LaunchedEffect(state.isPlaying, state.effectiveSpeed) {
+        controller.syncPlayerState()
     }
-
-    // Capture latest values for use inside gesture lambdas
-    val updatedIsPlaying by rememberUpdatedState(isPlaying)
-    val updatedProgress by rememberUpdatedState(progress)
-    val updatedDuration by rememberUpdatedState(duration)
-    val updatedCurrentPosition by rememberUpdatedState(currentPosition)
-    val updatedLastTapUptimeMs by rememberUpdatedState(lastTapUptimeMs)
-    // ── Keep player in sync with state ───────────────────────────
-
-    LaunchedEffect(isPlaying) {
-        player.playWhenReady = isPlaying
-    }
-
-    LaunchedEffect(effectiveSpeed) {
-        player.setPlaybackSpeed(effectiveSpeed)
-    }
-
-    // ── Position polling ─────────────────────────────────────────
 
     LaunchedEffect(Unit) {
         while (true) {
-            val stateOk = player.playbackState == Player.STATE_READY ||
-                    player.playbackState == Player.STATE_BUFFERING
-
-            if (stateOk && !isDraggingThumb && !gestureState.isSeeking && longPressSpeed == null) {
-                duration = player.duration.coerceAtLeast(0L)
-                currentPosition = player.currentPosition.coerceAtLeast(0L)
-                if (duration > 0L) {
-                    progress = currentPosition.toFloat() / duration.toFloat()
-                }
-                isPlaying = player.playWhenReady && player.playbackState == Player.STATE_READY
-            }
+            controller.updateFromPlayer()
             delay(POLLING_INTERVAL_MS)
         }
     }
 
-    // ── Auto-hide controls ───────────────────────────────────────
-
-    LaunchedEffect(gestureState.showControls, isDraggingThumb) {
-        if (gestureState.showControls && !isDraggingThumb) {
+    LaunchedEffect(state.gestureState.showControls, state.isDraggingThumb) {
+        if (state.gestureState.showControls && !state.isDraggingThumb) {
             delay(CONTROLS_HIDE_DELAY_MS)
-            gestureState = gestureState.copy(showControls = false)
+            controller.hideControls()
         }
     }
 
-    // ── Play/pause icon auto-dismiss ─────────────────────────────
-
-    LaunchedEffect(gestureState.showPlayPauseIcon) {
-        if (gestureState.showPlayPauseIcon) {
+    LaunchedEffect(state.gestureState.showPlayPauseIcon) {
+        if (state.gestureState.showPlayPauseIcon) {
             delay(PLAY_PAUSE_ICON_DURATION_MS)
-            gestureState = gestureState.copy(showPlayPauseIcon = false)
+            controller.hidePlayPauseIcon()
         }
     }
-
-    // ── Cleanup ──────────────────────────────────────────────────
 
     DisposableEffect(Unit) {
-        onDispose { player.release() }
+        onDispose { controller.release() }
     }
-
-    // ── Helpers ──────────────────────────────────────────────────
-
-    fun showControlsTemporarily() {
-        gestureState = gestureState.copy(showControls = true)
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    //  UI
-    // ══════════════════════════════════════════════════════════════
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-
-        // ── Video surface ────────────────────────────────────────
-
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
-                    this.player = player
+                    player = controller.player
                     useController = false
                 }
             },
             modifier = Modifier.fillMaxSize()
         )
-
-        // ── Unified gesture layer ────────────────────────────────
-        //
-        //  All video-area gestures (tap, long-press, horizontal seek,
-        //  vertical swipe) are handled in a single pointerInput block
-        //  to resolve conflicts cleanly.
-        //
-        //  This layer sits *behind* buttons and the progress bar in
-        //  z-order, so control touches are consumed first and never
-        //  reach this handler.
 
         Box(
             modifier = Modifier
@@ -300,15 +149,11 @@ fun MotionVideoPlayer(
                         var isHorizontalSwipe = false
                         var isVerticalSwipe = false
                         var isLongPress = false
-                        var longPressSpeedValue: Float? = null
-                        var localSeekProgress = 0f
                         var totalVerticalDragPx = 0f
-
                         val touchSlopPx = viewConfiguration.touchSlop.toFloat()
+                        val resumePlayback = state.isPlaying
 
                         while (true) {
-                            // Block until next pointer event, or long-press timeout fires.
-                            // withTimeoutOrNull is available inside AwaitPointerEventScope.
                             val event = if (!gestureDetermined) {
                                 withTimeoutOrNull(LONG_PRESS_THRESHOLD_MS) {
                                     awaitPointerEvent()
@@ -318,29 +163,20 @@ fun MotionVideoPlayer(
                             }
 
                             if (event == null) {
-                                // ── Long-press timeout fired ────────
                                 gestureDetermined = true
 
-                                val viewHeight = size.height.toFloat()
-                                val relativeY = startPosition.y / viewHeight
-                                longPressSpeedValue = when {
+                                val relativeY = startPosition.y / size.height.toFloat()
+                                val speed = when {
                                     relativeY <= TOP_ZONE_FRACTION -> 0.5f
                                     relativeY >= (1f - BOTTOM_ZONE_FRACTION) -> 1.5f
                                     else -> null
                                 }
 
-                                if (longPressSpeedValue != null) {
+                                if (speed != null) {
                                     isLongPress = true
-
-                                    gestureState = gestureState.copy(
-                                        isSpeedBoosting = true,
-                                        boostSpeedLabel = speedLabel(context, longPressSpeedValue!!),
-                                        boostOffsetY = startPosition.y
-                                    )
-                                    longPressSpeed = longPressSpeedValue
+                                    controller.beginSpeedBoost(speed, startPosition.y, context)
                                 }
 
-                                // Wait for more events (lift or move)
                                 continue
                             }
 
@@ -359,22 +195,12 @@ fun MotionVideoPlayer(
                                 val absDy = abs(dy)
 
                                 if (absDx > touchSlopPx || absDy > touchSlopPx) {
-                                    // Movement detected – cancel long-press timer
                                     gestureDetermined = true
 
                                     if (absDx > absDy) {
-                                        // Horizontal swipe → seek
                                         isHorizontalSwipe = true
-                                        localSeekProgress = updatedProgress
-
-                                        player.playWhenReady = false
-
-                                        gestureState = gestureState.copy(
-                                            isSeeking = true,
-                                            seekProgress = localSeekProgress
-                                        )
+                                        controller.beginSwipeSeek()
                                     } else {
-                                        // Vertical swipe → next/prev video
                                         isVerticalSwipe = true
                                         totalVerticalDragPx = dy
                                     }
@@ -383,33 +209,19 @@ fun MotionVideoPlayer(
                                 when {
                                     isHorizontalSwipe -> {
                                         change.consume()
-                                        val width = size.width.toFloat()
                                         val delta = (change.position.x - lastPosition.x) /
-                                                width * SWIPE_SEEK_FACTOR
-                                        localSeekProgress =
-                                            (localSeekProgress + delta).coerceIn(0f, 1f)
-
-                                        val dur = updatedDuration
-                                        val seekMs = if (dur > 0L) {
-                                            (localSeekProgress * dur).toLong().coerceIn(0L, dur)
-                                        } else 0L
-
-                                        gestureState = gestureState.copy(
-                                            seekProgress = localSeekProgress,
-                                            seekTimeLabel = formatTime(seekMs)
-                                        )
-
-                                        if (dur > 0L) player.seekTo(seekMs)
+                                            size.width.toFloat() * SWIPE_SEEK_FACTOR
+                                        controller.updateSwipeSeek(delta)
                                     }
+
                                     isVerticalSwipe -> {
                                         change.consume()
                                         totalVerticalDragPx += change.position.y - lastPosition.y
                                     }
+
                                     isLongPress -> {
                                         change.consume()
-                                        gestureState = gestureState.copy(
-                                            boostOffsetY = change.position.y
-                                        )
+                                        controller.updateSpeedBoostOffset(change.position.y)
                                     }
                                 }
                             }
@@ -417,43 +229,16 @@ fun MotionVideoPlayer(
                             lastPosition = change.position
                         }
 
-                        // ── Gesture ended ────────────────────────
-
                         if (!gestureDetermined) {
-                            // Distinguish single vs double tap:
-                            //  - single tap → no playback action, just show controls
-                            //  - double tap → toggle play/pause
-                            val thisTapUptime = down.uptimeMillis
-                            if (thisTapUptime - updatedLastTapUptimeMs < DOUBLE_TAP_WINDOW_MS) {
-                                lastTapUptimeMs = 0L
-                                val currentlyPlaying = player.playWhenReady
-                                player.playWhenReady = !currentlyPlaying
-                                isPlaying = !currentlyPlaying
-                                gestureState = gestureState.copy(showPlayPauseIcon = true)
-                            } else {
-                                lastTapUptimeMs = thisTapUptime
-                            }
+                            controller.registerTap(down.uptimeMillis)
                         }
 
                         if (isHorizontalSwipe) {
-                            val dur = updatedDuration
-                            if (dur > 0L) {
-                                val seekTo = (localSeekProgress * dur).toLong()
-                                    .coerceIn(0L, dur)
-                                player.seekTo(seekTo)
-                                currentPosition = seekTo
-                            }
-                            player.playWhenReady = updatedIsPlaying
-
-                            gestureState = gestureState.copy(
-                                isSeeking = false,
-                                seekTimeLabel = ""
-                            )
+                            controller.endSwipeSeek(resumePlayback)
                         }
 
                         if (isVerticalSwipe) {
-                            val thresholdPx =
-                                size.height * VERTICAL_SWIPE_THRESHOLD_FRACTION
+                            val thresholdPx = size.height * VERTICAL_SWIPE_THRESHOLD_FRACTION
                             if (abs(totalVerticalDragPx) > thresholdPx) {
                                 if (totalVerticalDragPx < 0f) {
                                     onNextVideo?.invoke()
@@ -464,19 +249,16 @@ fun MotionVideoPlayer(
                         }
 
                         if (isLongPress) {
-                            longPressSpeed = null
-                            gestureState = gestureState.copy(isSpeedBoosting = false)
+                            controller.endSpeedBoost()
                         }
 
-                        showControlsTemporarily()
+                        controller.showControls()
                     }
                 }
         )
 
-        // ── Close button ─────────────────────────────────────────
-
         AnimatedVisibility(
-            visible = gestureState.showControls,
+            visible = state.gestureState.showControls,
             enter = fadeIn(animationSpec = tween(200)),
             exit = fadeOut(animationSpec = tween(200)),
             modifier = Modifier.align(Alignment.TopEnd)
@@ -499,10 +281,8 @@ fun MotionVideoPlayer(
             }
         }
 
-        // ── Seek overlay (during horizontal swipe) ───────────────
-
         AnimatedVisibility(
-            visible = gestureState.isSeeking,
+            visible = state.gestureState.isSeeking,
             enter = fadeIn(animationSpec = tween(100)),
             exit = fadeOut(animationSpec = tween(150)),
             modifier = Modifier.align(Alignment.Center)
@@ -512,7 +292,7 @@ fun MotionVideoPlayer(
                 color = Color.Black.copy(alpha = 0.65f)
             ) {
                 Text(
-                    text = gestureState.seekTimeLabel.ifEmpty { "00:00" },
+                    text = state.gestureState.seekTimeLabel.ifEmpty { "00:00" },
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -521,10 +301,8 @@ fun MotionVideoPlayer(
             }
         }
 
-        // ── Play / pause icon overlay (centre tap) ───────────────
-
         AnimatedVisibility(
-            visible = gestureState.showPlayPauseIcon,
+            visible = state.gestureState.showPlayPauseIcon,
             enter = fadeIn(animationSpec = tween(100)),
             exit = fadeOut(animationSpec = tween(300)),
             modifier = Modifier.align(Alignment.Center)
@@ -536,9 +314,8 @@ fun MotionVideoPlayer(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = if (isPlaying) Icons.Rounded.Pause
-                        else Icons.Rounded.PlayArrow,
-                        contentDescription = if (isPlaying) {
+                        imageVector = if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        contentDescription = if (state.isPlaying) {
                             stringResource(R.string.motion_video_pause)
                         } else {
                             stringResource(R.string.motion_video_play)
@@ -550,30 +327,23 @@ fun MotionVideoPlayer(
             }
         }
 
-        // ── Speed boost badge (long-press on top/bottom zone) ────
-
         AnimatedVisibility(
-            visible = gestureState.isSpeedBoosting,
+            visible = state.gestureState.isSpeedBoosting,
             enter = fadeIn(animationSpec = tween(100)),
             exit = fadeOut(animationSpec = tween(150))
         ) {
             Surface(
-                modifier = Modifier
-                    .offset {
-                        val badgeY =
-                            (gestureState.boostOffsetY - with(density) { 48.dp.toPx() })
-                                .roundToInt()
-                                .coerceAtLeast(0)
-                        IntOffset(
-                            with(density) { 24.dp.roundToPx() },
-                            badgeY
-                        )
-                    },
+                modifier = Modifier.offset {
+                    val badgeY = (state.gestureState.boostOffsetY - with(density) { 48.dp.toPx() })
+                        .roundToInt()
+                        .coerceAtLeast(0)
+                    IntOffset(with(density) { 24.dp.roundToPx() }, badgeY)
+                },
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
             ) {
                 Text(
-                    text = gestureState.boostSpeedLabel,
+                    text = state.gestureState.boostSpeedLabel,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
@@ -582,33 +352,23 @@ fun MotionVideoPlayer(
             }
         }
 
-        // ── Bottom controls: speed buttons + progress bar ────────
-
         val controlsAlpha by animateFloatAsState(
-            targetValue = if (gestureState.showControls || isDraggingThumb) 1f else 0f,
+            targetValue = if (state.gestureState.showControls || state.isDraggingThumb) 1f else 0f,
             animationSpec = tween(200),
             label = "controlsAlpha"
         )
 
-        Column(
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            // Speed preset buttons – always tappable with conditional alpha
+        Column(modifier = Modifier.align(Alignment.BottomCenter)) {
             SpeedButtonRow(
-                baseSpeed = basePlaybackSpeed,
-                isVisible = gestureState.showControls || isDraggingThumb,
-                onSpeedSelected = { speed ->
-                    basePlaybackSpeed = speed
-                    showControlsTemporarily()
-                }
+                baseSpeed = state.basePlaybackSpeed,
+                isVisible = state.gestureState.showControls || state.isDraggingThumb,
+                onSpeedSelected = controller::setBasePlaybackSpeed
             )
 
-            // Interactive progress bar
-            if (controlsAlpha > 0.01f || isDraggingThumb) {
+            if (controlsAlpha > 0.01f || state.isDraggingThumb) {
                 val progressColor = MaterialTheme.colorScheme.primary
                 val trackColor = Color.White.copy(alpha = 0.35f)
-                val effectiveProgress =
-                    if (isDraggingThumb) thumbDragProgress else progress
+                val effectiveProgress = if (state.isDraggingThumb) state.thumbDragProgress else state.progress
                 val barHeightPx = with(density) { PROGRESS_BAR_HEIGHT.toPx() }
                 val thumbRadiusPx = with(density) { THUMB_RADIUS.toPx() }
 
@@ -616,72 +376,43 @@ fun MotionVideoPlayer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(PROGRESS_BAR_TOUCH_HEIGHT)
-                        .onSizeChanged { barWidthPx = it.width.toFloat() }
+                        .onSizeChanged { controller.setBarWidth(it.width.toFloat()) }
                         .pointerInput(Unit) {
                             detectHorizontalDragGestures(
                                 onDragStart = {
-                                    isDraggingThumb = true
-                                    thumbDragProgress = updatedProgress
-                                    player.playWhenReady = false
+                                    controller.beginThumbDrag()
                                 },
                                 onDragEnd = {
-                                    isDraggingThumb = false
-                                    val dur = updatedDuration
-                                    if (dur > 0L) {
-                                        val seekTo = (thumbDragProgress * dur).toLong()
-                                            .coerceIn(0L, dur)
-                                        player.seekTo(seekTo)
-                                        currentPosition = seekTo
-                                        if (dur > 0L) {
-                                            progress = seekTo.toFloat() / dur.toFloat()
-                                        }
-                                    }
-                                    player.playWhenReady = updatedIsPlaying
-                                    showControlsTemporarily()
+                                    controller.endThumbDrag(state.isPlaying)
                                 },
                                 onDragCancel = {
-                                    isDraggingThumb = false
-                                    player.playWhenReady = updatedIsPlaying
-                                    showControlsTemporarily()
+                                    controller.cancelThumbDrag(state.isPlaying)
                                 },
                                 onHorizontalDrag = { change, dragAmount ->
                                     change.consume()
-
-                                    val dur = updatedDuration
-                                    if (dur <= 0L) return@detectHorizontalDragGestures
-
-                                    val width = size.width.toFloat()
-                                    val delta = dragAmount / width
-                                    thumbDragProgress = (thumbDragProgress + delta)
-                                        .coerceIn(0f, 1f)
-
-                                    val seekMs = (thumbDragProgress * dur).toLong()
-                                        .coerceIn(0L, dur)
-                                    player.seekTo(seekMs)
-                                    currentPosition = seekMs
+                                    controller.updateThumbDrag(dragAmount / size.width.toFloat())
                                 }
                             )
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    // Floating timestamp above the thumb
-                    if (isDraggingThumb) {
-                        val dur = updatedDuration
-                        val seekMs = if (dur > 0L) {
-                            (thumbDragProgress * dur).toLong().coerceIn(0L, dur)
-                        } else 0L
+                    if (state.isDraggingThumb) {
+                        val seekMs = if (state.duration > 0L) {
+                            (state.thumbDragProgress * state.duration).toLong().coerceIn(0L, state.duration)
+                        } else {
+                            0L
+                        }
 
                         Surface(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .offset {
-                                    val widthPx = barWidthPx
-                                    val thumbX = (thumbDragProgress * widthPx)
-                                        .coerceIn(thumbRadiusPx, widthPx - thumbRadiusPx)
+                                    val thumbX = (state.thumbDragProgress * state.barWidthPx)
+                                        .coerceIn(thumbRadiusPx, state.barWidthPx - thumbRadiusPx)
                                     val labelWidth = 50.dp.toPx()
-                                    val dx = (thumbX - widthPx / 2f).coerceIn(
-                                        -widthPx / 2f + labelWidth / 2f,
-                                        widthPx / 2f - labelWidth / 2f
+                                    val dx = (thumbX - state.barWidthPx / 2f).coerceIn(
+                                        -state.barWidthPx / 2f + labelWidth / 2f,
+                                        state.barWidthPx / 2f - labelWidth / 2f
                                     )
                                     IntOffset(dx.roundToInt(), 0)
                                 },
@@ -690,10 +421,7 @@ fun MotionVideoPlayer(
                         ) {
                             Text(
                                 text = formatTime(seekMs),
-                                modifier = Modifier.padding(
-                                    horizontal = 8.dp,
-                                    vertical = 4.dp
-                                ),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.White,
                                 textAlign = TextAlign.Center
@@ -709,7 +437,6 @@ fun MotionVideoPlayer(
                     ) {
                         val lineY = size.height / 2f
 
-                        // Track
                         drawLine(
                             color = trackColor,
                             start = Offset(0f, lineY),
@@ -717,9 +444,7 @@ fun MotionVideoPlayer(
                             strokeWidth = barHeightPx
                         )
 
-                        // Filled progress
-                        val progressWidth =
-                            size.width * effectiveProgress.coerceIn(0f, 1f)
+                        val progressWidth = size.width * effectiveProgress.coerceIn(0f, 1f)
                         if (progressWidth > 0f) {
                             drawLine(
                                 color = progressColor,
@@ -729,11 +454,7 @@ fun MotionVideoPlayer(
                             )
                         }
 
-                        // Thumb
-                        val thumbX = progressWidth.coerceIn(
-                            thumbRadiusPx,
-                            size.width - thumbRadiusPx
-                        )
+                        val thumbX = progressWidth.coerceIn(thumbRadiusPx, size.width - thumbRadiusPx)
                         drawCircle(
                             color = progressColor,
                             radius = thumbRadiusPx,
@@ -746,14 +467,13 @@ fun MotionVideoPlayer(
     }
 }
 
-// ── Speed button row ──────────────────────────────────────────────
-
 @Composable
 private fun SpeedButtonRow(
     baseSpeed: Float,
     isVisible: Boolean,
     onSpeedSelected: (Float) -> Unit
 ) {
+    val context = LocalContext.current
     val alpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0.6f,
         animationSpec = tween(200),
@@ -768,9 +488,8 @@ private fun SpeedButtonRow(
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         SPEED_OPTIONS.forEach { speed ->
-            val label = speedLabel(LocalContext.current, speed)
+            val label = speedLabel(context, speed)
             val isSelected = baseSpeed == speed
-
             val contentDescriptionRes = when (speed) {
                 0.25f -> R.string.motion_video_speed_btn_025
                 0.5f -> R.string.motion_video_speed_btn_05
@@ -779,13 +498,14 @@ private fun SpeedButtonRow(
                 1.5f -> R.string.motion_video_speed_btn_15
                 else -> R.string.motion_video_speed_btn_1
             }
-            val contentDescription = stringResource(contentDescriptionRes)
 
             Surface(
                 modifier = Modifier
                     .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .semantics { this.contentDescription = contentDescription }
+                    .semantics {
+                        contentDescription = context.getString(contentDescriptionRes)
+                    }
                     .clickable { onSpeedSelected(speed) },
                 shape = RoundedCornerShape(10.dp),
                 color = if (isSelected) {
@@ -796,8 +516,7 @@ private fun SpeedButtonRow(
             ) {
                 Text(
                     text = label,
-                    modifier = Modifier
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     color = if (isSelected) {
@@ -811,11 +530,6 @@ private fun SpeedButtonRow(
     }
 }
 
-// ── Formatting helpers ────────────────────────────────────────────
-
-/**
- * Formats milliseconds as `mm:ss` or `HH:mm:ss` for videos >= 1 hour.
- */
 internal fun formatTime(millis: Long): String {
     val totalSeconds = (millis / 1000L).coerceAtLeast(0L)
     val hours = totalSeconds / 3600L
@@ -829,10 +543,7 @@ internal fun formatTime(millis: Long): String {
     }
 }
 
-/**
- * Returns a human-readable label for a playback speed multiplier.
- */
-private fun speedLabel(context: android.content.Context, speed: Float): String {
+private fun speedLabel(context: Context, speed: Float): String {
     val labelRes = when (speed) {
         0.1f -> R.string.playback_speed_label_01
         0.25f -> R.string.playback_speed_label_025

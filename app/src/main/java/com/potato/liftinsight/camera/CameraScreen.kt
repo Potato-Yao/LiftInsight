@@ -6,27 +6,17 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Environment
-import android.util.Size
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.video.FileOutputOptions
-import androidx.camera.video.Quality
-import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
 import androidx.camera.video.Recording
-import androidx.camera.video.VideoCapture
-import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -75,18 +65,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.potato.liftinsight.R
+import com.potato.liftinsight.camera.controller.CameraController
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import java.io.File
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 private enum class RecordingState {
@@ -111,6 +97,7 @@ fun CameraScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    val cameraController = remember { CameraController() }
     val defaultResolution = stringResource(R.string.camera_default_resolution)
     val defaultFrameRate = stringResource(R.string.camera_default_frame_rate)
 
@@ -134,12 +121,14 @@ fun CameraScreen(
         hasAudioPermission = permissions[Manifest.permission.RECORD_AUDIO] ?: false
     }
 
-    LaunchedEffect(Unit) {
-        val missingPermissions = mutableListOf<String>()
-        if (!hasCameraPermission) missingPermissions.add(Manifest.permission.CAMERA)
-        if (!hasAudioPermission) missingPermissions.add(Manifest.permission.RECORD_AUDIO)
+    LaunchedEffect(hasCameraPermission, hasAudioPermission) {
+        val missingPermissions = cameraController.missingPermissions(
+            hasCameraPermission = hasCameraPermission,
+            hasAudioPermission = hasAudioPermission
+        )
+
         if (missingPermissions.isNotEmpty()) {
-            permissionLauncher.launch(missingPermissions.toTypedArray())
+            permissionLauncher.launch(missingPermissions)
         }
     }
 
@@ -189,35 +178,21 @@ fun CameraScreen(
                 factory = { ctx ->
                     PreviewView(ctx).also { previewView ->
                         previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                        cameraProviderFuture.addListener({
-                            val cameraProvider = cameraProviderFuture.get()
-                            val preview = Preview.Builder()
-                                .setTargetResolution(Size(1920, 1080))
-                                .build()
-                                .also { it.setSurfaceProvider(previewView.surfaceProvider) }
-
-                            val qualitySelector = QualitySelector.fromOrderedList(
-                                listOf(Quality.UHD, Quality.FHD, Quality.HD, Quality.SD)
-                            )
-                            val recorder = Recorder.Builder()
-                                .setQualitySelector(qualitySelector)
-                                .build()
-                            recorderRef = recorder
-
-                            val videoCap = VideoCapture.Builder(recorder).build()
-
-                            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-                            cameraProvider.unbindAll()
-                            val boundCamera = cameraProvider.bindToLifecycle(
-                                lifecycleOwner,
-                                cameraSelector,
-                                preview,
-                                videoCap
-                            )
-                            camera = boundCamera
-                        }, ContextCompat.getMainExecutor(ctx))
+                        cameraController.bindCamera(
+                            context = ctx,
+                            lifecycleOwner = lifecycleOwner,
+                            previewView = previewView,
+                            defaultResolution = defaultResolution,
+                            defaultFrameRate = defaultFrameRate,
+                            onSessionReady = { session ->
+                                recorderRef = session.recorder
+                                camera = session.camera
+                            },
+                            onCaptureDetailsChanged = { captureDetails ->
+                                resolutionText = captureDetails.resolutionText
+                                frameRateText = captureDetails.frameRateText
+                            }
+                        )
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -246,11 +221,13 @@ fun CameraScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 Surface(
                     onClick = {
-                        val missingPermissions = mutableListOf<String>()
-                        if (!hasCameraPermission) missingPermissions.add(Manifest.permission.CAMERA)
-                        if (!hasAudioPermission) missingPermissions.add(Manifest.permission.RECORD_AUDIO)
+                        val missingPermissions = cameraController.missingPermissions(
+                            hasCameraPermission = hasCameraPermission,
+                            hasAudioPermission = hasAudioPermission
+                        )
+
                         if (missingPermissions.isNotEmpty()) {
-                            permissionLauncher.launch(missingPermissions.toTypedArray())
+                            permissionLauncher.launch(missingPermissions)
                         }
                     },
                     shape = RoundedCornerShape(24.dp),
@@ -303,16 +280,20 @@ fun CameraScreen(
                     onStartRecord = {
                         val recorder = recorderRef
                         if (recorder != null) {
-                            val success = startRecording(
+                            val success = cameraController.startRecording(
                                 context = context,
                                 recorder = recorder,
                                 cameraExecutor = cameraExecutor,
                                 motionId = motionId,
                                 setIndex = setIndex,
                                 onFileReady = { file -> outputVideoFile = file },
-                                onRecording = { rec -> activeRecording = rec },
-                                stopCallbackRef = stopCallbackRef
+                                onRecording = { recording -> activeRecording = recording },
+                                onRecordingFinished = {
+                                    stopCallbackRef.value?.invoke()
+                                    stopCallbackRef.value = null
+                                }
                             )
+
                             if (success) {
                                 recordingState = RecordingState.RECORDING
                             } else {
@@ -330,10 +311,10 @@ fun CameraScreen(
                             onRecordingFinished(outputVideoFile?.name)
                             camera?.cameraControl?.enableTorch(false)
                         }
+
                         try {
                             activeRecording?.stop()
-                        } catch (e: Exception) {
-                            android.util.Log.e("CameraScreen", "Error stopping recording", e)
+                        } catch (_: Exception) {
                             stopCallbackRef.value?.invoke()
                             stopCallbackRef.value = null
                         }
@@ -345,13 +326,15 @@ fun CameraScreen(
                                     activeRecording?.pause()
                                     recordingState = RecordingState.PAUSED
                                 }
+
                                 RecordingState.PAUSED -> {
                                     activeRecording?.resume()
                                     recordingState = RecordingState.RECORDING
                                 }
-                                else -> {}
+
+                                RecordingState.IDLE -> Unit
                             }
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -365,7 +348,7 @@ fun CameraScreen(
             cameraExecutor.shutdown()
             try {
                 camera?.cameraControl?.enableTorch(false)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
             }
         }
     }
@@ -413,24 +396,12 @@ private fun TopControlBar(
                 onClick = onFlashToggle,
                 modifier = Modifier.size(40.dp),
                 colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = if (flashEnabled) {
-                        Color.White
-                    } else {
-                        Color.Black.copy(alpha = 0.4f)
-                    },
-                    contentColor = if (flashEnabled) {
-                        Color.Black
-                    } else {
-                        Color.White
-                    }
+                    containerColor = if (flashEnabled) Color.White else Color.Black.copy(alpha = 0.4f),
+                    contentColor = if (flashEnabled) Color.Black else Color.White
                 )
             ) {
                 Icon(
-                    imageVector = if (flashEnabled) {
-                        Icons.Rounded.FlashOn
-                    } else {
-                        Icons.Rounded.FlashOff
-                    },
+                    imageVector = if (flashEnabled) Icons.Rounded.FlashOn else Icons.Rounded.FlashOff,
                     contentDescription = if (flashEnabled) {
                         stringResource(R.string.camera_flash_turn_off)
                     } else {
@@ -557,13 +528,13 @@ private fun BottomControlBar(
         FilledIconButton(
             onClick = when (recordingState) {
                 RecordingState.IDLE -> onStartRecord
-                else -> onStopRecord
+                RecordingState.RECORDING, RecordingState.PAUSED -> onStopRecord
             },
             modifier = Modifier.size(72.dp),
             colors = IconButtonDefaults.filledIconButtonColors(
                 containerColor = when (recordingState) {
                     RecordingState.IDLE -> Color(0xFFE53935)
-                    else -> Color.Red
+                    RecordingState.RECORDING, RecordingState.PAUSED -> Color.Red
                 },
                 contentColor = Color.White
             ),
@@ -572,66 +543,14 @@ private fun BottomControlBar(
             Icon(
                 imageVector = when (recordingState) {
                     RecordingState.IDLE -> Icons.Rounded.Videocam
-                    else -> Icons.Rounded.Stop
+                    RecordingState.RECORDING, RecordingState.PAUSED -> Icons.Rounded.Stop
                 },
                 contentDescription = when (recordingState) {
                     RecordingState.IDLE -> stringResource(R.string.camera_start_recording)
-                    else -> stringResource(R.string.camera_stop_recording)
+                    RecordingState.RECORDING, RecordingState.PAUSED -> stringResource(R.string.camera_stop_recording)
                 },
                 modifier = Modifier.size(32.dp)
             )
         }
     }
-}
-
-private fun videoFileName(motionId: Int, setIndex: Int): String {
-    val instant = Instant.now()
-    val formatter = DateTimeFormatter
-        .ofPattern("yyyy-MM-dd-HH-mm-ss")
-        .withZone(ZoneId.systemDefault())
-    val timestamp = formatter.format(instant)
-    return "$timestamp-$motionId-$setIndex.mp4"
-}
-
-private fun startRecording(
-    context: android.content.Context,
-    recorder: Recorder,
-    cameraExecutor: ExecutorService,
-    motionId: Int,
-    setIndex: Int,
-    onFileReady: (File) -> Unit,
-    onRecording: (Recording) -> Unit,
-    stopCallbackRef: androidx.compose.runtime.MutableState<(() -> Unit)?>
-): Boolean {
-    val outputDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
-        ?: context.filesDir
-    if (!outputDir.exists()) {
-        outputDir.mkdirs()
-    }
-
-    val videoFile = File(outputDir, videoFileName(motionId, setIndex))
-    onFileReady(videoFile)
-
-    val outputOptions = FileOutputOptions.Builder(videoFile).build()
-    val pendingRecording = recorder.prepareRecording(context, outputOptions)
-
-    var recording: Recording? = null
-    recording = pendingRecording.start(cameraExecutor) { event ->
-        when (event) {
-            is VideoRecordEvent.Finalize -> {
-                android.util.Log.d("CameraScreen", "Video recording finalized")
-                try {
-                    recording?.close()
-                } catch (e: Exception) {
-                    android.util.Log.e("CameraScreen", "Error closing recording", e)
-                }
-                stopCallbackRef.value?.invoke()
-                stopCallbackRef.value = null
-            }
-            else -> {}
-        }
-    }
-
-    onRecording(recording!!)
-    return true
 }
