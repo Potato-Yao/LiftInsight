@@ -38,7 +38,12 @@ class VideoOverlayMathTest {
             PoseLandmark.RIGHT_ANKLE to landmark(8f, 12f)
         )
 
-        val angles = calculateOverlayAngles(landmarks, calculateSpinePoints(landmarks))
+        val angles = calculateOverlayAngles(
+            landmarks = landmarks,
+            spinePoints = calculateSpinePoints(landmarks),
+            frameWidth = 100f,
+            frameHeight = 100f
+        )
 
         assertEquals(0.0, angles.spineAngle ?: Double.NaN, 0.01)
         assertEquals(135.0, angles.leftLegSpineAngle ?: Double.NaN, 0.01)
@@ -58,10 +63,47 @@ class VideoOverlayMathTest {
             PoseLandmark.LEFT_ANKLE to landmark(4f, 12f)
         )
 
-        val angles = calculateOverlayAngles(landmarks, calculateSpinePoints(landmarks))
+        val angles = calculateOverlayAngles(
+            landmarks = landmarks,
+            spinePoints = calculateSpinePoints(landmarks),
+            frameWidth = 100f,
+            frameHeight = 100f
+        )
 
         assertNull(angles.leftLegSpineAngle)
         assertNull(angles.leftKneeAngle)
+    }
+
+    @Test
+    fun calculateOverlayAngles_scalesVectorsByFrameDimensions() {
+        val landmarks = mapOf(
+            PoseLandmark.LEFT_SHOULDER to landmark(0.45f, 0.2f),
+            PoseLandmark.RIGHT_SHOULDER to landmark(0.55f, 0.2f),
+            PoseLandmark.LEFT_HIP to landmark(0.48f, 0.5f),
+            PoseLandmark.RIGHT_HIP to landmark(0.52f, 0.5f),
+            PoseLandmark.LEFT_KNEE to landmark(0.56f, 0.68f),
+            PoseLandmark.LEFT_ANKLE to landmark(0.6f, 0.88f)
+        )
+
+        val squareAngles = calculateOverlayAngles(
+            landmarks = landmarks,
+            spinePoints = calculateSpinePoints(landmarks),
+            frameWidth = 100f,
+            frameHeight = 100f
+        )
+        val wideAngles = calculateOverlayAngles(
+            landmarks = landmarks,
+            spinePoints = calculateSpinePoints(landmarks),
+            frameWidth = 200f,
+            frameHeight = 100f
+        )
+
+        val squareAngle = squareAngles.leftKneeAngle ?: Double.NaN
+        val wideAngle = wideAngles.leftKneeAngle ?: Double.NaN
+
+        assertEquals(true, squareAngle.isFinite())
+        assertEquals(true, wideAngle.isFinite())
+        assertEquals(false, kotlin.math.abs(wideAngle - squareAngle) < 0.001)
     }
 
     private fun landmark(

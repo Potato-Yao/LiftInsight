@@ -796,7 +796,12 @@ private class PoseLandmarkVideoProcessor(
 
         drawAngleOverlay(
             canvas = canvas,
-            angles = calculateOverlayAngles(positions, spinePoints)
+            angles = calculateOverlayAngles(
+                landmarks = positions,
+                spinePoints = spinePoints,
+                frameWidth = canvas.width.toFloat(),
+                frameHeight = canvas.height.toFloat()
+            )
         )
     }
 
@@ -982,35 +987,45 @@ internal fun calculateSpinePoints(
 
 internal fun calculateOverlayAngles(
     landmarks: Map<Int, PoseOverlayLandmark>,
-    spinePoints: PoseOverlaySpinePoints?
+    spinePoints: PoseOverlaySpinePoints?,
+    frameWidth: Float = 1f,
+    frameHeight: Float = 1f
 ): PoseOverlayAngles {
     val spineAngle = spinePoints?.let {
         Math.toDegrees(
             kotlin.math.atan2(
-                (it.midShoulder.first - it.midHip.first).toDouble(),
-                -((it.midShoulder.second - it.midHip.second).toDouble())
+                ((it.midShoulder.first - it.midHip.first) * frameWidth).toDouble(),
+                -(((it.midShoulder.second - it.midHip.second) * frameHeight).toDouble())
             )
         )
     }
 
     val leftLegSpineAngle = calculateLegSpineAngle(
         knee = landmarks[PoseLandmark.LEFT_KNEE],
-        spinePoints = spinePoints
+        spinePoints = spinePoints,
+        frameWidth = frameWidth,
+        frameHeight = frameHeight
     )
     val rightLegSpineAngle = calculateLegSpineAngle(
         knee = landmarks[PoseLandmark.RIGHT_KNEE],
-        spinePoints = spinePoints
+        spinePoints = spinePoints,
+        frameWidth = frameWidth,
+        frameHeight = frameHeight
     )
 
     val leftKneeAngle = calculateJointAngle(
         first = landmarks[PoseLandmark.LEFT_HIP],
         center = landmarks[PoseLandmark.LEFT_KNEE],
-        third = landmarks[PoseLandmark.LEFT_ANKLE]
+        third = landmarks[PoseLandmark.LEFT_ANKLE],
+        frameWidth = frameWidth,
+        frameHeight = frameHeight
     )
     val rightKneeAngle = calculateJointAngle(
         first = landmarks[PoseLandmark.RIGHT_HIP],
         center = landmarks[PoseLandmark.RIGHT_KNEE],
-        third = landmarks[PoseLandmark.RIGHT_ANKLE]
+        third = landmarks[PoseLandmark.RIGHT_ANKLE],
+        frameWidth = frameWidth,
+        frameHeight = frameHeight
     )
 
     return PoseOverlayAngles(
@@ -1024,16 +1039,18 @@ internal fun calculateOverlayAngles(
 
 private fun calculateLegSpineAngle(
     knee: PoseOverlayLandmark?,
-    spinePoints: PoseOverlaySpinePoints?
+    spinePoints: PoseOverlaySpinePoints?,
+    frameWidth: Float,
+    frameHeight: Float
 ): Double? {
     if (knee == null || spinePoints == null || knee.visibility < 0.5f) {
         return null
     }
 
-    val spineDx = (spinePoints.midShoulder.first - spinePoints.midHip.first).toDouble()
-    val spineDy = (spinePoints.midShoulder.second - spinePoints.midHip.second).toDouble()
-    val legDx = (knee.x - spinePoints.midHip.first).toDouble()
-    val legDy = (knee.y - spinePoints.midHip.second).toDouble()
+    val spineDx = ((spinePoints.midShoulder.first - spinePoints.midHip.first) * frameWidth).toDouble()
+    val spineDy = ((spinePoints.midShoulder.second - spinePoints.midHip.second) * frameHeight).toDouble()
+    val legDx = ((knee.x - spinePoints.midHip.first) * frameWidth).toDouble()
+    val legDy = ((knee.y - spinePoints.midHip.second) * frameHeight).toDouble()
 
     return angleBetweenVectors(spineDx, spineDy, legDx, legDy)
 }
@@ -1041,7 +1058,9 @@ private fun calculateLegSpineAngle(
 private fun calculateJointAngle(
     first: PoseOverlayLandmark?,
     center: PoseOverlayLandmark?,
-    third: PoseOverlayLandmark?
+    third: PoseOverlayLandmark?,
+    frameWidth: Float,
+    frameHeight: Float
 ): Double? {
     if (first == null || center == null || third == null) {
         return null
@@ -1051,10 +1070,10 @@ private fun calculateJointAngle(
         return null
     }
 
-    val firstDx = (first.x - center.x).toDouble()
-    val firstDy = (first.y - center.y).toDouble()
-    val thirdDx = (third.x - center.x).toDouble()
-    val thirdDy = (third.y - center.y).toDouble()
+    val firstDx = ((first.x - center.x) * frameWidth).toDouble()
+    val firstDy = ((first.y - center.y) * frameHeight).toDouble()
+    val thirdDx = ((third.x - center.x) * frameWidth).toDouble()
+    val thirdDy = ((third.y - center.y) * frameHeight).toDouble()
 
     return angleBetweenVectors(firstDx, firstDy, thirdDx, thirdDy)
 }

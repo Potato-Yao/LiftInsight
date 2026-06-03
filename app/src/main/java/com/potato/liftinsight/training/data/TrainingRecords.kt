@@ -1,5 +1,8 @@
 package com.potato.liftinsight.training.data
 
+import com.potato.liftinsight.video.imported.ImportedVideoAnalysisMode
+import com.potato.liftinsight.video.imported.ImportedVideoSource
+
 data class MotionRecord(
     val id: Int,
     val name: String
@@ -54,7 +57,12 @@ data class CreateMetaHistoryRequest(
     val rpe: Int,
     val weight: Double,
     val motionId: Int,
-    val videoName: String? = null
+    val videoName: String? = null,
+    val videoSource: ImportedVideoSource = ImportedVideoSource.CAMERA_CAPTURE,
+    val importedVideoAnalysisMode: ImportedVideoAnalysisMode = ImportedVideoAnalysisMode.ESTIMATED,
+    val importedReferenceLabel: String = "",
+    val importedReferencePixelDistance: Double? = null,
+    val importedReferenceDistanceMeters: Double? = null
 )
 
 enum class VideoProcessState {
@@ -72,7 +80,11 @@ data class MetaHistoryRecord(
     val weight: Double,
     val motionId: Int,
     val motionName: String,
-    val videoName: String? = null
+    val videoName: String? = null,
+    val videoSource: ImportedVideoSource = ImportedVideoSource.CAMERA_CAPTURE,
+    val importedVideoAnalysisMode: ImportedVideoAnalysisMode = ImportedVideoAnalysisMode.ESTIMATED,
+    val importedReferenceLabel: String = "",
+    val importedReferencePixelDistance: Double? = null,
+    val importedReferenceDistanceMeters: Double? = null
 )
-
 

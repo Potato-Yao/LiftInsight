@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MetaHistoryEntity::class,
         VideoProcessStateEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -100,6 +100,16 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN video_source TEXT NOT NULL DEFAULT 'CAMERA_CAPTURE'")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN imported_video_analysis_mode TEXT NOT NULL DEFAULT 'ESTIMATED'")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN imported_reference_label TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN imported_reference_pixel_distance REAL")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN imported_reference_distance_meters REAL")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -133,7 +143,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                             MIGRATION_7_8,
                             MIGRATION_8_9,
                             MIGRATION_9_10,
-                            MIGRATION_10_11
+                            MIGRATION_10_11,
+                            MIGRATION_11_12
                         )
                         .build()
 
@@ -144,7 +155,6 @@ abstract class LiftInsightDatabase : RoomDatabase() {
         }
     }
 }
-
 
 
 

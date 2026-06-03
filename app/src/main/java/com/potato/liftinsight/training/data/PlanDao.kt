@@ -87,6 +87,26 @@ abstract class PlanDao {
 
     @Query(
         """
+        UPDATE metahistory
+        SET video_source = :videoSource,
+            imported_video_analysis_mode = :analysisMode,
+            imported_reference_label = :referenceLabel,
+            imported_reference_pixel_distance = :referencePixelDistance,
+            imported_reference_distance_meters = :referenceDistanceMeters
+        WHERE id = :historyId
+        """
+    )
+    abstract fun updateImportedVideoMetadata(
+        historyId: Int,
+        videoSource: String,
+        analysisMode: String,
+        referenceLabel: String,
+        referencePixelDistance: Double?,
+        referenceDistanceMeters: Double?
+    ): Int
+
+    @Query(
+        """
         SELECT
             metahistory.id,
             metahistory.date,
@@ -95,7 +115,12 @@ abstract class PlanDao {
             metahistory.weight,
             metahistory.motion_id,
             motion.name AS motion_name,
-            metahistory.video_name
+            metahistory.video_name,
+            metahistory.video_source,
+            metahistory.imported_video_analysis_mode,
+            metahistory.imported_reference_label,
+            metahistory.imported_reference_pixel_distance,
+            metahistory.imported_reference_distance_meters
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         ORDER BY metahistory.date DESC, metahistory.id DESC

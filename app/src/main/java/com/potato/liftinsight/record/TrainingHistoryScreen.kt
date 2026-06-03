@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.VideocamOff
 import androidx.compose.material3.AlertDialog
@@ -77,10 +78,13 @@ import com.potato.liftinsight.camera.CameraScreen
 import com.potato.liftinsight.motion.MotionVideoPlayer
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.training.data.MetaHistoryRecord
+import com.potato.liftinsight.training.data.UpdateImportedVideoMetadataRequest
 import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import com.potato.liftinsight.video.VideoProcessingStatus
 import com.potato.liftinsight.video.VideoProcessor
+import com.potato.liftinsight.video.imported.ImportedVideoAnalysisMode
+import com.potato.liftinsight.video.imported.ImportedVideoSource
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -110,6 +114,7 @@ internal fun TrainingHistoryScreen(
     var videoEditorHasProcessedCopy by remember { mutableStateOf(false) }
     var importTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var cameraTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
+    var calibrationTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var videoStatusRefreshKey by remember { mutableStateOf(0) }
     var showContent by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -147,6 +152,19 @@ internal fun TrainingHistoryScreen(
                         selectedVideoStatus = null
                         videoStatusRefreshKey += 1
                     }
+                )
+
+                updateImportedVideoMetadata(
+                    trainingPlanStore = trainingPlanStore,
+                    records = records,
+                    selectedRecord = selectedRecord,
+                    request = UpdateImportedVideoMetadataRequest(
+                        historyId = targetRecord.id,
+                        videoSource = ImportedVideoSource.LOCAL_FILE,
+                        analysisMode = ImportedVideoAnalysisMode.ESTIMATED
+                    ),
+                    onRecordsChange = { records = it },
+                    onSelectedRecordChange = { selectedRecord = it }
                 )
             }
         }
@@ -281,8 +299,11 @@ internal fun TrainingHistoryScreen(
                 status = selectedVideoStatus,
                 hasVideo = !record.videoName.isNullOrBlank()
             ),
+            analysisState = analysisModeLabel(record),
+            analysisSupportingText = analysisModeSupportingText(record),
             canProcessVideo = !record.videoName.isNullOrBlank() && selectedVideoStatus?.hasProcessedCopy != true && selectedVideoStatus?.isProcessing != true,
             canEditVideo = !record.videoName.isNullOrBlank() && selectedVideoStatus?.isProcessing != true,
+            canCalibrateVideo = !record.videoName.isNullOrBlank() && record.videoSource == ImportedVideoSource.LOCAL_FILE,
             onDismiss = { selectedRecord = null },
             onSaveDetails = { weight, rep, rpe ->
                 coroutineScope.launch {
@@ -318,6 +339,9 @@ internal fun TrainingHistoryScreen(
             },
             onImportVideo = {
                 importTargetRecord = record
+            },
+            onCalibrateVideo = {
+                calibrationTargetRecord = record
             },
             onEditVideo = {
                 videoEditorHasProcessedCopy = selectedVideoStatus?.hasProcessedCopy == true
@@ -401,6 +425,19 @@ internal fun TrainingHistoryScreen(
                                     videoStatusRefreshKey += 1
                                 }
                             )
+
+                            updateImportedVideoMetadata(
+                                trainingPlanStore = trainingPlanStore,
+                                records = records,
+                                selectedRecord = selectedRecord,
+                                request = UpdateImportedVideoMetadataRequest(
+                                    historyId = targetRecord.id,
+                                    videoSource = ImportedVideoSource.CAMERA_CAPTURE,
+                                    analysisMode = ImportedVideoAnalysisMode.ESTIMATED
+                                ),
+                                onRecordsChange = { records = it },
+                                onSelectedRecordChange = { selectedRecord = it }
+                            )
                         }
                     }
                 },
@@ -444,6 +481,33 @@ internal fun TrainingHistoryScreen(
                 )
             }
         }
+    }
+
+    calibrationTargetRecord?.let { record ->
+        ReferenceCalibrationDialog(
+            record = record,
+            onDismiss = { calibrationTargetRecord = null },
+            onSave = { referenceLabel, pixelDistance, distanceMeters ->
+                calibrationTargetRecord = null
+                coroutineScope.launch {
+                    updateImportedVideoMetadata(
+                        trainingPlanStore = trainingPlanStore,
+                        records = records,
+                        selectedRecord = selectedRecord,
+                        request = UpdateImportedVideoMetadataRequest(
+                            historyId = record.id,
+                            videoSource = record.videoSource,
+                            analysisMode = ImportedVideoAnalysisMode.REFERENCE_CALIBRATED,
+                            referenceLabel = referenceLabel,
+                            referencePixelDistance = pixelDistance,
+                            referenceDistanceMeters = distanceMeters
+                        ),
+                        onRecordsChange = { records = it },
+                        onSelectedRecordChange = { selectedRecord = it }
+                    )
+                }
+            }
+        )
     }
 }
 
@@ -543,12 +607,16 @@ private fun TrainingHistoryCard(
 private fun TrainingHistoryDetailSheet(
     record: MetaHistoryRecord,
     processState: String,
+    analysisState: String,
+    analysisSupportingText: String?,
     canProcessVideo: Boolean,
     canEditVideo: Boolean,
+    canCalibrateVideo: Boolean,
     onDismiss: () -> Unit,
     onSaveDetails: (weight: Double, rep: Int, rpe: Int) -> Unit,
     onPlayVideo: () -> Unit,
     onImportVideo: () -> Unit,
+    onCalibrateVideo: () -> Unit,
     onEditVideo: () -> Unit,
     onProcessVideo: () -> Unit
 ) {
@@ -665,6 +733,12 @@ private fun TrainingHistoryDetailSheet(
                     },
                     onClick = if (canProcessVideo) onProcessVideo else null
                 )
+                DetailChip(
+                    label = stringResource(R.string.training_detail_video_analysis),
+                    value = analysisState,
+                    highlighted = record.importedVideoAnalysisMode == ImportedVideoAnalysisMode.REFERENCE_CALIBRATED,
+                    supportingText = analysisSupportingText
+                )
             }
 
             Surface(
@@ -759,13 +833,13 @@ private fun TrainingHistoryDetailSheet(
                 Text(text = stringResource(R.string.training_play_video))
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
                     onClick = onImportVideo,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Videocam,
@@ -777,9 +851,23 @@ private fun TrainingHistoryDetailSheet(
                 }
 
                 Button(
+                    onClick = onCalibrateVideo,
+                    enabled = canCalibrateVideo,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Straighten,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.training_video_calibration_button))
+                }
+
+                Button(
                     onClick = onEditVideo,
                     enabled = canEditVideo,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.ContentCut,
@@ -830,6 +918,79 @@ private fun TrainingHistoryDetailSheet(
             }
         }
     }
+}
+
+@Composable
+private fun ReferenceCalibrationDialog(
+    record: MetaHistoryRecord,
+    onDismiss: () -> Unit,
+    onSave: (referenceLabel: String, pixelDistance: Double, distanceMeters: Double) -> Unit
+) {
+    var referenceLabel by remember(record.id, record.importedReferenceLabel) {
+        mutableStateOf(record.importedReferenceLabel)
+    }
+    var pixelDistanceInput by remember(record.id, record.importedReferencePixelDistance) {
+        mutableStateOf(record.importedReferencePixelDistance?.toString().orEmpty())
+    }
+    var distanceMetersInput by remember(record.id, record.importedReferenceDistanceMeters) {
+        mutableStateOf(record.importedReferenceDistanceMeters?.toString().orEmpty())
+    }
+
+    val pixelDistance = pixelDistanceInput.toDoubleOrNull()
+    val distanceMeters = distanceMetersInput.toDoubleOrNull()
+    val canSave = !referenceLabel.trim().isEmpty() && (pixelDistance ?: 0.0) > 0.0 && (distanceMeters ?: 0.0) > 0.0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.training_video_calibration_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.training_video_calibration_helper),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = referenceLabel,
+                    onValueChange = { referenceLabel = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(text = stringResource(R.string.training_video_calibration_label)) },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = pixelDistanceInput,
+                    onValueChange = { pixelDistanceInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(text = stringResource(R.string.training_video_calibration_pixel_distance)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = distanceMetersInput,
+                    onValueChange = { distanceMetersInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(text = stringResource(R.string.training_video_calibration_real_distance)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(referenceLabel.trim(), pixelDistance ?: 0.0, distanceMeters ?: 0.0)
+                },
+                enabled = canSave
+            ) {
+                Text(text = stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.common_cancel))
+            }
+        }
+    )
 }
 
 @Composable
@@ -992,6 +1153,93 @@ private suspend fun attachVideoToRecord(
             ?.copy(videoName = normalizedVideoName)
             ?: updatedRecords.firstOrNull { it.id == historyId }
     )
+}
+
+private suspend fun updateImportedVideoMetadata(
+    trainingPlanStore: TrainingPlanStore,
+    records: List<MetaHistoryRecord>,
+    selectedRecord: MetaHistoryRecord?,
+    request: UpdateImportedVideoMetadataRequest,
+    onRecordsChange: (List<MetaHistoryRecord>) -> Unit,
+    onSelectedRecordChange: (MetaHistoryRecord?) -> Unit
+) {
+    val didUpdate = withContext(Dispatchers.IO) {
+        trainingPlanStore.updateImportedVideoMetadata(request)
+    }
+
+    if (!didUpdate) {
+        return
+    }
+
+    val updatedRecords = records.map { record ->
+        if (record.id == request.historyId) {
+            record.copy(
+                videoSource = request.videoSource,
+                importedVideoAnalysisMode = request.analysisMode,
+                importedReferenceLabel = request.referenceLabel.trim(),
+                importedReferencePixelDistance = request.referencePixelDistance,
+                importedReferenceDistanceMeters = request.referenceDistanceMeters
+            )
+        } else {
+            record
+        }
+    }
+    onRecordsChange(updatedRecords)
+
+    onSelectedRecordChange(
+        selectedRecord
+            ?.takeIf { it.id == request.historyId }
+            ?.copy(
+                videoSource = request.videoSource,
+                importedVideoAnalysisMode = request.analysisMode,
+                importedReferenceLabel = request.referenceLabel.trim(),
+                importedReferencePixelDistance = request.referencePixelDistance,
+                importedReferenceDistanceMeters = request.referenceDistanceMeters
+            )
+            ?: updatedRecords.firstOrNull { it.id == request.historyId }
+    )
+}
+
+@Composable
+private fun analysisModeLabel(record: MetaHistoryRecord): String {
+    return when (record.importedVideoAnalysisMode) {
+        ImportedVideoAnalysisMode.ESTIMATED -> stringResource(R.string.training_video_analysis_estimated)
+        ImportedVideoAnalysisMode.REFERENCE_CALIBRATED -> stringResource(R.string.training_video_analysis_reference_calibrated)
+    }
+}
+
+@Composable
+private fun analysisModeSupportingText(record: MetaHistoryRecord): String? {
+    if (record.videoName.isNullOrBlank()) {
+        return null
+    }
+
+    return when (record.importedVideoAnalysisMode) {
+        ImportedVideoAnalysisMode.ESTIMATED -> {
+            if (record.videoSource == ImportedVideoSource.LOCAL_FILE) {
+                stringResource(R.string.training_video_analysis_estimated_supporting)
+            } else {
+                stringResource(R.string.training_video_analysis_reference_supporting)
+            }
+        }
+
+        ImportedVideoAnalysisMode.REFERENCE_CALIBRATED -> {
+            val label = record.importedReferenceLabel.ifBlank { stringResource(R.string.training_video_analysis_reference_calibrated) }
+            val pixelDistance = record.importedReferencePixelDistance
+            val distanceMeters = record.importedReferenceDistanceMeters
+
+            if (pixelDistance != null && distanceMeters != null) {
+                stringResource(
+                    R.string.training_video_calibration_summary,
+                    label,
+                    pixelDistance,
+                    distanceMeters
+                )
+            } else {
+                stringResource(R.string.training_video_analysis_reference_supporting)
+            }
+        }
+    }
 }
 
 private suspend fun updateTrainingRecordDetails(

@@ -5,6 +5,8 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.potato.liftinsight.video.imported.ImportedVideoAnalysisMode
+import com.potato.liftinsight.video.imported.ImportedVideoSource
 
 @Entity(
     tableName = "motion",
@@ -149,7 +151,17 @@ data class MetaHistoryEntity(
     @ColumnInfo(name = "motion_id")
     val motionId: Int,
     @ColumnInfo(name = "video_name")
-    val videoName: String? = null
+    val videoName: String? = null,
+    @ColumnInfo(name = "video_source")
+    val videoSource: String = ImportedVideoSource.CAMERA_CAPTURE.name,
+    @ColumnInfo(name = "imported_video_analysis_mode")
+    val importedVideoAnalysisMode: String = ImportedVideoAnalysisMode.ESTIMATED.name,
+    @ColumnInfo(name = "imported_reference_label")
+    val importedReferenceLabel: String = "",
+    @ColumnInfo(name = "imported_reference_pixel_distance")
+    val importedReferencePixelDistance: Double? = null,
+    @ColumnInfo(name = "imported_reference_distance_meters")
+    val importedReferenceDistanceMeters: Double? = null
 )
 
 @Entity(
@@ -196,7 +208,17 @@ data class MetaHistoryRow(
     @ColumnInfo(name = "motion_name")
     val motionName: String,
     @ColumnInfo(name = "video_name")
-    val videoName: String? = null
+    val videoName: String? = null,
+    @ColumnInfo(name = "video_source")
+    val videoSource: String,
+    @ColumnInfo(name = "imported_video_analysis_mode")
+    val importedVideoAnalysisMode: String,
+    @ColumnInfo(name = "imported_reference_label")
+    val importedReferenceLabel: String,
+    @ColumnInfo(name = "imported_reference_pixel_distance")
+    val importedReferencePixelDistance: Double?,
+    @ColumnInfo(name = "imported_reference_distance_meters")
+    val importedReferenceDistanceMeters: Double?
 )
 
 internal fun MotionEntity.toRecord(): MotionRecord {
@@ -249,6 +271,17 @@ internal fun MetaPlanRow.toRecord(): MetaPlanRecord {
 }
 
 internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
+    val resolvedVideoSource = try {
+        ImportedVideoSource.valueOf(videoSource)
+    } catch (_: IllegalArgumentException) {
+        ImportedVideoSource.CAMERA_CAPTURE
+    }
+    val resolvedAnalysisMode = try {
+        ImportedVideoAnalysisMode.valueOf(importedVideoAnalysisMode)
+    } catch (_: IllegalArgumentException) {
+        ImportedVideoAnalysisMode.ESTIMATED
+    }
+
     return MetaHistoryRecord(
         id = id,
         date = date,
@@ -257,8 +290,12 @@ internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
         weight = weight,
         motionId = motionId,
         motionName = motionName,
-        videoName = videoName
+        videoName = videoName,
+        videoSource = resolvedVideoSource,
+        importedVideoAnalysisMode = resolvedAnalysisMode,
+        importedReferenceLabel = importedReferenceLabel,
+        importedReferencePixelDistance = importedReferencePixelDistance,
+        importedReferenceDistanceMeters = importedReferenceDistanceMeters
     )
 }
-
 

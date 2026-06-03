@@ -16,6 +16,7 @@ import com.potato.liftinsight.training.data.CreateMetaHistoryRequest
 import com.potato.liftinsight.training.data.CreateMotionRequest
 import com.potato.liftinsight.training.data.CreateMetaPlanRequest
 import com.potato.liftinsight.training.data.CreatePlanRequest
+import com.potato.liftinsight.training.data.ImportedVideoMetadataRecord
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.MetaHistoryEntity
 import com.potato.liftinsight.training.data.MetaHistoryRecord
@@ -25,6 +26,7 @@ import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.training.data.PlanSelectionEntity
 import com.potato.liftinsight.training.data.PlanStore
 import com.potato.liftinsight.training.data.PlanRecord
+import com.potato.liftinsight.training.data.UpdateImportedVideoMetadataRequest
 import com.potato.liftinsight.training.data.WorkoutSessionEntity
 import com.potato.liftinsight.training.data.WorkoutProgressEntity
 import com.potato.liftinsight.training.data.toRecord
@@ -340,6 +342,38 @@ class TrainingPlanStore private constructor(
         return updatedRows > 0
     }
 
+    fun updateImportedVideoMetadata(request: UpdateImportedVideoMetadataRequest): Boolean {
+        logTrace(
+            "updateImportedVideoMetadata start: historyId=${request.historyId}, source=${request.videoSource}, mode=${request.analysisMode}"
+        )
+
+        val updatedRows = database.planDao().updateImportedVideoMetadata(
+            historyId = request.historyId,
+            videoSource = request.videoSource.name,
+            analysisMode = request.analysisMode.name,
+            referenceLabel = request.referenceLabel.trim(),
+            referencePixelDistance = request.referencePixelDistance,
+            referenceDistanceMeters = request.referenceDistanceMeters
+        )
+
+        logTrace("updateImportedVideoMetadata result: updatedRows=$updatedRows")
+
+        return updatedRows > 0
+    }
+
+    fun getImportedVideoMetadata(historyId: Int): ImportedVideoMetadataRecord? {
+        val record = getMetaHistoryRecords().firstOrNull { history -> history.id == historyId } ?: return null
+
+        return ImportedVideoMetadataRecord(
+            historyId = record.id,
+            videoSource = record.videoSource,
+            analysisMode = record.importedVideoAnalysisMode,
+            referenceLabel = record.importedReferenceLabel,
+            referencePixelDistance = record.importedReferencePixelDistance,
+            referenceDistanceMeters = record.importedReferenceDistanceMeters
+        )
+    }
+
     fun updateMetaHistoryDetails(historyId: Int, weight: Double, rep: Int, rpe: Int): Boolean {
         logTrace(
             "updateMetaHistoryDetails start: historyId=$historyId, weight=$weight, rep=$rep, rpe=$rpe"
@@ -566,7 +600,11 @@ private fun CreateMetaHistoryRequest.toEntity(): MetaHistoryEntity {
         rpe = rpe,
         weight = weight,
         motionId = motionId,
-        videoName = videoName
+        videoName = videoName,
+        videoSource = videoSource.name,
+        importedVideoAnalysisMode = importedVideoAnalysisMode.name,
+        importedReferenceLabel = importedReferenceLabel,
+        importedReferencePixelDistance = importedReferencePixelDistance,
+        importedReferenceDistanceMeters = importedReferenceDistanceMeters
     )
 }
-
