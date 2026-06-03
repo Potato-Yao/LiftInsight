@@ -61,16 +61,45 @@ internal object VideoEditSelections {
         }
     }
 
-    fun segmentIndexAtEditedPosition(selection: VideoEditSelection, editedPositionMs: Long): Int? {
-        val boundedPositionMs = editedPositionMs.coerceAtLeast(0L)
+    fun splitPoints(selection: VideoEditSelection): List<Long> {
+        if (selection.keptRanges.isEmpty()) {
+            return listOf(0L)
+        }
 
-        return timelineSegments(selection)
-            .firstOrNull { segment ->
-                boundedPositionMs >= segment.editedStartMs &&
-                    boundedPositionMs <= segment.editedEndMs
+        return buildList {
+            add(0L)
+            timelineSegments(selection).forEach { segment ->
+                add(segment.editedEndMs)
             }
-            ?.index
-            ?: timelineSegments(selection).lastOrNull()?.index
+        }
+    }
+
+    fun segmentIndexAtEditedPosition(selection: VideoEditSelection, editedPositionMs: Long): Int? {
+        if (selection.keptRanges.isEmpty()) {
+            return null
+        }
+
+        val splitPoints = splitPoints(selection)
+        val boundedPositionMs = editedPositionMs.coerceIn(
+            minimumValue = splitPoints.first(),
+            maximumValue = splitPoints.last()
+        )
+
+        if (boundedPositionMs >= splitPoints.last()) {
+            return selection.keptRanges.lastIndex
+        }
+
+        val rightBoundaryIndex = splitPoints.indexOfFirst { splitPoint ->
+            splitPoint > boundedPositionMs
+        }
+
+        if (rightBoundaryIndex <= 0) {
+            return null
+        }
+
+        return (rightBoundaryIndex - 1).takeIf { index ->
+            index in selection.keptRanges.indices
+        }
     }
 
     fun sourcePositionAtEditedPosition(selection: VideoEditSelection, editedPositionMs: Long): Long {

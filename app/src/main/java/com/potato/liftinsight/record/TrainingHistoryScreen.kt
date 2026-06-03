@@ -1,8 +1,6 @@
 package com.potato.liftinsight.record
 
-import android.content.Context
 import android.net.Uri
-import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -70,6 +68,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -77,25 +76,19 @@ import com.potato.liftinsight.R
 import com.potato.liftinsight.camera.CameraScreen
 import com.potato.liftinsight.motion.MotionVideoPlayer
 import com.potato.liftinsight.plan.data.TrainingPlanStore
+import com.potato.liftinsight.record.controller.TrainingHistoryController
+import com.potato.liftinsight.record.model.TrainingHistoryState
 import com.potato.liftinsight.training.data.MetaHistoryRecord
-import com.potato.liftinsight.training.data.UpdateImportedVideoMetadataRequest
 import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import com.potato.liftinsight.video.VideoProcessingStatus
 import com.potato.liftinsight.video.VideoProcessor
 import com.potato.liftinsight.video.imported.ImportedVideoAnalysisMode
 import com.potato.liftinsight.video.imported.ImportedVideoSource
-import java.io.File
-import java.io.IOException
 import java.text.SimpleDateFormat
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -106,16 +99,19 @@ internal fun TrainingHistoryScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var records by remember { mutableStateOf<List<MetaHistoryRecord>>(emptyList()) }
-    var selectedRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
-    var selectedVideoStatus by remember { mutableStateOf<VideoProcessingStatus?>(null) }
+    val controller = remember(trainingPlanStore, videoProcessor) {
+        TrainingHistoryController(
+            trainingPlanStore = trainingPlanStore,
+            videoProcessor = videoProcessor
+        )
+    }
+    var state by remember(controller) { mutableStateOf<TrainingHistoryState>(controller.emptyState()) }
     var videoPlayerUri by remember { mutableStateOf<Uri?>(null) }
     var videoEditorRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var videoEditorHasProcessedCopy by remember { mutableStateOf(false) }
     var importTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var cameraTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var calibrationTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
-    var videoStatusRefreshKey by remember { mutableStateOf(0) }
     var showContent by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -130,71 +126,29 @@ internal fun TrainingHistoryScreen(
         }
 
         coroutineScope.launch {
-            val importedVideoName = withContext(Dispatchers.IO) {
-                importVideoIntoAppStorage(
-                    context = context,
-                    uri = uri,
-                    motionId = targetRecord.motionId,
-                    setIndex = 1
-                )
-            }
-
-            if (importedVideoName != null) {
-                attachVideoToRecord(
-                    trainingPlanStore = trainingPlanStore,
-                    records = records,
-                    selectedRecord = selectedRecord,
-                    historyId = targetRecord.id,
-                    videoName = importedVideoName,
-                    onRecordsChange = { records = it },
-                    onSelectedRecordChange = {
-                        selectedRecord = it
-                        selectedVideoStatus = null
-                        videoStatusRefreshKey += 1
-                    }
-                )
-
-                updateImportedVideoMetadata(
-                    trainingPlanStore = trainingPlanStore,
-                    records = records,
-                    selectedRecord = selectedRecord,
-                    request = UpdateImportedVideoMetadataRequest(
-                        historyId = targetRecord.id,
-                        videoSource = ImportedVideoSource.LOCAL_FILE,
-                        analysisMode = ImportedVideoAnalysisMode.ESTIMATED
-                    ),
-                    onRecordsChange = { records = it },
-                    onSelectedRecordChange = { selectedRecord = it }
-                )
-            }
+            state = controller.attachLocalVideo(state, context, uri, targetRecord)
         }
     }
 
     LaunchedEffect(Unit) {
-        records = withContext(Dispatchers.IO) {
-            trainingPlanStore.getMetaHistoryRecords()
-        }
+        state = controller.loadState()
         showContent = true
     }
 
-    LaunchedEffect(selectedRecord?.videoName, videoStatusRefreshKey) {
-        val videoName = selectedRecord?.videoName
+    LaunchedEffect(state.selectedRecord?.videoName, state.videoStatusRefreshKey) {
+        val videoName = state.selectedRecord?.videoName
 
         if (videoName.isNullOrBlank()) {
-            selectedVideoStatus = null
+            state = controller.clearVideoStatus(state)
             return@LaunchedEffect
         }
 
-        selectedVideoStatus = null
+        state = controller.clearVideoStatus(state)
 
         while (true) {
-            val status = withContext(Dispatchers.IO) {
-                videoProcessor.getStatus(videoName)
-            }
+            state = controller.refreshSelectedVideoStatus(state)
 
-            selectedVideoStatus = status
-
-            if (status.state != VideoProcessState.PROCESSING) {
+            if (state.selectedVideoStatus?.state != VideoProcessState.PROCESSING) {
                 break
             }
 
@@ -221,7 +175,7 @@ internal fun TrainingHistoryScreen(
             )
         }
     ) { innerPadding ->
-        val grouped = records.groupBy { it.date.take(10) }
+        val grouped = state.records.groupBy { it.date.take(10) }
 
         Box(
             modifier = Modifier
@@ -274,7 +228,7 @@ internal fun TrainingHistoryScreen(
                             ) { record ->
                                 TrainingHistoryCard(
                                     record = record,
-                                    onClick = { selectedRecord = record }
+                                    onClick = { state = controller.selectRecord(state, record) }
                                 )
                             }
 
@@ -292,31 +246,26 @@ internal fun TrainingHistoryScreen(
         }
     }
 
-    selectedRecord?.let { record ->
+    state.selectedRecord?.let { record ->
         TrainingHistoryDetailSheet(
             record = record,
             processState = processStateLabel(
-                status = selectedVideoStatus,
+                status = state.selectedVideoStatus,
                 hasVideo = !record.videoName.isNullOrBlank()
             ),
             analysisState = analysisModeLabel(record),
             analysisSupportingText = analysisModeSupportingText(record),
-            canProcessVideo = !record.videoName.isNullOrBlank() && selectedVideoStatus?.hasProcessedCopy != true && selectedVideoStatus?.isProcessing != true,
-            canEditVideo = !record.videoName.isNullOrBlank() && selectedVideoStatus?.isProcessing != true,
+            canProcessVideo = !record.videoName.isNullOrBlank() && state.selectedVideoStatus?.hasProcessedCopy != true && state.selectedVideoStatus?.isProcessing != true,
             canCalibrateVideo = !record.videoName.isNullOrBlank() && record.videoSource == ImportedVideoSource.LOCAL_FILE,
-            onDismiss = { selectedRecord = null },
+            onDismiss = { state = controller.dismissSelectedRecord(state) },
             onSaveDetails = { weight, rep, rpe ->
                 coroutineScope.launch {
-                    updateTrainingRecordDetails(
-                        trainingPlanStore = trainingPlanStore,
-                        records = records,
-                        selectedRecord = selectedRecord,
+                    state = controller.updateRecordDetails(
+                        state = state,
                         historyId = record.id,
                         weight = weight,
                         rep = rep,
-                        rpe = rpe,
-                        onRecordsChange = { records = it },
-                        onSelectedRecordChange = { selectedRecord = it }
+                        rpe = rpe
                     )
                 }
             },
@@ -327,14 +276,10 @@ internal fun TrainingHistoryScreen(
                     return@TrainingHistoryDetailSheet
                 }
 
-                selectedRecord = null
+                state = controller.dismissSelectedRecord(state)
 
                 coroutineScope.launch {
-                    val playbackFile = withContext(Dispatchers.IO) {
-                        videoProcessor.getPlaybackVideoFile(videoName)
-                    }
-
-                    videoPlayerUri = playbackFile?.let(Uri::fromFile)
+                    videoPlayerUri = controller.resolvePlaybackUri(videoName)
                 }
             },
             onImportVideo = {
@@ -344,17 +289,16 @@ internal fun TrainingHistoryScreen(
                 calibrationTargetRecord = record
             },
             onEditVideo = {
-                videoEditorHasProcessedCopy = selectedVideoStatus?.hasProcessedCopy == true
+                videoEditorHasProcessedCopy = state.selectedVideoStatus?.hasProcessedCopy == true
                 videoEditorRecord = record
-                selectedRecord = null
+                state = controller.dismissSelectedRecord(state)
             },
             onProcessVideo = {
                 record.videoName
                     ?.takeIf { it.isNotBlank() }
                     ?.let { videoName ->
-                        videoProcessor.submitForProcessing(videoName)
-                        selectedVideoStatus = null
-                        videoStatusRefreshKey += 1
+                        controller.submitVideoProcessing(videoName)
+                        state = controller.requestVideoStatusRefresh(state)
                     }
             }
         )
@@ -412,32 +356,7 @@ internal fun TrainingHistoryScreen(
 
                     if (targetRecord != null && !videoName.isNullOrBlank()) {
                         coroutineScope.launch {
-                            attachVideoToRecord(
-                                trainingPlanStore = trainingPlanStore,
-                                records = records,
-                                selectedRecord = selectedRecord,
-                                historyId = targetRecord.id,
-                                videoName = videoName,
-                                onRecordsChange = { records = it },
-                                onSelectedRecordChange = {
-                                    selectedRecord = it
-                                    selectedVideoStatus = null
-                                    videoStatusRefreshKey += 1
-                                }
-                            )
-
-                            updateImportedVideoMetadata(
-                                trainingPlanStore = trainingPlanStore,
-                                records = records,
-                                selectedRecord = selectedRecord,
-                                request = UpdateImportedVideoMetadataRequest(
-                                    historyId = targetRecord.id,
-                                    videoSource = ImportedVideoSource.CAMERA_CAPTURE,
-                                    analysisMode = ImportedVideoAnalysisMode.ESTIMATED
-                                ),
-                                onRecordsChange = { records = it },
-                                onSelectedRecordChange = { selectedRecord = it }
-                            )
+                            state = controller.attachCapturedVideo(state, targetRecord, videoName)
                         }
                     }
                 },
@@ -473,9 +392,9 @@ internal fun TrainingHistoryScreen(
                     onSaved = {
                         videoEditorRecord = null
                         videoEditorHasProcessedCopy = false
-                        selectedRecord = record
-                        selectedVideoStatus = null
-                        videoStatusRefreshKey += 1
+                        state = controller.requestVideoStatusRefresh(
+                            controller.selectRecord(state, record)
+                        )
                     },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -490,20 +409,12 @@ internal fun TrainingHistoryScreen(
             onSave = { referenceLabel, pixelDistance, distanceMeters ->
                 calibrationTargetRecord = null
                 coroutineScope.launch {
-                    updateImportedVideoMetadata(
-                        trainingPlanStore = trainingPlanStore,
-                        records = records,
-                        selectedRecord = selectedRecord,
-                        request = UpdateImportedVideoMetadataRequest(
-                            historyId = record.id,
-                            videoSource = record.videoSource,
-                            analysisMode = ImportedVideoAnalysisMode.REFERENCE_CALIBRATED,
-                            referenceLabel = referenceLabel,
-                            referencePixelDistance = pixelDistance,
-                            referenceDistanceMeters = distanceMeters
-                        ),
-                        onRecordsChange = { records = it },
-                        onSelectedRecordChange = { selectedRecord = it }
+                    state = controller.updateReferenceCalibration(
+                        state = state,
+                        record = record,
+                        referenceLabel = referenceLabel,
+                        pixelDistance = pixelDistance,
+                        distanceMeters = distanceMeters
                     )
                 }
             }
@@ -610,7 +521,6 @@ private fun TrainingHistoryDetailSheet(
     analysisState: String,
     analysisSupportingText: String?,
     canProcessVideo: Boolean,
-    canEditVideo: Boolean,
     canCalibrateVideo: Boolean,
     onDismiss: () -> Unit,
     onSaveDetails: (weight: Double, rep: Int, rpe: Int) -> Unit,
@@ -850,23 +760,23 @@ private fun TrainingHistoryDetailSheet(
                     Text(text = stringResource(R.string.training_import_video))
                 }
 
-                Button(
-                    onClick = onCalibrateVideo,
-                    enabled = canCalibrateVideo,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Straighten,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = stringResource(R.string.training_video_calibration_button))
-                }
+//                Button(
+//                    onClick = onCalibrateVideo,
+//                    enabled = canCalibrateVideo,
+//                    modifier = Modifier.fillMaxWidth()
+//                ) {
+//                    Icon(
+//                        imageVector = Icons.Rounded.Straighten,
+//                        contentDescription = null,
+//                        modifier = Modifier.size(20.dp)
+//                    )
+//                    Spacer(modifier = Modifier.width(8.dp))
+//                    Text(text = stringResource(R.string.training_video_calibration_button))
+//                }
 
                 Button(
                     onClick = onEditVideo,
-                    enabled = canEditVideo,
+                    enabled = hasVideo,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
@@ -1115,91 +1025,6 @@ private fun processStateLabel(
     return stringResource(R.string.training_process_state_not_processed)
 }
 
-private suspend fun attachVideoToRecord(
-    trainingPlanStore: TrainingPlanStore,
-    records: List<MetaHistoryRecord>,
-    selectedRecord: MetaHistoryRecord?,
-    historyId: Int,
-    videoName: String,
-    onRecordsChange: (List<MetaHistoryRecord>) -> Unit,
-    onSelectedRecordChange: (MetaHistoryRecord?) -> Unit
-) {
-    val normalizedVideoName = videoName.trim()
-
-    if (normalizedVideoName.isBlank()) {
-        return
-    }
-
-    val didUpdate = withContext(Dispatchers.IO) {
-        trainingPlanStore.updateMetaHistoryVideoName(historyId, normalizedVideoName)
-    }
-
-    if (!didUpdate) {
-        return
-    }
-
-    val updatedRecords = records.map { record ->
-        if (record.id == historyId) {
-            record.copy(videoName = normalizedVideoName)
-        } else {
-            record
-        }
-    }
-    onRecordsChange(updatedRecords)
-
-    onSelectedRecordChange(
-        selectedRecord
-            ?.takeIf { it.id == historyId }
-            ?.copy(videoName = normalizedVideoName)
-            ?: updatedRecords.firstOrNull { it.id == historyId }
-    )
-}
-
-private suspend fun updateImportedVideoMetadata(
-    trainingPlanStore: TrainingPlanStore,
-    records: List<MetaHistoryRecord>,
-    selectedRecord: MetaHistoryRecord?,
-    request: UpdateImportedVideoMetadataRequest,
-    onRecordsChange: (List<MetaHistoryRecord>) -> Unit,
-    onSelectedRecordChange: (MetaHistoryRecord?) -> Unit
-) {
-    val didUpdate = withContext(Dispatchers.IO) {
-        trainingPlanStore.updateImportedVideoMetadata(request)
-    }
-
-    if (!didUpdate) {
-        return
-    }
-
-    val updatedRecords = records.map { record ->
-        if (record.id == request.historyId) {
-            record.copy(
-                videoSource = request.videoSource,
-                importedVideoAnalysisMode = request.analysisMode,
-                importedReferenceLabel = request.referenceLabel.trim(),
-                importedReferencePixelDistance = request.referencePixelDistance,
-                importedReferenceDistanceMeters = request.referenceDistanceMeters
-            )
-        } else {
-            record
-        }
-    }
-    onRecordsChange(updatedRecords)
-
-    onSelectedRecordChange(
-        selectedRecord
-            ?.takeIf { it.id == request.historyId }
-            ?.copy(
-                videoSource = request.videoSource,
-                importedVideoAnalysisMode = request.analysisMode,
-                importedReferenceLabel = request.referenceLabel.trim(),
-                importedReferencePixelDistance = request.referencePixelDistance,
-                importedReferenceDistanceMeters = request.referenceDistanceMeters
-            )
-            ?: updatedRecords.firstOrNull { it.id == request.historyId }
-    )
-}
-
 @Composable
 private fun analysisModeLabel(record: MetaHistoryRecord): String {
     return when (record.importedVideoAnalysisMode) {
@@ -1240,81 +1065,4 @@ private fun analysisModeSupportingText(record: MetaHistoryRecord): String? {
             }
         }
     }
-}
-
-private suspend fun updateTrainingRecordDetails(
-    trainingPlanStore: TrainingPlanStore,
-    records: List<MetaHistoryRecord>,
-    selectedRecord: MetaHistoryRecord?,
-    historyId: Int,
-    weight: Double,
-    rep: Int,
-    rpe: Int,
-    onRecordsChange: (List<MetaHistoryRecord>) -> Unit,
-    onSelectedRecordChange: (MetaHistoryRecord?) -> Unit
-) {
-    val didUpdate = withContext(Dispatchers.IO) {
-        trainingPlanStore.updateMetaHistoryDetails(
-            historyId = historyId,
-            weight = weight,
-            rep = rep,
-            rpe = rpe
-        )
-    }
-
-    if (!didUpdate) {
-        return
-    }
-
-    val updatedRecords = records.map { historyRecord ->
-        if (historyRecord.id == historyId) {
-            historyRecord.copy(weight = weight, rep = rep, rpe = rpe)
-        } else {
-            historyRecord
-        }
-    }
-    onRecordsChange(updatedRecords)
-
-    onSelectedRecordChange(
-        selectedRecord
-            ?.takeIf { it.id == historyId }
-            ?.copy(weight = weight, rep = rep, rpe = rpe)
-            ?: updatedRecords.firstOrNull { it.id == historyId }
-    )
-}
-
-private fun importVideoIntoAppStorage(
-    context: Context,
-    uri: Uri,
-    motionId: Int,
-    setIndex: Int
-): String? {
-    val outputDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
-        ?: context.filesDir
-
-    if (!outputDir.exists()) {
-        outputDir.mkdirs()
-    }
-
-    val outputFile = File(outputDir, importedVideoFileName(motionId, setIndex))
-
-    return try {
-        context.contentResolver.openInputStream(uri)?.use { inputStream ->
-            outputFile.outputStream().use { outputStream ->
-                inputStream.copyTo(outputStream)
-            }
-        } ?: return null
-
-        outputFile.name
-    } catch (_: IOException) {
-        null
-    }
-}
-
-private fun importedVideoFileName(motionId: Int, setIndex: Int): String {
-    val formatter = DateTimeFormatter
-        .ofPattern("yyyy-MM-dd-HH-mm-ss")
-        .withZone(ZoneId.systemDefault())
-
-    return "${formatter.format(Instant.now())}-${motionId}-${setIndex}.mp4"
 }

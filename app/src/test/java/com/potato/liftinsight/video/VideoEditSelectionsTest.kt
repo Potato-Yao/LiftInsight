@@ -68,6 +68,36 @@ class VideoEditSelectionsTest {
     }
 
     @Test
+    fun segmentLookupUsesAdjacentSplitPoints() {
+        val selection = VideoEditSelection(
+            keptRanges = listOf(
+                VideoEditRange(0L, 3_000L),
+                VideoEditRange(3_000L, 7_000L),
+                VideoEditRange(7_000L, 12_000L)
+            )
+        )
+
+        assertEquals(0, VideoEditSelections.segmentIndexAtEditedPosition(selection, 0L))
+        assertEquals(0, VideoEditSelections.segmentIndexAtEditedPosition(selection, 2_999L))
+        assertEquals(1, VideoEditSelections.segmentIndexAtEditedPosition(selection, 3_000L))
+        assertEquals(1, VideoEditSelections.segmentIndexAtEditedPosition(selection, 6_999L))
+        assertEquals(2, VideoEditSelections.segmentIndexAtEditedPosition(selection, 7_000L))
+        assertEquals(2, VideoEditSelections.segmentIndexAtEditedPosition(selection, 12_000L))
+    }
+
+    @Test
+    fun splitPointsIncludeStartAndEditedBoundaries() {
+        val selection = VideoEditSelection(
+            keptRanges = listOf(
+                VideoEditRange(0L, 3_000L),
+                VideoEditRange(7_000L, 12_000L)
+            )
+        )
+
+        assertEquals(listOf(0L, 3_000L, 8_000L), VideoEditSelections.splitPoints(selection))
+    }
+
+    @Test
     fun sourcePositionMapsAcrossSplitSegments() {
         val selection = VideoEditSelection(
             keptRanges = listOf(

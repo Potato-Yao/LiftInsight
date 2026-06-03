@@ -18,21 +18,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -57,6 +57,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -69,10 +70,10 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import com.potato.liftinsight.R
-import com.potato.liftinsight.video.VideoEditRange
 import com.potato.liftinsight.video.VideoEditSelection
 import com.potato.liftinsight.video.VideoEditSelections
 import com.potato.liftinsight.video.VideoEditor
+import com.potato.liftinsight.video.VideoEditorState
 import com.potato.liftinsight.video.VideoProcessor
 import com.potato.liftinsight.video.VideoTimelineSegment
 import java.io.File
@@ -95,12 +96,12 @@ internal fun TrainingVideoEditorDialog(
     val player = remember(videoFileName, context) {
         ExoPlayer.Builder(context).build()
     }
+    val editorState = remember(videoFileName) {
+        VideoEditorState(VideoEditSelection(emptyList()))
+    }
 
     var durationMs by remember { mutableLongStateOf(0L) }
     var previewPositionMs by remember { mutableLongStateOf(0L) }
-    var currentSelection by remember { mutableStateOf<VideoEditSelection?>(null) }
-    var selectedSegmentIndex by remember { mutableStateOf<Int?>(null) }
-    var history by remember { mutableStateOf<List<VideoEditSelection>>(emptyList()) }
     var isPlaying by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
     var isLoadingFiles by remember(videoFileName, hasProcessedCopy) { mutableStateOf(hasProcessedCopy) }
@@ -117,12 +118,14 @@ internal fun TrainingVideoEditorDialog(
     val previewFile = remember(sourceFile, processedFile) {
         processedFile ?: sourceFile
     }
-    val selection = currentSelection ?: VideoEditSelections.whole(durationMs)
-    val timelineSegments = remember(selection) {
-        VideoEditSelections.timelineSegments(selection)
-    }
+    val selection = editorState.selection
+    val timelineSegments = editorState.timelineSegments
+    val selectedSegment = editorState.selectedSegment
     val hasEdit = remember(selection, durationMs) {
-        !VideoEditSelections.isWhole(selection, durationMs)
+        durationMs > 0L && !VideoEditSelections.isWhole(selection, durationMs)
+    }
+    val canSplitAtCursor = remember(selection, previewPositionMs) {
+        editorState.canSplitAt(previewPositionMs)
     }
 
     LaunchedEffect(videoFileName, hasProcessedCopy) {
@@ -144,24 +147,30 @@ internal fun TrainingVideoEditorDialog(
 
         durationMs = loadedDurationMs
         previewPositionMs = 0L
-        currentSelection = VideoEditSelections.whole(loadedDurationMs)
-        selectedSegmentIndex = 0
-        history = emptyList()
+        editorState.reset(VideoEditSelections.whole(loadedDurationMs))
         errorMessage = null
     }
 
-    LaunchedEffect(selection.durationMs, currentSelection) {
+    LaunchedEffect(selection) {
         val boundedPositionMs = previewPositionMs.coerceIn(0L, selection.durationMs)
-        previewPositionMs = boundedPositionMs
-        selectedSegmentIndex = VideoEditSelections.segmentIndexAtEditedPosition(selection, boundedPositionMs)
+
+        if (boundedPositionMs != previewPositionMs) {
+            previewPositionMs = boundedPositionMs
+        }
+
+        if (selection.keptRanges.isEmpty()) {
+            editorState.selectSegment(null)
+        } else {
+            editorState.selectSegmentAtEditedPosition(boundedPositionMs)
+        }
     }
 
-    LaunchedEffect(previewFile, selection.keptRanges) {
+    LaunchedEffect(previewFile, selection) {
         val boundedPositionMs = previewPositionMs.coerceIn(0L, selection.durationMs)
 
         player.setMediaSources(buildPreviewMediaSources(context, previewFile, selection), false)
         player.prepare()
-        player.seekTo(boundedPositionMs)
+        seekPlayerToEditedPosition(player, selection, boundedPositionMs)
         player.playWhenReady = isPlaying
     }
 
@@ -172,8 +181,18 @@ internal fun TrainingVideoEditorDialog(
     LaunchedEffect(player, isSaving, selection.durationMs) {
         while (true) {
             if (!isSaving) {
-                val boundedPositionMs = player.currentPosition.coerceIn(0L, selection.durationMs)
-                previewPositionMs = boundedPositionMs
+                if (isPlaying) {
+                    val currentMediaItemIndex = player.currentMediaItemIndex
+
+                    if (selection.keptRanges.isNotEmpty() && currentMediaItemIndex >= 0) {
+                        val boundedPositionMs = currentEditedPlayerPosition(
+                            player = player,
+                            selection = selection,
+                            fallbackPositionMs = previewPositionMs
+                        ).coerceIn(0L, selection.durationMs)
+                        previewPositionMs = boundedPositionMs
+                    }
+                }
 
                 if (player.playbackState == Player.STATE_ENDED) {
                     isPlaying = false
@@ -220,7 +239,7 @@ internal fun TrainingVideoEditorDialog(
             )
         }
     ) { innerPadding ->
-        if (isLoadingFiles || currentSelection == null) {
+        if (isLoadingFiles || selection.keptRanges.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -252,248 +271,74 @@ internal fun TrainingVideoEditorDialog(
                 .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Surface(
-                color = Color.Black,
-                shape = RoundedCornerShape(32.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(260.dp)
-            ) {
-                AndroidView(
-                    factory = { viewContext ->
-                        PlayerView(viewContext).apply {
-                            this.player = player
-                            useController = false
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
+            PreviewCard(
+                player = player,
+                isPlaying = isPlaying,
+                currentPositionMs = previewPositionMs,
+                durationMs = selection.durationMs,
+                isSaving = isSaving,
+                onPlayPause = {
+                    if (isPlaying) {
+                        player.pause()
+                        isPlaying = false
+                    } else {
+                        player.play()
+                        isPlaying = true
+                    }
+                }
+            )
+
+            TimelineEditorCard(
+                segments = timelineSegments,
+                totalDurationMs = selection.durationMs,
+                cursorPositionMs = previewPositionMs,
+                selectedSegmentIndex = editorState.selectedSegmentIndex,
+                canSplitAtCursor = canSplitAtCursor,
+                isSaving = isSaving,
+                selectedSegment = selectedSegment,
+                canUndo = editorState.canUndo,
+                onCursorChange = { editedPositionMs ->
+                    val boundedPositionMs = editedPositionMs.coerceIn(0L, selection.durationMs)
+                    previewPositionMs = boundedPositionMs
+                    editorState.selectSegmentAtEditedPosition(boundedPositionMs)
+                    seekPlayerToEditedPosition(player, selection, boundedPositionMs)
+                    player.pause()
+                    isPlaying = false
+                },
+                onSplit = {
+                    if (!editorState.splitAt(previewPositionMs)) {
+                        return@TimelineEditorCard
+                    }
+
+                    errorMessage = null
+                },
+                onDeleteSelected = {
+                    if (!editorState.deleteSelectedSegment()) {
+                        return@TimelineEditorCard
+                    }
+
+                    previewPositionMs = previewPositionMs.coerceIn(0L, editorState.durationMs)
+                    seekPlayerToEditedPosition(player, editorState.selection, previewPositionMs)
+                    errorMessage = null
+                },
+                onUndo = {
+                    if (!editorState.undo()) {
+                        return@TimelineEditorCard
+                    }
+
+                    previewPositionMs = previewPositionMs.coerceIn(0L, editorState.durationMs)
+                    editorState.selectSegmentAtEditedPosition(previewPositionMs)
+                    seekPlayerToEditedPosition(player, editorState.selection, previewPositionMs)
+                    errorMessage = null
+                }
+            )
+
+            errorMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
                 )
-            }
-
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                shape = RoundedCornerShape(28.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.training_video_editor_preview_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Text(
-                        text = stringResource(
-                            R.string.training_video_editor_preview_position,
-                            formatDuration(previewPositionMs),
-                            formatDuration(selection.durationMs)
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(
-                            onClick = {
-                                if (isPlaying) {
-                                    player.pause()
-                                    isPlaying = false
-                                } else {
-                                    player.play()
-                                    isPlaying = true
-                                }
-                            },
-                            enabled = selection.durationMs > 0L && !isSaving
-                        ) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.size(8.dp))
-                            Text(
-                                text = if (isPlaying) {
-                                    stringResource(R.string.motion_video_pause)
-                                } else {
-                                    stringResource(R.string.motion_video_play)
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                shape = RoundedCornerShape(28.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.training_video_editor_section_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    SegmentedTimeline(
-                        segments = timelineSegments,
-                        totalDurationMs = selection.durationMs,
-                        cursorPositionMs = previewPositionMs,
-                        selectedSegmentIndex = selectedSegmentIndex,
-                        onPositionChange = { editedPositionMs ->
-                            val boundedPositionMs = editedPositionMs.coerceIn(0L, selection.durationMs)
-                            previewPositionMs = boundedPositionMs
-                            selectedSegmentIndex = VideoEditSelections.segmentIndexAtEditedPosition(
-                                selection,
-                                boundedPositionMs
-                            )
-                            player.seekTo(boundedPositionMs)
-                        }
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        FilledTonalIconButton(
-                            onClick = {
-                                val previousSelection = selection
-                                val updatedSelection = VideoEditSelections.splitAtEditedPosition(
-                                    selection = selection,
-                                    editedPositionMs = previewPositionMs
-                                )
-
-                                if (updatedSelection != previousSelection) {
-                                    history = pushHistory(history, previousSelection)
-                                    currentSelection = updatedSelection
-                                    selectedSegmentIndex = VideoEditSelections.segmentIndexAtEditedPosition(
-                                        updatedSelection,
-                                        previewPositionMs
-                                    )
-                                    errorMessage = null
-                                }
-                            },
-                            enabled = !isSaving && VideoEditSelections.canSplitAtEditedPosition(selection, previewPositionMs),
-                            colors = IconButtonDefaults.filledTonalIconButtonColors()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.ContentCut,
-                                contentDescription = stringResource(R.string.training_video_editor_split_action),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        FilledTonalIconButton(
-                            onClick = {
-                                val segmentIndex = selectedSegmentIndex ?: return@FilledTonalIconButton
-                                val previousSelection = selection
-                                val updatedSelection = VideoEditSelections.deleteSegment(
-                                    selection = selection,
-                                    segmentIndex = segmentIndex
-                                )
-
-                                if (updatedSelection != previousSelection) {
-                                    history = pushHistory(history, previousSelection)
-                                    currentSelection = updatedSelection
-                                    previewPositionMs = previewPositionMs.coerceIn(0L, updatedSelection.durationMs)
-                                    selectedSegmentIndex = VideoEditSelections.segmentIndexAtEditedPosition(
-                                        updatedSelection,
-                                        previewPositionMs
-                                    )
-                                    errorMessage = null
-                                }
-                            },
-                            enabled = !isSaving && selectedSegmentIndex != null && selection.keptRanges.size > 1,
-                            colors = IconButtonDefaults.filledTonalIconButtonColors()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Delete,
-                                contentDescription = stringResource(R.string.training_video_editor_delete_action),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        FilledTonalIconButton(
-                            onClick = {
-                                val previousSelection = history.lastOrNull() ?: return@FilledTonalIconButton
-
-                                history = history.dropLast(1)
-                                currentSelection = previousSelection
-                                previewPositionMs = previewPositionMs.coerceIn(0L, previousSelection.durationMs)
-                                selectedSegmentIndex = VideoEditSelections.segmentIndexAtEditedPosition(
-                                    previousSelection,
-                                    previewPositionMs
-                                )
-                                errorMessage = null
-                            },
-                            enabled = history.isNotEmpty() && !isSaving,
-                            colors = IconButtonDefaults.filledTonalIconButtonColors()
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.Undo,
-                                contentDescription = stringResource(R.string.training_video_editor_undo_action),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = RoundedCornerShape(28.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.training_video_editor_summary_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Text(
-                        text = stringResource(
-                            R.string.training_video_editor_summary_value,
-                            timelineSegments.size,
-                            formatDuration(selection.durationMs),
-                            formatDuration((durationMs - selection.durationMs).coerceAtLeast(0L))
-                        ),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-
-                    if (hasProcessedCopy) {
-                        Text(
-                            text = stringResource(R.string.training_video_editor_processed_copy_note),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    errorMessage?.let { message ->
-                        Text(
-                            text = message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
             }
 
             if (isSaving) {
@@ -525,64 +370,304 @@ internal fun TrainingVideoEditorDialog(
 }
 
 @Composable
-private fun SegmentedTimeline(
+private fun PreviewCard(
+    player: Player,
+    isPlaying: Boolean,
+    currentPositionMs: Long,
+    durationMs: Long,
+    isSaving: Boolean,
+    onPlayPause: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(32.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.training_video_editor_preview_title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = stringResource(
+                        R.string.training_video_editor_preview_position,
+                        formatDuration(currentPositionMs),
+                        formatDuration(durationMs)
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Surface(
+                color = Color.Black,
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AndroidView(
+                        factory = { viewContext ->
+                            PlayerView(viewContext).apply {
+                                this.player = player
+                                useController = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    FilledTonalIconButton(
+                        onClick = onPlayPause,
+                        enabled = durationMs > 0L && !isSaving,
+                        modifier = Modifier.align(Alignment.Center)
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = if (isPlaying) {
+                                stringResource(R.string.motion_video_pause)
+                            } else {
+                                stringResource(R.string.motion_video_play)
+                            }
+                        )
+                    }
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                        shape = RoundedCornerShape(18.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.training_video_editor_cursor_position,
+                                formatDuration(currentPositionMs)
+                            ),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineEditorCard(
     segments: List<VideoTimelineSegment>,
     totalDurationMs: Long,
     cursorPositionMs: Long,
     selectedSegmentIndex: Int?,
-    onPositionChange: (Long) -> Unit,
+    canSplitAtCursor: Boolean,
+    isSaving: Boolean,
+    selectedSegment: VideoTimelineSegment?,
+    canUndo: Boolean,
+    onCursorChange: (Long) -> Unit,
+    onSplit: () -> Unit,
+    onDeleteSelected: () -> Unit,
+    onUndo: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(32.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.training_video_editor_section_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            TimelineEditor(
+                segments = segments,
+                totalDurationMs = totalDurationMs,
+                cursorPositionMs = cursorPositionMs,
+                selectedSegmentIndex = selectedSegmentIndex,
+                canSplitAtCursor = canSplitAtCursor,
+                enabled = !isSaving,
+                onCursorChange = onCursorChange,
+                onSplitAtCursor = onSplit
+            )
+
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.training_video_editor_selected_segment_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Text(
+                        text = selectedSegment?.let { segment ->
+                            stringResource(
+                                R.string.training_video_editor_selected_segment_value,
+                                formatDuration(segment.sourceRange.startMs),
+                                formatDuration(segment.sourceRange.endMs),
+                                formatDuration(segment.durationMs)
+                            )
+                        } ?: stringResource(R.string.training_video_editor_no_segment_selected),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilledTonalButton(
+                            onClick = onDeleteSelected,
+                            enabled = selectedSegment != null && segments.size > 1 && !isSaving,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        TextButton(
+                            onClick = onUndo,
+                            enabled = canUndo && !isSaving,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Undo,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = stringResource(R.string.training_video_editor_undo_action))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineEditor(
+    segments: List<VideoTimelineSegment>,
+    totalDurationMs: Long,
+    cursorPositionMs: Long,
+    selectedSegmentIndex: Int?,
+    canSplitAtCursor: Boolean,
+    enabled: Boolean,
+    onCursorChange: (Long) -> Unit,
+    onSplitAtCursor: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var timelineWidthPx by remember { mutableIntStateOf(0) }
 
+    fun updateCursor(offsetX: Float) {
+        if (!enabled || totalDurationMs <= 0L || timelineWidthPx <= 0) {
+            return
+        }
+
+        val ratio = (offsetX / timelineWidthPx.toFloat()).coerceIn(0f, 1f)
+        onCursorChange((ratio * totalDurationMs).toLong())
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp)
+            .height(92.dp)
             .background(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(24.dp)
             )
             .onSizeChanged { size ->
                 timelineWidthPx = size.width
             }
-            .pointerInput(totalDurationMs, timelineWidthPx) {
+            .pointerInput(totalDurationMs, timelineWidthPx, enabled) {
                 detectTapGestures { tapOffset ->
-                    if (totalDurationMs <= 0L || timelineWidthPx <= 0) {
-                        return@detectTapGestures
-                    }
-
-                    val ratio = (tapOffset.x / timelineWidthPx.toFloat()).coerceIn(0f, 1f)
-                    onPositionChange((ratio * totalDurationMs).toLong())
+                    updateCursor(tapOffset.x)
                 }
+            }
+            .pointerInput(totalDurationMs, timelineWidthPx, enabled) {
+                detectDragGestures(
+                    onDragStart = { dragOffset ->
+                        updateCursor(dragOffset.x)
+                    },
+                    onDrag = { change, _ ->
+                        updateCursor(change.position.x)
+                        change.consume()
+                    }
+                )
             }
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(horizontal = 10.dp, vertical = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             segments.forEach { segment ->
-                val weight = segment.durationMs.coerceAtLeast(1L).toFloat()
+                val isSelected = selectedSegmentIndex == segment.index
 
                 Box(
                     modifier = Modifier
-                        .weight(weight)
-                        .fillMaxSize()
+                        .weight(segment.durationMs.coerceAtLeast(1L).toFloat())
+                        .fillMaxHeight()
                         .background(
-                            color = if (selectedSegmentIndex == segment.index) {
-                                MaterialTheme.colorScheme.secondaryContainer
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.primaryContainer
                             } else {
-                                MaterialTheme.colorScheme.surfaceContainerHighest
+                                MaterialTheme.colorScheme.surfaceBright
                             },
-                            shape = RoundedCornerShape(14.dp)
+                            shape = RoundedCornerShape(18.dp)
                         )
-                )
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.training_video_editor_segment_number,
+                            segment.index + 1
+                        ),
+                        modifier = Modifier.align(Alignment.Center),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
             }
         }
-
-        val markerColor = MaterialTheme.colorScheme.outlineVariant
 
         if (timelineWidthPx > 0 && totalDurationMs > 0L) {
             segments.dropLast(1).forEach { segment ->
@@ -590,14 +675,21 @@ private fun SegmentedTimeline(
                     (segment.editedEndMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
                 val markerOffsetPx = (boundaryFraction * timelineWidthPx).roundToInt()
 
-                Box(
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = CircleShape,
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset { IntOffset(x = markerOffsetPx - 1, y = 0) }
-                        .width(2.dp)
-                        .fillMaxHeight()
-                        .background(markerColor)
-                )
+                        .align(Alignment.CenterStart)
+                        .offset { IntOffset(x = markerOffsetPx - 8, y = 0) }
+                        .size(16.dp)
+                        .pointerInput(segment.editedEndMs, enabled) {
+                            detectTapGestures {
+                                if (enabled) {
+                                    onCursorChange(segment.editedEndMs)
+                                }
+                            }
+                        }
+                ) {}
             }
         }
 
@@ -608,34 +700,9 @@ private fun SegmentedTimeline(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .offset { IntOffset(x = cursorOffsetPx - 12, y = 0) }
-                    .width(24.dp)
+                    .offset { IntOffset(x = cursorOffsetPx - 14, y = 0) }
+                    .width(28.dp)
                     .fillMaxHeight()
-                    .pointerInput(totalDurationMs, timelineWidthPx) {
-                        var dragCursorPx = cursorOffsetPx.toFloat()
-
-                        detectDragGestures(
-                            onDragStart = {
-                                if (totalDurationMs <= 0L || timelineWidthPx <= 0) {
-                                    return@detectDragGestures
-                                }
-
-                                dragCursorPx = cursorOffsetPx.toFloat()
-                            },
-                            onDrag = { change, dragAmount ->
-                                if (totalDurationMs <= 0L || timelineWidthPx <= 0) {
-                                    return@detectDragGestures
-                                }
-
-                                dragCursorPx = (dragCursorPx + dragAmount.x)
-                                    .coerceIn(0f, timelineWidthPx.toFloat())
-                                val ratio =
-                                    (dragCursorPx / timelineWidthPx.toFloat()).coerceIn(0f, 1f)
-                                onPositionChange((ratio * totalDurationMs).toLong())
-                                change.consume()
-                            }
-                        )
-                    }
             ) {
                 Box(
                     modifier = Modifier
@@ -645,34 +712,36 @@ private fun SegmentedTimeline(
                         .background(MaterialTheme.colorScheme.primary)
                 )
 
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(y = (-6).dp)
-                        .size(12.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(6.dp)
+                if (canSplitAtCursor) {
+                    FilledTonalIconButton(
+                        onClick = onSplitAtCursor,
+                        enabled = enabled,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .offset(y = (-10).dp)
+                            .size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ContentCut,
+                            contentDescription = stringResource(R.string.training_video_editor_split_action),
+                            modifier = Modifier.size(16.dp)
                         )
-                )
+                    }
+                } else {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .offset(y = (-6).dp)
+                            .size(12.dp)
+                    ) {}
+                }
             }
         }
     }
 }
 
-private fun pushHistory(
-    history: List<VideoEditSelection>,
-    selection: VideoEditSelection
-): List<VideoEditSelection> {
-    val updatedHistory = history + selection
-    val overflow = updatedHistory.size - 10
-
-    if (overflow <= 0) {
-        return updatedHistory
-    }
-
-    return updatedHistory.drop(overflow)
-}
 
 private fun buildPreviewMediaSources(
     context: android.content.Context,
@@ -692,6 +761,34 @@ private fun buildPreviewMediaSources(
             range.endMs * 1_000L
         )
     }
+}
+
+private fun seekPlayerToEditedPosition(
+    player: Player,
+    selection: VideoEditSelection,
+    editedPositionMs: Long
+) {
+    val segments = VideoEditSelections.timelineSegments(selection)
+    val segmentIndex = VideoEditSelections.segmentIndexAtEditedPosition(selection, editedPositionMs)
+        ?: return
+    val segment = segments.getOrNull(segmentIndex) ?: return
+    val offsetInsideSegmentMs = (editedPositionMs - segment.editedStartMs)
+        .coerceIn(0L, segment.durationMs)
+
+    player.seekTo(segmentIndex, offsetInsideSegmentMs)
+}
+
+private fun currentEditedPlayerPosition(
+    player: Player,
+    selection: VideoEditSelection,
+    fallbackPositionMs: Long
+): Long {
+    val segments = VideoEditSelections.timelineSegments(selection)
+    val segment = segments.getOrNull(player.currentMediaItemIndex)
+        ?: return fallbackPositionMs.coerceIn(0L, selection.durationMs)
+
+    return (segment.editedStartMs + player.currentPosition)
+        .coerceIn(segment.editedStartMs, segment.editedEndMs)
 }
 
 private fun resolveSourceVideoFile(filesDir: File, moviesDir: File?, videoFileName: String): File {
