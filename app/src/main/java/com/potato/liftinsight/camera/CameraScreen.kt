@@ -9,6 +9,7 @@ import android.hardware.SensorManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.video.Recorder
 import androidx.camera.video.Recording
 import androidx.camera.view.PreviewView
@@ -19,6 +20,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,10 +53,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,12 +69,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.potato.liftinsight.R
+import com.potato.liftinsight.camera.controller.CameraLensType
 import com.potato.liftinsight.camera.controller.CameraController
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import java.io.File
@@ -92,8 +99,28 @@ fun CameraScreen(
     expectedIntensity: Double,
     onRecordingFinished: (videoName: String?) -> Unit,
     onBack: () -> Unit,
+    useNativeCamera: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    var fallbackToEmbeddedCamera by rememberSaveable { mutableStateOf(false) }
+
+    if (useNativeCamera && !fallbackToEmbeddedCamera) {
+        NativeCameraScreen(
+            motionTitle = motionTitle,
+            motionId = motionId,
+            setIndex = setIndex,
+            setsInMotion = setsInMotion,
+            expectedReps = expectedReps,
+            expectedWeight = expectedWeight,
+            expectedIntensity = expectedIntensity,
+            onRecordingFinished = onRecordingFinished,
+            onNativeCameraUnavailable = { fallbackToEmbeddedCamera = true },
+            onBack = onBack,
+            modifier = modifier
+        )
+        return
+    }
+
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
@@ -137,6 +164,15 @@ fun CameraScreen(
     var flashEnabled by remember { mutableStateOf(false) }
     var resolutionText by remember(defaultResolution) { mutableStateOf(defaultResolution) }
     var frameRateText by remember(defaultFrameRate) { mutableStateOf(defaultFrameRate) }
+    var zoomRatio by remember { mutableFloatStateOf(1f) }
+    var minZoomRatio by remember { mutableFloatStateOf(1f) }
+    var maxZoomRatio by remember { mutableFloatStateOf(1f) }
+    var lensFacingLabel by remember { mutableStateOf("Rear") }
+    var supportsWideAngleSwitch by remember { mutableStateOf(false) }
+    var isWideAngleZoomRange by remember { mutableStateOf(false) }
+    var activeLens by remember { mutableStateOf(CameraLensType.MAIN) }
+    var requestedZoomRatio by remember { mutableFloatStateOf(1f) }
+    var wideToMainZoomRatio by remember { mutableFloatStateOf(0.5f) }
     var activeRecording by remember { mutableStateOf<Recording?>(null) }
     var recorderRef by remember { mutableStateOf<Recorder?>(null) }
     var camera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
@@ -145,6 +181,7 @@ fun CameraScreen(
 
     var gravityX by remember { mutableFloatStateOf(0f) }
     var gravityY by remember { mutableFloatStateOf(0f) }
+    val activeCameraState = rememberUpdatedState(camera)
 
     DisposableEffect(lifecycleOwner) {
         val sensorManager = context.getSystemService(android.content.Context.SENSOR_SERVICE) as? SensorManager
@@ -174,29 +211,70 @@ fun CameraScreen(
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         if (allPermissionsGranted) {
-            AndroidView(
-                factory = { ctx ->
-                    PreviewView(ctx).also { previewView ->
-                        previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                        cameraController.bindCamera(
-                            context = ctx,
-                            lifecycleOwner = lifecycleOwner,
-                            previewView = previewView,
-                            defaultResolution = defaultResolution,
-                            defaultFrameRate = defaultFrameRate,
-                            onSessionReady = { session ->
-                                recorderRef = session.recorder
-                                camera = session.camera
-                            },
-                            onCaptureDetailsChanged = { captureDetails ->
-                                resolutionText = captureDetails.resolutionText
-                                frameRateText = captureDetails.frameRateText
+            key(activeLens) {
+                AndroidView(
+                    factory = { ctx ->
+                        PreviewView(ctx).also { previewView ->
+                            previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                            cameraController.bindCamera(
+                                context = ctx,
+                                lifecycleOwner = lifecycleOwner,
+                                previewView = previewView,
+                                lensType = activeLens,
+                                defaultResolution = defaultResolution,
+                                defaultFrameRate = defaultFrameRate,
+                                onSessionReady = { session ->
+                                    recorderRef = session.recorder
+                                    camera = session.camera
+                                    activeLens = session.activeLens
+                                },
+                                onCaptureDetailsChanged = { captureDetails ->
+                                    resolutionText = captureDetails.resolutionText
+                                    frameRateText = captureDetails.frameRateText
+                                    zoomRatio = captureDetails.zoomRatio
+                                    minZoomRatio = captureDetails.minZoomRatio
+                                    maxZoomRatio = captureDetails.maxZoomRatio
+                                    lensFacingLabel = captureDetails.lensFacingLabel
+                                    supportsWideAngleSwitch = captureDetails.supportsWideAngleSwitch
+                                    isWideAngleZoomRange = captureDetails.isWideAngleZoomRange
+                                    requestedZoomRatio = captureDetails.zoomRatio
+                                    wideToMainZoomRatio = captureDetails.minZoomRatio
+                                }
+                            )
+
+                            previewView
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(activeLens, supportsWideAngleSwitch) {
+                            detectTransformGestures { _, _, zoom, _ ->
+                                val activeCamera = activeCameraState.value ?: return@detectTransformGestures
+                                handlePinchZoom(
+                                    cameraController = cameraController,
+                                    context = context,
+                                    activeCamera = activeCamera,
+                                    activeLens = activeLens,
+                                    supportsWideAngleSwitch = supportsWideAngleSwitch,
+                                    currentZoomRatio = zoomRatio,
+                                    currentRequestedZoomRatio = requestedZoomRatio,
+                                    scaleFactor = zoom,
+                                    wideToMainZoomRatio = wideToMainZoomRatio,
+                                    onRequestedZoomRatioChanged = { requestedZoomRatio = it },
+                                    onActiveLensChanged = { activeLens = it },
+                                    onZoomDetailsChanged = { details, appliedZoomRatio ->
+                                        zoomRatio = appliedZoomRatio
+                                        minZoomRatio = details.minZoomRatio
+                                        maxZoomRatio = details.maxZoomRatio
+                                        lensFacingLabel = details.lensFacingLabel
+                                        supportsWideAngleSwitch = details.supportsWideAngleSwitch
+                                        isWideAngleZoomRange = details.isWideAngleZoomRange
+                                    }
+                                )
                             }
-                        )
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+                        }
+                )
+            }
         } else {
             Column(
                 modifier = Modifier
@@ -253,6 +331,12 @@ fun CameraScreen(
                 TopControlBar(
                     resolution = resolutionText,
                     frameRate = frameRateText,
+                    zoomRatio = zoomRatio,
+                    minZoomRatio = minZoomRatio,
+                    maxZoomRatio = maxZoomRatio,
+                    lensFacingLabel = lensFacingLabel,
+                    supportsWideAngleSwitch = supportsWideAngleSwitch,
+                    isWideAngleZoomRange = isWideAngleZoomRange,
                     flashEnabled = flashEnabled,
                     onFlashToggle = {
                         flashEnabled = !flashEnabled
@@ -354,10 +438,74 @@ fun CameraScreen(
     }
 }
 
+private fun handlePinchZoom(
+    cameraController: CameraController,
+    context: android.content.Context,
+    activeCamera: Camera,
+    activeLens: CameraLensType,
+    supportsWideAngleSwitch: Boolean,
+    currentZoomRatio: Float,
+    currentRequestedZoomRatio: Float,
+    scaleFactor: Float,
+    wideToMainZoomRatio: Float,
+    onRequestedZoomRatioChanged: (Float) -> Unit,
+    onActiveLensChanged: (CameraLensType) -> Unit,
+    onZoomDetailsChanged: (
+        com.potato.liftinsight.camera.controller.CameraZoomDetails,
+        Float
+    ) -> Unit
+) {
+    val desiredZoomRatio = (currentRequestedZoomRatio * scaleFactor).coerceIn(0.5f, 10f)
+    onRequestedZoomRatioChanged(desiredZoomRatio)
+
+    if (cameraController.shouldSwitchToWideLens(activeLens, desiredZoomRatio, supportsWideAngleSwitch)) {
+        onActiveLensChanged(CameraLensType.WIDE)
+        return
+    }
+
+    if (cameraController.shouldSwitchToMainLens(activeLens, desiredZoomRatio, supportsWideAngleSwitch)) {
+        onActiveLensChanged(CameraLensType.MAIN)
+        return
+    }
+
+    val appliedZoomRatio = cameraController.pinchZoom(
+        camera = activeCamera,
+        currentZoomRatio = currentZoomRatio,
+        scaleFactor = when (activeLens) {
+            CameraLensType.WIDE -> {
+                val targetZoom = cameraController.wideLensZoomRatio(
+                    requestedZoomRatio = desiredZoomRatio,
+                    wideToMainZoomRatio = wideToMainZoomRatio
+                )
+                targetZoom / currentZoomRatio
+            }
+
+            CameraLensType.MAIN -> {
+                val targetZoom = cameraController.mainLensZoomRatio(desiredZoomRatio)
+                targetZoom / currentZoomRatio
+            }
+        }
+    )
+    val zoomDetails = cameraController.zoomDetails(
+        context = context,
+        camera = activeCamera,
+        activeLens = activeLens,
+        supportsWideAngleSwitchOverride = supportsWideAngleSwitch,
+        wideToMainZoomRatio = wideToMainZoomRatio
+    )
+    onZoomDetailsChanged(zoomDetails, appliedZoomRatio)
+}
+
 @Composable
 private fun TopControlBar(
     resolution: String,
     frameRate: String,
+    zoomRatio: Float,
+    minZoomRatio: Float,
+    maxZoomRatio: Float,
+    lensFacingLabel: String,
+    supportsWideAngleSwitch: Boolean,
+    isWideAngleZoomRange: Boolean,
     flashEnabled: Boolean,
     onFlashToggle: () -> Unit,
     onBack: () -> Unit,
@@ -380,16 +528,61 @@ private fun TopControlBar(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = Color.Black.copy(alpha = 0.4f)
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "$resolution $frameRate",
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelMedium
-                )
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Black.copy(alpha = 0.4f)
+                ) {
+                    Text(
+                        text = "$resolution $frameRate",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isWideAngleZoomRange) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.82f)
+                    } else {
+                        Color.Black.copy(alpha = 0.4f)
+                    }
+                ) {
+                    Text(
+                        text = if (supportsWideAngleSwitch) {
+                            stringResource(
+                                if (isWideAngleZoomRange) {
+                                    R.string.camera_zoom_label_wide_active
+                                } else {
+                                    R.string.camera_zoom_label
+                                },
+                                zoomRatio,
+                                lensFacingLabel
+                            )
+                        } else {
+                            stringResource(R.string.camera_zoom_label_basic, zoomRatio)
+                        },
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+
+                if (supportsWideAngleSwitch) {
+                    Text(
+                        text = stringResource(
+                            R.string.camera_zoom_range_hint,
+                            minZoomRatio,
+                            maxZoomRatio
+                        ),
+                        color = Color.White.copy(alpha = 0.72f),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
             }
 
             FilledTonalIconButton(

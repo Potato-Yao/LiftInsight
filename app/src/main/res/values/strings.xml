@@ -270,6 +270,11 @@
     <string name="camera_stop_recording">Stop recording</string>
     <string name="camera_default_resolution">1080p</string>
     <string name="camera_default_frame_rate">30fps</string>
+    <string name="camera_zoom_label">%.1fx · %2$s lens</string>
+    <string name="camera_zoom_label_basic">%.1fx</string>
+    <string name="camera_zoom_label_wide_active">%.1fx · %2$s wide-angle</string>
+    <string name="camera_zoom_range_hint">Pinch to zoom · %.1fx to %.1fx</string>
+    <string name="camera_opening_native">Opening your system camera in video mode...</string>
     <string name="plan_workout_decrease_weight_content_description">Decrease weight by 5 kg</string>
     <string name="plan_workout_increase_weight_content_description">Increase weight by 5 kg</string>
     <string name="plan_workout_subtract_minute_content_description">Subtract 1 minute</string>
