@@ -298,10 +298,10 @@ internal fun TrainingVideoEditorDialog(
                 selectedSegment = selectedSegment,
                 canUndo = editorState.canUndo,
                 onCursorChange = { editedPositionMs ->
-                    val boundedPositionMs = editedPositionMs.coerceIn(0L, selection.durationMs)
+                    val boundedPositionMs = editedPositionMs.coerceIn(0L, editorState.selection.durationMs)
                     previewPositionMs = boundedPositionMs
                     editorState.selectSegmentAtEditedPosition(boundedPositionMs)
-                    seekPlayerToEditedPosition(player, selection, boundedPositionMs)
+                    seekPlayerToEditedPosition(player, editorState.selection, boundedPositionMs)
                     player.pause()
                     isPlaying = false
                 },

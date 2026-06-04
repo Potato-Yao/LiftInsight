@@ -102,6 +102,8 @@ interface VideoProcessor {
 
     fun getStatus(videoName: String): VideoProcessingStatus
 
+    fun getOriginalVideoFile(videoName: String): File?
+
     fun getProcessedVideoFile(videoName: String): File?
 
     fun getPlaybackVideoFile(videoName: String): File?
@@ -138,12 +140,14 @@ object NoOpVideoProcessor : VideoProcessor {
         )
     }
 
+    override fun getOriginalVideoFile(videoName: String): File? = null
+
     override fun getProcessedVideoFile(videoName: String): File? = null
 
     override fun getPlaybackVideoFile(videoName: String): File? = null
 }
 
-private class PoseLandmarkVideoProcessor(
+    private class PoseLandmarkVideoProcessor(
     private val context: Context,
     private val database: LiftInsightDatabase,
     private val logger: AppLogger
@@ -310,6 +314,11 @@ private class PoseLandmarkVideoProcessor(
             },
             processedVideoName = processedVideoName
         )
+    }
+
+    override fun getOriginalVideoFile(videoName: String): File? {
+        val originalFile = resolveVideoFile(videoName.trim())
+        return originalFile.takeIf { file -> file.exists() }
     }
 
     override fun getProcessedVideoFile(videoName: String): File? {

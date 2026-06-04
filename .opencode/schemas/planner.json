@@ -25,7 +25,40 @@
     "tasks": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Short task title"
+          },
+          "order": {
+            "type": "integer",
+            "description": "Execution order (1-based)"
+          },
+          "files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Files to create, modify, or read for context"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed description of what needs to be done"
+          },
+          "approach": {
+            "type": "string",
+            "description": "How to implement: names of functions/classes, code structure, patterns to follow, signatures"
+          },
+          "dependencies": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Titles of tasks that must be completed first"
+          },
+          "verification": {
+            "type": "string",
+            "description": "How to verify correctness: test commands, expected behavior, or manual checks"
+          }
+        },
+        "required": ["title", "order", "files", "description", "approach", "verification"]
       }
     }
   },

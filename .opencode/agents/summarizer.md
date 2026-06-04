@@ -1,7 +1,7 @@
 ---
 description: Summarizes approved work, modified files, tradeoffs, limitations, and follow-up ideas.
 mode: subagent
-model: deepseek/deepseek-v4-pro
+model: deepseek/deepseek-v4-flash
 permission:
   read: allow
   glob: allow

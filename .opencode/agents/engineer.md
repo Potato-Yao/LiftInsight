@@ -1,7 +1,7 @@
 ---
 description: Implements approved plans, applies reviewer feedback, and verifies changes.
 mode: subagent
-model: github-copilot/gpt-5.4
+model: deepseek/deepseek-v4-pro
 permission:
   read: allow
   glob: allow

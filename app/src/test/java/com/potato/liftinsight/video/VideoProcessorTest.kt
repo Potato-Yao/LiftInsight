@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -79,6 +80,27 @@ class VideoProcessorTest {
 
         assertNotNull(playbackFile)
         assertEquals(originalFile.absolutePath, playbackFile?.absolutePath)
+    }
+
+    @Test
+    fun getOriginalVideoFile_returnsExistingOriginalFile() = runBlocking {
+        val originalFile = createVideoFile("original-only.mp4")
+
+        val result = withContext(Dispatchers.IO) {
+            videoProcessor.getOriginalVideoFile("original-only.mp4")
+        }
+
+        assertNotNull(result)
+        assertEquals(originalFile.absolutePath, result?.absolutePath)
+    }
+
+    @Test
+    fun getOriginalVideoFile_returnsNullWhenOriginalFileDoesNotExist() = runBlocking {
+        val result = withContext(Dispatchers.IO) {
+            videoProcessor.getOriginalVideoFile("no-such-original.mp4")
+        }
+
+        assertNull(result)
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.potato.liftinsight.record
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -35,9 +36,9 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.VideocamOff
 import androidx.compose.material3.AlertDialog
@@ -109,6 +110,8 @@ internal fun TrainingHistoryScreen(
     var videoPlayerUri by remember { mutableStateOf<Uri?>(null) }
     var videoEditorRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var videoEditorHasProcessedCopy by remember { mutableStateOf(false) }
+    var exportDialogRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
+    var exportDialogHasProcessedCopy by remember { mutableStateOf(false) }
     var importTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var cameraTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var calibrationTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
@@ -293,6 +296,38 @@ internal fun TrainingHistoryScreen(
                 videoEditorRecord = record
                 state = controller.dismissSelectedRecord(state)
             },
+            onExportVideo = {
+                val videoName = record.videoName
+
+                if (videoName.isNullOrBlank()) {
+                    return@TrainingHistoryDetailSheet
+                }
+
+                val hasProcessed = state.selectedVideoStatus?.hasProcessedCopy == true
+
+                if (hasProcessed) {
+                    exportDialogRecord = record
+                    exportDialogHasProcessedCopy = true
+                } else {
+                    coroutineScope.launch {
+                        val exportedUri = controller.exportOriginalVideo(context, videoName)
+
+                        if (exportedUri != null) {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.training_export_video_success),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.training_export_video_failure),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            },
             onProcessVideo = {
                 record.videoName
                     ?.takeIf { it.isNotBlank() }
@@ -362,6 +397,90 @@ internal fun TrainingHistoryScreen(
                 },
                 onBack = { cameraTargetRecord = null },
                 modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+
+    exportDialogRecord?.let { record ->
+        val videoName = record.videoName
+
+        if (!videoName.isNullOrBlank()) {
+            AlertDialog(
+                onDismissRequest = {
+                    exportDialogRecord = null
+                    exportDialogHasProcessedCopy = false
+                },
+                title = { Text(text = stringResource(R.string.training_export_dialog_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (exportDialogHasProcessedCopy) {
+                            Button(
+                                onClick = {
+                                    val name = videoName
+                                    exportDialogRecord = null
+                                    exportDialogHasProcessedCopy = false
+                                    coroutineScope.launch {
+                                        val exportedUri = controller.exportProcessedVideo(context, name)
+
+                                        if (exportedUri != null) {
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.training_export_video_success),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.training_export_video_failure),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(text = stringResource(R.string.training_export_processed_video))
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                val name = videoName
+                                exportDialogRecord = null
+                                exportDialogHasProcessedCopy = false
+                                coroutineScope.launch {
+                                    val exportedUri = controller.exportOriginalVideo(context, name)
+
+                                    if (exportedUri != null) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.training_export_video_success),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.training_export_video_failure),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = stringResource(R.string.training_export_original_video))
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = {
+                        exportDialogRecord = null
+                        exportDialogHasProcessedCopy = false
+                    }) {
+                        Text(text = stringResource(R.string.common_cancel))
+                    }
+                }
             )
         }
     }
@@ -528,6 +647,7 @@ private fun TrainingHistoryDetailSheet(
     onImportVideo: () -> Unit,
     onCalibrateVideo: () -> Unit,
     onEditVideo: () -> Unit,
+    onExportVideo: () -> Unit,
     onProcessVideo: () -> Unit
 ) {
     val hasVideo = !record.videoName.isNullOrBlank()
@@ -568,8 +688,8 @@ private fun TrainingHistoryDetailSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
@@ -725,67 +845,84 @@ private fun TrainingHistoryDetailSheet(
                 }
             }
 
-            Button(
-                onClick = onPlayVideo,
-                enabled = hasVideo,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = if (hasVideo) {
-                        Icons.Rounded.PlayArrow
-                    } else {
-                        Icons.Rounded.VideocamOff
-                    },
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(R.string.training_play_video))
-            }
-
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Button(
+                    onClick = onPlayVideo,
+                    enabled = hasVideo,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = if (hasVideo) {
+                            Icons.Rounded.PlayArrow
+                        } else {
+                            Icons.Rounded.VideocamOff
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.training_play_video),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+
+                Button(
                     onClick = onImportVideo,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.weight(1f)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Videocam,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = stringResource(R.string.training_import_video))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.training_import_video),
+                        style = MaterialTheme.typography.labelLarge
+                    )
                 }
+            }
 
-//                Button(
-//                    onClick = onCalibrateVideo,
-//                    enabled = canCalibrateVideo,
-//                    modifier = Modifier.fillMaxWidth()
-//                ) {
-//                    Icon(
-//                        imageVector = Icons.Rounded.Straighten,
-//                        contentDescription = null,
-//                        modifier = Modifier.size(20.dp)
-//                    )
-//                    Spacer(modifier = Modifier.width(8.dp))
-//                    Text(text = stringResource(R.string.training_video_calibration_button))
-//                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = onExportVideo,
+                    enabled = hasVideo,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.FileDownload,
+                        contentDescription = stringResource(R.string.training_export_video_content_description),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.training_export_video),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
 
                 Button(
                     onClick = onEditVideo,
                     enabled = hasVideo,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.weight(1f)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.ContentCut,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = stringResource(R.string.training_edit_video))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.training_edit_video),
+                        style = MaterialTheme.typography.labelLarge
+                    )
                 }
             }
 

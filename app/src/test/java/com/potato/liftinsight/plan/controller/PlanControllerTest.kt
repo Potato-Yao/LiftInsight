@@ -468,6 +468,8 @@ private class FakeVideoProcessor : VideoProcessor {
         )
     }
 
+    override fun getOriginalVideoFile(videoName: String) = null
+
     override fun getProcessedVideoFile(videoName: String) = null
 
     override fun getPlaybackVideoFile(videoName: String) = null

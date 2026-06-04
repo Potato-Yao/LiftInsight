@@ -7,6 +7,7 @@ import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.model.TrainingHistoryState
 import com.potato.liftinsight.training.data.MetaHistoryRecord
 import com.potato.liftinsight.training.data.UpdateImportedVideoMetadataRequest
+import com.potato.liftinsight.video.VideoExportHelper
 import com.potato.liftinsight.video.VideoProcessor
 import com.potato.liftinsight.video.imported.ImportedVideoAnalysisMode
 import com.potato.liftinsight.video.imported.ImportedVideoSource
@@ -182,6 +183,51 @@ class TrainingHistoryController(
         }
 
         return playbackFile?.let(Uri::fromFile)
+    }
+
+    suspend fun exportVideo(context: Context, videoName: String): Uri? {
+        if (videoName.isBlank()) {
+            return null
+        }
+
+        val sourceFile = withContext(Dispatchers.IO) {
+            videoProcessor.getPlaybackVideoFile(videoName)
+        } ?: return null
+
+        return VideoExportHelper.exportToGallery(
+            context = context,
+            sourceFile = sourceFile
+        )
+    }
+
+    suspend fun exportOriginalVideo(context: Context, videoName: String): Uri? {
+        if (videoName.isBlank()) {
+            return null
+        }
+
+        val sourceFile = withContext(Dispatchers.IO) {
+            videoProcessor.getOriginalVideoFile(videoName)
+        } ?: return null
+
+        return VideoExportHelper.exportToGallery(
+            context = context,
+            sourceFile = sourceFile
+        )
+    }
+
+    suspend fun exportProcessedVideo(context: Context, videoName: String): Uri? {
+        if (videoName.isBlank()) {
+            return null
+        }
+
+        val sourceFile = withContext(Dispatchers.IO) {
+            videoProcessor.getProcessedVideoFile(videoName)
+        } ?: return null
+
+        return VideoExportHelper.exportToGallery(
+            context = context,
+            sourceFile = sourceFile
+        )
     }
 
     fun submitVideoProcessing(videoName: String) {

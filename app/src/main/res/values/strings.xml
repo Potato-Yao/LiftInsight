@@ -281,6 +281,13 @@
     <string name="plan_workout_add_minute_content_description">Add 1 minute</string>
     <string name="plan_workout_subtract_seconds_content_description">Subtract 30 seconds</string>
     <string name="plan_workout_add_seconds_content_description">Add 30 seconds</string>
+    <string name="training_export_video">Export video</string>
+    <string name="training_export_video_content_description">Export video to gallery</string>
+    <string name="training_export_video_success">Video exported to gallery</string>
+    <string name="training_export_video_failure">Could not export video</string>
+    <string name="training_export_dialog_title">Choose video to export</string>
+    <string name="training_export_processed_video">Export processed video</string>
+    <string name="training_export_original_video">Export original video</string>
     <string name="training_edit_video">Edit video</string>
     <string name="training_video_editor_title">Edit video</string>
     <string name="training_video_editor_preview_title">Preview</string>
