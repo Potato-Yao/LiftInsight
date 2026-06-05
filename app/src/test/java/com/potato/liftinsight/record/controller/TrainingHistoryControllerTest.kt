@@ -212,7 +212,7 @@ class TrainingHistoryControllerTest {
         val record = state.records.first { it.id == recordId }
 
         controller.softDeleteRecord(state, record)
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
 
         assertNotNull(binState.binRecords.find {
             it.date == record.date &&
@@ -259,7 +259,7 @@ class TrainingHistoryControllerTest {
         val stateWithSelection = state.copy(selectedRecordIds = setOf(recordId1))
 
         controller.deleteSelectedRecords(stateWithSelection)
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
 
         assertEquals(1, binState.binRecords.size)
     }
@@ -287,7 +287,7 @@ class TrainingHistoryControllerTest {
         val state = controller.loadState()
 
         controller.deleteDayRecords(state, "2024-01-01")
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
 
         assertEquals(1, binState.binRecords.size)
     }
@@ -382,7 +382,7 @@ class TrainingHistoryControllerTest {
         val record = state.records.first()
         controller.softDeleteRecord(state, record)
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
 
         assertTrue(binState.isBinMode)
         assertEquals(1, binState.binRecords.size)
@@ -390,7 +390,7 @@ class TrainingHistoryControllerTest {
 
     @Test
     fun loadBinState_returnsEmptyWhenNoBinRecords() = runBlocking {
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(controller.emptyState())
 
         assertTrue(binState.isBinMode)
         assertTrue(binState.binRecords.isEmpty())
@@ -447,7 +447,7 @@ class TrainingHistoryControllerTest {
         val record = state.records.first()
         controller.softDeleteRecord(state, record)
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
         val binRecord = binState.binRecords.first()
 
         val updatedBinState = controller.permanentlyDeleteBinRecord(binState, binRecord.id)
@@ -464,7 +464,7 @@ class TrainingHistoryControllerTest {
         val record = state.records.first()
         controller.softDeleteRecord(state, record)
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
         val binRecord = binState.binRecords.first()
         val stateWithSelected = binState.copy(selectedBinRecord = binRecord)
 
@@ -484,7 +484,7 @@ class TrainingHistoryControllerTest {
         val record = state.records.first()
         controller.softDeleteRecord(state, record)
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
         val binRecord = binState.binRecords.first()
 
         val updatedBinState = controller.revertBinRecord(binState, binRecord.id)
@@ -501,7 +501,7 @@ class TrainingHistoryControllerTest {
         val record = state.records.first()
         controller.softDeleteRecord(state, record)
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
         val binRecord = binState.binRecords.first()
 
         controller.revertBinRecord(binState, binRecord.id)
@@ -519,7 +519,7 @@ class TrainingHistoryControllerTest {
         val record = state.records.first()
         controller.softDeleteRecord(state, record)
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
         val binRecord = binState.binRecords.first()
         val stateWithSelected = binState.copy(selectedBinRecord = binRecord)
 
@@ -541,7 +541,7 @@ class TrainingHistoryControllerTest {
             controller.softDeleteRecord(state, record)
         }
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
         val binRecord = binState.binRecords.first()
         val updatedBinState = binState.copy(selectedRecordIds = setOf(binRecord.id))
 
@@ -559,7 +559,7 @@ class TrainingHistoryControllerTest {
         val record = state.records.first()
         controller.softDeleteRecord(state, record)
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
         val binRecord = binState.binRecords.first()
         val updatedBinState = binState.copy(selectedRecordIds = setOf(binRecord.id))
 
@@ -581,7 +581,7 @@ class TrainingHistoryControllerTest {
             controller.softDeleteRecord(state, record)
         }
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
         val binRecord = binState.binRecords.first()
         val updatedBinState = binState.copy(selectedRecordIds = setOf(binRecord.id))
 
@@ -601,7 +601,7 @@ class TrainingHistoryControllerTest {
             controller.softDeleteRecord(state, record)
         }
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
         val binRecord = binState.binRecords.first()
         val updatedBinState = binState.copy(selectedRecordIds = setOf(binRecord.id))
 
@@ -620,7 +620,7 @@ class TrainingHistoryControllerTest {
         val record = state.records.first()
         controller.softDeleteRecord(state, record)
 
-        val binState = controller.loadBinState()
+        val binState = controller.loadBinState(state)
         val binRecord = binState.binRecords.first()
         val updatedBinState = binState.copy(selectedRecordIds = setOf(binRecord.id))
 

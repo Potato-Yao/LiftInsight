@@ -351,14 +351,18 @@ class TrainingHistoryController(
         return state.copy(expandedDateGroups = setOf(todayKey))
     }
 
-    suspend fun loadBinState(): TrainingHistoryState {
-        val records = withContext(Dispatchers.IO) {
+    suspend fun loadBinState(state: TrainingHistoryState): TrainingHistoryState {
+        val binRecords = withContext(Dispatchers.IO) {
             trainingPlanStore.getBinRecords()
         }
 
-        return TrainingHistoryState(
+        return state.copy(
             isBinMode = true,
-            binRecords = records
+            binRecords = binRecords,
+            selectedRecord = null,
+            selectedVideoStatus = null,
+            isBatchMode = false,
+            selectedRecordIds = emptySet()
         )
     }
 

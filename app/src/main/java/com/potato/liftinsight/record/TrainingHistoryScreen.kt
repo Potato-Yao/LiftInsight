@@ -4,12 +4,17 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -178,228 +183,260 @@ internal fun TrainingHistoryScreen(
         }
     }
 
-    if (state.isBinMode) {
-        BinScreen(
-            state = state,
-            controller = controller,
-            onBack = { state = controller.exitBinMode(state) },
-            onSelectRecord = { record -> state = controller.selectBinRecord(state, record) },
-            onToggleBatchMode = { state = controller.toggleBatchMode(state) },
-            onToggleRecordSelection = { recordId -> state = controller.toggleRecordSelection(state, recordId) },
-            onSelectAll = {
-                val allIds = state.binRecords.map { it.id }.toSet()
-                state = state.copy(selectedRecordIds = allIds)
-            },
-            onPermanentDelete = { record ->
-                binRecordToDelete = record
-                showBinPermanentDeleteConfirmDialog = true
-            },
-            onRevert = { record ->
-                binRecordToRevert = record
-                showBinRevertConfirmDialog = true
-            },
-            onBatchPermanentDelete = { showBinBatchDeleteConfirmDialog = true },
-            onBatchRevert = { showBinBatchRevertConfirmDialog = true },
-            modifier = modifier
-        )
-    } else {
-        Scaffold(
-            modifier = modifier.fillMaxSize(),
-            containerColor = MaterialTheme.colorScheme.background,
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = if (state.isBatchMode) {
-                                stringResource(R.string.training_batch_selected_count, state.selectedRecordIds.size)
-                            } else {
-                                stringResource(R.string.record_training_card_title)
-                            }
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(R.string.common_back)
-                            )
-                        }
-                    },
-                    actions = {
-                        if (state.isBatchMode) {
-                            IconButton(onClick = {
-                                val allIds = state.records.map { it.id }.toSet()
-                                state = state.copy(
-                                    selectedRecordIds = if (state.selectedRecordIds.size == state.records.size) {
-                                        emptySet()
-                                    } else {
-                                        allIds
-                                    }
-                                )
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.SelectAll,
-                                    contentDescription = stringResource(R.string.training_batch_select_all)
-                                )
-                            }
-
-                            IconButton(onClick = { showBatchDeleteConfirmDialog = true }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.DeleteSweep,
-                                    contentDescription = stringResource(R.string.training_batch_delete_selected)
-                                )
-                            }
-
-                            IconButton(onClick = { state = controller.toggleBatchMode(state) }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Check,
-                                    contentDescription = stringResource(R.string.training_batch_exit)
-                                )
-                            }
-                        } else {
-                            IconButton(onClick = { state = controller.toggleBatchMode(state) }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Edit,
-                                    contentDescription = stringResource(R.string.training_batch_mode)
-                                )
-                            }
-
-                            IconButton(onClick = {
-                                coroutineScope.launch {
-                                    state = controller.loadBinState()
-                                }
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.DeleteForever,
-                                    contentDescription = stringResource(R.string.training_bin_title)
-                                )
-                            }
-                        }
-                    }
+    AnimatedContent(
+        targetState = state.isBinMode,
+        transitionSpec = {
+            (fadeIn(
+                animationSpec = tween(
+                    durationMillis = LiftInsightMotion.MediumDuration,
+                    delayMillis = 40,
+                    easing = LiftInsightMotion.EnterEasing
                 )
-            }
-        ) { innerPadding ->
-            val grouped = state.records.groupBy { it.date.take(10) }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                if (grouped.isEmpty()) {
-                    AnimatedVisibility(
-                        visible = showContent,
-                        enter = trainingSectionEnter(delayMillis = 80),
-                        exit = ExitTransition.None,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
+            ) + slideInHorizontally(
+                animationSpec = tween(
+                    durationMillis = LiftInsightMotion.LongDuration,
+                    easing = LiftInsightMotion.EnterEasing
+                ),
+                initialOffsetX = { fullWidth -> if (targetState) fullWidth / 10 else -fullWidth / 10 }
+            )) togetherWith
+            (fadeOut(
+                animationSpec = tween(
+                    durationMillis = LiftInsightMotion.ShortDuration,
+                    easing = LiftInsightMotion.ExitEasing
+                )
+            ) + slideOutHorizontally(
+                animationSpec = tween(
+                    durationMillis = LiftInsightMotion.ShortDuration,
+                    easing = LiftInsightMotion.ExitEasing
+                ),
+                targetOffsetX = { fullWidth -> if (targetState) -fullWidth / 12 else fullWidth / 12 }
+            ))
+        },
+        label = "trainingBinTransition"
+    ) { isBinMode ->
+        if (isBinMode) {
+            BinScreen(
+                state = state,
+                controller = controller,
+                onBack = { state = controller.exitBinMode(state) },
+                onSelectRecord = { record -> state = controller.selectBinRecord(state, record) },
+                onToggleBatchMode = { state = controller.toggleBatchMode(state) },
+                onToggleRecordSelection = { recordId -> state = controller.toggleRecordSelection(state, recordId) },
+                onSelectAll = {
+                    val allIds = state.binRecords.map { it.id }.toSet()
+                    state = state.copy(selectedRecordIds = allIds)
+                },
+                onPermanentDelete = { record ->
+                    binRecordToDelete = record
+                    showBinPermanentDeleteConfirmDialog = true
+                },
+                onRevert = { record ->
+                    binRecordToRevert = record
+                    showBinRevertConfirmDialog = true
+                },
+                onBatchPermanentDelete = { showBinBatchDeleteConfirmDialog = true },
+                onBatchRevert = { showBinBatchRevertConfirmDialog = true },
+                modifier = modifier
+            )
+        } else {
+            Scaffold(
+                modifier = modifier.fillMaxSize(),
+                containerColor = MaterialTheme.colorScheme.background,
+                topBar = {
+                    TopAppBar(
+                        title = {
                             Text(
-                                text = stringResource(R.string.training_no_records),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = if (state.isBatchMode) {
+                                    stringResource(R.string.training_batch_selected_count, state.selectedRecordIds.size)
+                                } else {
+                                    stringResource(R.string.record_training_card_title)
+                                }
                             )
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = stringResource(R.string.common_back)
+                                )
+                            }
+                        },
+                        actions = {
+                            if (state.isBatchMode) {
+                                IconButton(onClick = {
+                                    val allIds = state.records.map { it.id }.toSet()
+                                    state = state.copy(
+                                        selectedRecordIds = if (state.selectedRecordIds.size == state.records.size) {
+                                            emptySet()
+                                        } else {
+                                            allIds
+                                        }
+                                    )
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.SelectAll,
+                                        contentDescription = stringResource(R.string.training_batch_select_all)
+                                    )
+                                }
+    
+                                IconButton(onClick = { showBatchDeleteConfirmDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.DeleteSweep,
+                                        contentDescription = stringResource(R.string.training_batch_delete_selected)
+                                    )
+                                }
+    
+                                IconButton(onClick = { state = controller.toggleBatchMode(state) }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = stringResource(R.string.training_batch_exit)
+                                    )
+                                }
+                            } else {
+                                IconButton(onClick = { state = controller.toggleBatchMode(state) }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Edit,
+                                        contentDescription = stringResource(R.string.training_batch_mode)
+                                    )
+                                }
+    
+                                IconButton(onClick = {
+                                    coroutineScope.launch {
+                                        state = controller.loadBinState(state)
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.DeleteForever,
+                                        contentDescription = stringResource(R.string.training_bin_title)
+                                    )
+                                }
+                            }
                         }
-                    }
-                } else {
-                    AnimatedVisibility(
-                        visible = showContent,
-                        enter = trainingSectionEnter(delayMillis = 0),
-                        exit = ExitTransition.None
-                    ) {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 24.dp, vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                    )
+                }
+            ) { innerPadding ->
+                val grouped = state.records.groupBy { it.date.take(10) }
+    
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    if (grouped.isEmpty()) {
+                        AnimatedVisibility(
+                            visible = showContent,
+                            enter = trainingSectionEnter(delayMillis = 80),
+                            exit = ExitTransition.None,
+                            modifier = Modifier.fillMaxSize()
                         ) {
-                            grouped.forEach { (dateKey, dayRecords) ->
-                                val isExpanded = dateKey in state.expandedDateGroups
-
-                                item(key = "header-$dateKey") {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                state = controller.toggleDateGroup(state, dateKey)
-                                            }
-                                            .padding(top = 12.dp, bottom = 4.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.training_no_records),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        AnimatedVisibility(
+                            visible = showContent,
+                            enter = trainingSectionEnter(delayMillis = 0),
+                            exit = ExitTransition.None
+                        ) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                grouped.forEach { (dateKey, dayRecords) ->
+                                    val isExpanded = dateKey in state.expandedDateGroups
+    
+                                    item(key = "header-$dateKey") {
                                         Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    state = controller.toggleDateGroup(state, dateKey)
+                                                }
+                                                .padding(top = 12.dp, bottom = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(
-                                                text = formatDateLabel(dateKey),
-                                                style = MaterialTheme.typography.labelLarge,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                            Text(
-                                                text = "(${dayRecords.size})",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            if (state.isBatchMode) {
-                                                IconButton(
-                                                    onClick = {
-                                                        dayToDelete = dateKey
-                                                        showDayDeleteConfirmDialog = true
-                                                    },
-                                                    modifier = Modifier.size(24.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.DeleteSweep,
-                                                        contentDescription = stringResource(R.string.training_batch_delete_day),
-                                                        modifier = Modifier.size(18.dp),
-                                                        tint = MaterialTheme.colorScheme.error
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Icon(
-                                            imageVector = if (isExpanded) {
-                                                Icons.Rounded.ExpandLess
-                                            } else {
-                                                Icons.Rounded.ExpandMore
-                                            },
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                if (isExpanded) {
-                                    items(
-                                        items = dayRecords,
-                                        key = { it.id }
-                                    ) { record ->
-                                        TrainingHistoryCard(
-                                            record = record,
-                                            isBatchMode = state.isBatchMode,
-                                            isSelected = record.id in state.selectedRecordIds,
-                                            onClick = {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = formatDateLabel(dateKey),
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Text(
+                                                    text = "(${dayRecords.size})",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
                                                 if (state.isBatchMode) {
-                                                    state = controller.toggleRecordSelection(state, record.id)
-                                                } else {
-                                                    state = controller.selectRecord(state, record)
+                                                    IconButton(
+                                                        onClick = {
+                                                            dayToDelete = dateKey
+                                                            showDayDeleteConfirmDialog = true
+                                                        },
+                                                        modifier = Modifier.size(24.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.DeleteSweep,
+                                                            contentDescription = stringResource(R.string.training_batch_delete_day),
+                                                            modifier = Modifier.size(18.dp),
+                                                            tint = MaterialTheme.colorScheme.error
+                                                        )
+                                                    }
                                                 }
                                             }
-                                        )
+                                            Icon(
+                                                imageVector = if (isExpanded) {
+                                                    Icons.Rounded.ExpandLess
+                                                } else {
+                                                    Icons.Rounded.ExpandMore
+                                                },
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+    
+                                    if (isExpanded) {
+                                        items(
+                                            items = dayRecords,
+                                            key = { it.id }
+                                        ) { record ->
+                                            TrainingHistoryCard(
+                                                record = record,
+                                                isBatchMode = state.isBatchMode,
+                                                isSelected = record.id in state.selectedRecordIds,
+                                                onClick = {
+                                                    if (state.isBatchMode) {
+                                                        state = controller.toggleRecordSelection(state, record.id)
+                                                    } else {
+                                                        state = controller.selectRecord(state, record)
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+    
+                                    item(key = "spacer-$dateKey") {
+                                        Spacer(modifier = Modifier.height(8.dp))
                                     }
                                 }
-
-                                item(key = "spacer-$dateKey") {
-                                    Spacer(modifier = Modifier.height(8.dp))
+    
+                                item {
+                                    Spacer(modifier = Modifier.height(16.dp))
                                 }
-                            }
-
-                            item {
-                                Spacer(modifier = Modifier.height(16.dp))
                             }
                         }
                     }
