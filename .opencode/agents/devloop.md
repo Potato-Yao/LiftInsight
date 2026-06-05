@@ -1,7 +1,7 @@
 ---
 description: Default requirement-to-delivery workflow that plans, implements, reviews, and summarizes work using four subagents.
 mode: primary
-model: deepseek/deepseek-v4-pro
+model: xiaomi-token-plan-cn/mimo-v2.5-pro
 permission:
   read: allow
   glob: allow

@@ -1,7 +1,7 @@
 ---
 description: Plans user requirements into constraints, questions, and ordered implementation tasks.
 mode: subagent
-model: github-copilot/gpt-5.4
+model: xiaomi-token-plan-cn/mimo-v2.5-pro
 permission:
   read: allow
   glob: allow

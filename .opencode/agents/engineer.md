@@ -1,7 +1,7 @@
 ---
 description: Implements approved plans, applies reviewer feedback, and verifies changes.
 mode: subagent
-model: deepseek/deepseek-v4-pro
+model: xiaomi-token-plan-cn/mimo-v2.5-pro
 permission:
   read: allow
   glob: allow
