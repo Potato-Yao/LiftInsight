@@ -86,6 +86,7 @@
     <string name="plan_workout_pause_content_description">Pause workout</string>
     <string name="plan_workout_resume_content_description">Resume workout</string>
     <string name="plan_workout_stop_content_description">Stop workout</string>
+    <string name="plan_workout_add_motion_content_description">Insert a motion</string>
     <string name="plan_workout_stop_dialog_title">Stop workout?</string>
     <string name="plan_workout_stop_dialog_message">Stop this workout session and reset the timer?</string>
     <string name="plan_workout_stop_action">Stop</string>

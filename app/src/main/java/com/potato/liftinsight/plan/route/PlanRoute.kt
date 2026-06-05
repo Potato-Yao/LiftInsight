@@ -11,6 +11,8 @@ sealed interface PlanRoute {
 
     data object MotionPicker : PlanRoute
 
+    data object WorkoutMotionPicker : PlanRoute
+
     data class Motion(val motionEntryId: Int) : PlanRoute
 
     data class Camera(
@@ -30,6 +32,7 @@ fun planRouteDepth(route: PlanRoute): Int {
         PlanRoute.List -> 1
         PlanRoute.Editor -> 2
         PlanRoute.MotionPicker -> 3
+        PlanRoute.WorkoutMotionPicker -> 3
         is PlanRoute.Motion -> 3
         is PlanRoute.Camera -> 4
     }

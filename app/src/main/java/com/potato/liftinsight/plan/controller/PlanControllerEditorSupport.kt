@@ -93,6 +93,7 @@ internal suspend fun PlanControllerEnvironment.handlePlanBack(state: PlanState):
             planRoute = PlanRoute.Editor,
             motionPendingDelete = null
         )
+        PlanRoute.WorkoutMotionPicker -> state.copy(planRoute = PlanRoute.Overview)
         is PlanRoute.Motion -> state.copy(
             planRoute = PlanRoute.Editor,
             motionPendingDelete = null

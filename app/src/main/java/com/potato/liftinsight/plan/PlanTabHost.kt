@@ -140,6 +140,7 @@ internal fun PlanTabHost(
                     workoutProgress = planState.workoutProgress,
                     workoutSession = planState.workoutSession,
                     todayMotions = plan?.let(::todaysPlanMotions).orEmpty(),
+                    mergedTodayTargets = planState.mergedTodayTargets,
                     onEditPlan = { onPlanStateChange(planController.showPlanList(planState)) },
                     onStartNextWorkoutSet = {
                         coroutineScope.launch {
@@ -330,6 +331,55 @@ internal fun PlanTabHost(
                 )
             }
 
+            PlanRoute.WorkoutMotionPicker -> {
+                MotionScreen(
+                    state = motionState,
+                    onAddMotion = {
+                        onMotionStateChange(motionController.openCreateMotion(motionState))
+                    },
+                    onEditMotion = { motionId ->
+                        onMotionStateChange(motionController.openEditMotion(motionState, motionId))
+                    },
+                    onBackFromEditor = {
+                        onMotionStateChange(motionController.closeEditor(motionState))
+                    },
+                    onMotionNameChange = { name ->
+                        onMotionStateChange(motionController.updateEditorName(motionState, name))
+                    },
+                    onSubmitMotion = {
+                        coroutineScope.launch {
+                            val result = motionController.submitMotion(motionState)
+                            onMotionStateChange(result.state)
+                            if (result.didChangeData) {
+                                onPlanStateChange(planController.refreshState(planState))
+                            }
+                        }
+                    },
+                    onDeleteMotion = {
+                        coroutineScope.launch {
+                            val result = motionController.deleteMotion(motionState)
+                            onMotionStateChange(result.state)
+                            if (result.didChangeData) {
+                                onPlanStateChange(planController.refreshState(planState))
+                            }
+                        }
+                    },
+                    selectionTitle = stringResource(R.string.plan_add_motion_dialog_title),
+                    onBackFromSelection = {
+                        onPlanStateChange(planController.closeWorkoutMotionPicker(planState))
+                    },
+                    onSelectMotion = { motionId ->
+                        val selectedMotion = planState.availableMotions.firstOrNull { motion -> motion.id == motionId }
+                        if (selectedMotion != null) {
+                            coroutineScope.launch {
+                                onPlanStateChange(planController.insertMotionIntoWorkout(planState, selectedMotion))
+                            }
+                        }
+                    },
+                    modifier = Modifier.padding(contentPadding)
+                )
+            }
+
             is PlanRoute.Camera -> {
                 CameraScreen(
                     motionTitle = route.motionTitle,
@@ -457,6 +507,7 @@ internal fun PlanTabFloatingActionButton(
                 workoutFinished = planState.workoutProgress?.isFinished == true,
                 isWorkoutGoing = planState.workoutSession.isWorkoutGoing,
                 isWorkoutPaused = planState.workoutSession.isPaused,
+                isInBreak = planState.workoutProgress != null && planState.workoutProgress.activeSetIndex == null && planState.workoutSession.isWorkoutGoing && !planState.workoutSession.isPaused && !planState.workoutProgress.isFinished,
                 onStartWorkout = {
                     coroutineScope.launch {
                         onPlanStateChange(planController.startWorkout(planState))
@@ -469,6 +520,9 @@ internal fun PlanTabFloatingActionButton(
                 },
                 onRequestWorkoutStop = {
                     onPlanStateChange(planController.requestWorkoutStop(planState))
+                },
+                onOpenWorkoutMotionPicker = {
+                    onPlanStateChange(planController.openWorkoutMotionPicker(planState))
                 }
             )
         }
@@ -506,6 +560,8 @@ internal fun PlanTabFloatingActionButton(
         }
 
         PlanRoute.MotionPicker -> Unit
+
+        PlanRoute.WorkoutMotionPicker -> Unit
 
         is PlanRoute.Motion -> Unit
 
@@ -641,9 +697,11 @@ private fun PlanOverviewActionButtons(
     workoutFinished: Boolean,
     isWorkoutGoing: Boolean,
     isWorkoutPaused: Boolean,
+    isInBreak: Boolean,
     onStartWorkout: () -> Unit,
     onToggleWorkoutPause: () -> Unit,
-    onRequestWorkoutStop: () -> Unit
+    onRequestWorkoutStop: () -> Unit,
+    onOpenWorkoutMotionPicker: () -> Unit
 ) {
     if (workoutFinished) {
         return
@@ -654,6 +712,15 @@ private fun PlanOverviewActionButtons(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (isWorkoutGoing) {
+            if (isInBreak) {
+                SmallFloatingActionButton(onClick = onOpenWorkoutMotionPicker) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = stringResource(R.string.plan_workout_add_motion_content_description)
+                    )
+                }
+            }
+
             SmallFloatingActionButton(
                 onClick = onRequestWorkoutStop,
                 containerColor = MaterialTheme.colorScheme.errorContainer,

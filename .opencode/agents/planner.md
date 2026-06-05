@@ -59,6 +59,7 @@ Where each task is an object:
 
 Rules:
 
+* Do not gives full code, but detailed description
 * Keep plans implementation-oriented
 * Avoid overengineering
 * Prefer minimal viable architecture

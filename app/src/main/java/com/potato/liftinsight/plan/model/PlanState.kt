@@ -1,9 +1,11 @@
 package com.potato.liftinsight.plan.model
 
 import com.potato.liftinsight.plan.model.AvailableMotionState
+import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.WorkoutProgressState
 import com.potato.liftinsight.plan.model.WorkoutSessionState
+import com.potato.liftinsight.plan.model.WorkoutSetTargetState
 import com.potato.liftinsight.plan.route.MotionDeleteTarget
 import com.potato.liftinsight.plan.route.PlanEditorState
 import com.potato.liftinsight.plan.route.PlanRoute
@@ -19,5 +21,7 @@ data class PlanState(
     val motionPendingDelete: MotionDeleteTarget? = null,
     val planEditor: PlanEditorState? = null,
     val workoutStopPendingConfirmation: Boolean = false,
-    val cameraVideoName: String? = null
+    val cameraVideoName: String? = null,
+    val workoutInsertedMotions: List<PlanMotionState> = emptyList(),
+    val mergedTodayTargets: List<WorkoutSetTargetState> = emptyList()
 )

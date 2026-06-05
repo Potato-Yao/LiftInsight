@@ -140,4 +140,11 @@ class PlanController(
     suspend fun submitPlanEditor(state: PlanState): PlanState = environment.submitPlanEditor(state)
 
     suspend fun refreshState(state: PlanState): PlanState = environment.refreshState(state)
+
+    fun openWorkoutMotionPicker(state: PlanState): PlanState = environment.openWorkoutMotionPicker(state)
+
+    fun closeWorkoutMotionPicker(state: PlanState): PlanState = environment.closeWorkoutMotionPicker(state)
+
+    suspend fun insertMotionIntoWorkout(state: PlanState, motion: com.potato.liftinsight.plan.model.AvailableMotionState): PlanState =
+        environment.insertMotionIntoWorkout(state, motion)
 }

@@ -1,5 +1,7 @@
 package com.potato.liftinsight.plan.controller
 
+import com.potato.liftinsight.plan.model.AvailableMotionState
+import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput
 import com.potato.liftinsight.plan.model.completedWorkoutSetCount
@@ -9,6 +11,7 @@ import com.potato.liftinsight.plan.model.todaysPlanMotions
 import com.potato.liftinsight.plan.model.toRpe
 import com.potato.liftinsight.plan.model.trainingPlan
 import com.potato.liftinsight.plan.model.workoutElapsedTimeMs
+import com.potato.liftinsight.plan.model.workoutSetTargetsWithInsertions
 import com.potato.liftinsight.plan.model.workoutSetTargetsForDay
 import com.potato.liftinsight.plan.route.PlanRoute
 import com.potato.liftinsight.training.data.CreateMetaHistoryRequest
@@ -64,8 +67,12 @@ internal fun PlanControllerEnvironment.openCamera(state: PlanState): PlanState {
     }
 
     val currentPlan = trainingPlan(state.trainingPlans, state.currentPlanId)
-    val todayMotions = currentPlan?.let { todaysPlanMotions(it) }.orEmpty()
-    val todayTargets = workoutSetTargetsForDay(todayMotions)
+    val todayMotions = currentPlan?.let { plan -> todaysPlanMotions(plan) }.orEmpty()
+    val todayTargets = if (state.mergedTodayTargets.isNotEmpty()) {
+        state.mergedTodayTargets
+    } else {
+        workoutSetTargetsForDay(todayMotions)
+    }
     val activeTarget = workoutProgress.activeSetIndex
         ?.let { index -> todayTargets.getOrNull(index) }
 
@@ -208,8 +215,12 @@ internal suspend fun PlanControllerEnvironment.finishCurrentWorkoutSet(
     }
 
     val currentPlan = trainingPlan(state.trainingPlans, state.currentPlanId)
-    val todayMotions = currentPlan?.let { todaysPlanMotions(it) }.orEmpty()
-    val todayTargets = workoutSetTargetsForDay(todayMotions)
+    val todayMotions = currentPlan?.let { plan -> todaysPlanMotions(plan) }.orEmpty()
+    val todayTargets = if (state.mergedTodayTargets.isNotEmpty()) {
+        state.mergedTodayTargets
+    } else {
+        workoutSetTargetsForDay(todayMotions)
+    }
     val motionId = workoutProgress.activeSetIndex
         ?.let { index -> todayTargets.getOrNull(index)?.motionId }
         ?: -1
@@ -296,6 +307,100 @@ internal suspend fun PlanControllerEnvironment.confirmWorkoutStop(state: PlanSta
 
     return reloadState(
         state = state,
-        workoutStopPendingConfirmation = false
+        workoutStopPendingConfirmation = false,
+        workoutInsertedMotions = emptyList(),
+        mergedTodayTargets = emptyList()
+    )
+}
+
+internal fun PlanControllerEnvironment.openWorkoutMotionPicker(state: PlanState): PlanState {
+    if (!state.workoutSession.isWorkoutGoing || state.workoutSession.isPaused) {
+        logWarn("Ignoring workout motion picker open because the workout is not active")
+        return state
+    }
+
+    if (state.workoutProgress?.activeSetIndex != null) {
+        logWarn("Ignoring workout motion picker open because a set is currently active")
+        return state
+    }
+
+    if (state.workoutProgress?.isFinished == true) {
+        logWarn("Ignoring workout motion picker open because the workout is finished")
+        return state
+    }
+
+    logDebug("Opening workout motion picker")
+
+    return state.copy(planRoute = PlanRoute.WorkoutMotionPicker)
+}
+
+internal fun PlanControllerEnvironment.closeWorkoutMotionPicker(state: PlanState): PlanState {
+    logDebug("Closing workout motion picker")
+    return state.copy(planRoute = PlanRoute.Overview)
+}
+
+internal suspend fun PlanControllerEnvironment.insertMotionIntoWorkout(
+    state: PlanState,
+    motion: AvailableMotionState
+): PlanState {
+    val workoutProgress = state.workoutProgress ?: run {
+        logWarn("Ignoring workout motion insert because no workout progress is available")
+        return state
+    }
+
+    if (!state.workoutSession.isWorkoutGoing) {
+        logWarn("Ignoring workout motion insert because no workout is active")
+        return state
+    }
+
+    val insertedMotion = PlanMotionState(
+        entryId = -1000 - state.workoutInsertedMotions.size,
+        motionId = motion.id,
+        title = motion.title,
+        dayIndex = workoutProgress.dayIndex,
+        sets = 1,
+        repsPerSet = 1,
+        intensity = 0.0,
+        weight = 0.0,
+        orderIndex = 0
+    )
+
+    val updatedInsertedMotions = state.workoutInsertedMotions + insertedMotion
+    val currentPlan = trainingPlan(state.trainingPlans, state.currentPlanId)
+
+    if (currentPlan == null) {
+        logWarn("Ignoring workout motion insert because no current plan found")
+        return state
+    }
+
+    // Merge at target level to preserve correct set counts
+    val mergedTargets = workoutSetTargetsWithInsertions(
+        plan = currentPlan,
+        temporaryMotion = insertedMotion,
+        nextSetIndex = workoutProgress.nextSetIndex
+    )
+    val newTotalSetCount = mergedTargets.size
+
+    // Update totalSetCount in progress to account for the inserted set
+    val updatedProgress = workoutProgress.copy(
+        totalSetCount = newTotalSetCount
+    )
+
+    logDebug(
+        "Inserted motion into workout: motionId=${motion.id}, motionTitle=${motion.title}, " +
+            "newTotalSetCount=$newTotalSetCount, insertedMotionCount=${updatedInsertedMotions.size}"
+    )
+
+    withContext(Dispatchers.IO) {
+        trainingPlanStore.saveWorkoutProgress(updatedProgress)
+    }
+
+    return reloadState(
+        state = state.copy(
+            planRoute = PlanRoute.Overview,
+            mergedTodayTargets = mergedTargets
+        ),
+        workoutInsertedMotions = updatedInsertedMotions,
+        mergedTodayTargets = mergedTargets
     )
 }

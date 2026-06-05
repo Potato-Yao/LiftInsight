@@ -2,10 +2,12 @@ package com.potato.liftinsight.plan.controller
 
 import com.potato.liftinsight.plan.data.TrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.model.AvailableMotionState
+import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.WorkoutProgressState
 import com.potato.liftinsight.plan.model.WorkoutSessionState
+import com.potato.liftinsight.plan.model.WorkoutSetTargetState
 import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
 import com.potato.liftinsight.plan.model.sanitizeWorkoutProgressState
 import com.potato.liftinsight.plan.model.sortPlansByLastApplied
@@ -42,7 +44,9 @@ internal suspend fun PlanControllerEnvironment.loadState(
             planIdPendingDelete = null,
             motionPendingDelete = null,
             planEditor = null,
-            workoutStopPendingConfirmation = false
+            workoutStopPendingConfirmation = false,
+            workoutInsertedMotions = emptyList(),
+            mergedTodayTargets = emptyList()
         ).also { loadedState ->
             logDebug(
                 "Loaded plan state: motions=${loadedState.availableMotions.size}, plans=${loadedState.trainingPlans.size}, currentPlanId=${loadedState.currentPlanId}"
@@ -140,7 +144,9 @@ internal suspend fun PlanControllerEnvironment.reloadState(
     planIdPendingDelete: Int? = state.planIdPendingDelete,
     motionPendingDelete: MotionDeleteTarget? = state.motionPendingDelete,
     planEditor: PlanEditorState? = state.planEditor,
-    workoutStopPendingConfirmation: Boolean = state.workoutStopPendingConfirmation
+    workoutStopPendingConfirmation: Boolean = state.workoutStopPendingConfirmation,
+    workoutInsertedMotions: List<PlanMotionState> = state.workoutInsertedMotions,
+    mergedTodayTargets: List<WorkoutSetTargetState> = state.mergedTodayTargets
 ): PlanState {
     return withContext(Dispatchers.IO) {
         reloadStateInternal(
@@ -149,7 +155,9 @@ internal suspend fun PlanControllerEnvironment.reloadState(
             planIdPendingDelete = planIdPendingDelete,
             motionPendingDelete = motionPendingDelete,
             planEditor = planEditor,
-            workoutStopPendingConfirmation = workoutStopPendingConfirmation
+            workoutStopPendingConfirmation = workoutStopPendingConfirmation,
+            workoutInsertedMotions = workoutInsertedMotions,
+            mergedTodayTargets = mergedTodayTargets
         )
     }
 }
@@ -160,7 +168,9 @@ private fun PlanControllerEnvironment.reloadStateInternal(
     planIdPendingDelete: Int?,
     motionPendingDelete: MotionDeleteTarget?,
     planEditor: PlanEditorState?,
-    workoutStopPendingConfirmation: Boolean
+    workoutStopPendingConfirmation: Boolean,
+    workoutInsertedMotions: List<PlanMotionState>,
+    mergedTodayTargets: List<WorkoutSetTargetState>
 ): PlanState {
     val availableMotions = trainingPlanStore.getAvailableMotions()
     val now = nowProvider()
@@ -185,7 +195,9 @@ private fun PlanControllerEnvironment.reloadStateInternal(
         planIdPendingDelete = planIdPendingDelete,
         motionPendingDelete = motionPendingDelete,
         planEditor = planEditor,
-        workoutStopPendingConfirmation = workoutStopPendingConfirmation
+        workoutStopPendingConfirmation = workoutStopPendingConfirmation,
+        workoutInsertedMotions = workoutInsertedMotions,
+        mergedTodayTargets = mergedTodayTargets
     )
 }
 
@@ -200,13 +212,16 @@ private fun PlanControllerEnvironment.buildLoadedState(
     planIdPendingDelete: Int?,
     motionPendingDelete: MotionDeleteTarget?,
     planEditor: PlanEditorState?,
-    workoutStopPendingConfirmation: Boolean
+    workoutStopPendingConfirmation: Boolean,
+    workoutInsertedMotions: List<PlanMotionState>,
+    mergedTodayTargets: List<WorkoutSetTargetState>
 ): PlanState {
     val sanitizedPlanEditor = sanitizePlanEditor(trainingPlans, availableMotions, planEditor)
     val currentPlan = trainingPlan(trainingPlans, currentPlanId)
-    val todayTargets = currentPlan?.let { plan ->
-        workoutSetTargetsForDay(todaysPlanMotions(plan))
-    }.orEmpty()
+    val todayMotions = currentPlan?.let { plan -> todaysPlanMotions(plan) }.orEmpty()
+    val todayTargets = mergedTodayTargets.ifEmpty {
+        workoutSetTargetsForDay(todayMotions)
+    }
     val sanitizedWorkoutProgress = if (currentPlan == null) {
         null
     } else {
@@ -216,6 +231,19 @@ private fun PlanControllerEnvironment.buildLoadedState(
             dayIndex = normalizedPlanCurrentIndex(currentPlan),
             totalSetCount = todayTargets.size
         )
+    }
+
+    // Preserve inserted motions only when workout is active and not finished
+    val preservedInsertedMotions = if (workoutSession.isWorkoutGoing && workoutProgress?.isFinished != true) {
+        workoutInsertedMotions
+    } else {
+        emptyList()
+    }
+
+    val preservedMergedTargets = if (workoutSession.isWorkoutGoing && workoutProgress?.isFinished != true) {
+        mergedTodayTargets
+    } else {
+        emptyList()
     }
 
     return state.copy(
@@ -236,7 +264,9 @@ private fun PlanControllerEnvironment.buildLoadedState(
             } == true
         },
         cameraVideoName = null,
-        workoutStopPendingConfirmation = workoutStopPendingConfirmation && workoutSession.isWorkoutGoing
+        workoutStopPendingConfirmation = workoutStopPendingConfirmation && workoutSession.isWorkoutGoing,
+        workoutInsertedMotions = preservedInsertedMotions,
+        mergedTodayTargets = preservedMergedTargets
     )
 }
 
@@ -256,6 +286,7 @@ private fun sanitizePlanRoute(
                 PlanRoute.MotionPicker
             }
         }
+        PlanRoute.WorkoutMotionPicker -> PlanRoute.Overview
         is PlanRoute.Motion -> {
             if (planEditor == null) {
                 PlanRoute.List

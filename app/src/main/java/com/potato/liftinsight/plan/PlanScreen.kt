@@ -73,6 +73,7 @@ internal fun PlanScreen(
     workoutProgress: WorkoutProgressState?,
     workoutSession: WorkoutSessionState,
     todayMotions: List<PlanMotionState>,
+    mergedTodayTargets: List<WorkoutSetTargetState> = emptyList(),
     onEditPlan: () -> Unit,
     onStartNextWorkoutSet: () -> Unit,
     onSkipWorkoutSet: () -> Unit,
@@ -83,8 +84,8 @@ internal fun PlanScreen(
     modifier: Modifier = Modifier
 ) {
     var showContent by remember { mutableStateOf(false) }
-    val workoutSetTargets = remember(todayMotions) {
-        workoutSetTargetsForDay(todayMotions)
+    val workoutSetTargets = remember(todayMotions, mergedTodayTargets) {
+        if (mergedTodayTargets.isNotEmpty()) mergedTodayTargets else workoutSetTargetsForDay(todayMotions)
     }
     val nowMs = rememberPlanCurrentTimeMs(
         shouldTick = workoutSession.isWorkoutGoing || workoutProgress?.isFinished == false

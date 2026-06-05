@@ -110,6 +110,15 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_13_12 = object : Migration(13, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE workout_progress_new (`id` INTEGER NOT NULL, `plan_id` INTEGER NOT NULL, `plan_day_index` INTEGER NOT NULL, `next_set_index` INTEGER NOT NULL, `active_set_index` INTEGER, `total_set_count` INTEGER NOT NULL, `break_ends_at` INTEGER NOT NULL, `is_finished` INTEGER NOT NULL, `completed_elapsed_time_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("INSERT INTO workout_progress_new (`id`, `plan_id`, `plan_day_index`, `next_set_index`, `active_set_index`, `total_set_count`, `break_ends_at`, `is_finished`, `completed_elapsed_time_ms`) SELECT `id`, `plan_id`, `plan_day_index`, `next_set_index`, `active_set_index`, `total_set_count`, `break_ends_at`, `is_finished`, `completed_elapsed_time_ms` FROM workout_progress")
+                db.execSQL("DROP TABLE workout_progress")
+                db.execSQL("ALTER TABLE workout_progress_new RENAME TO workout_progress")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -144,7 +153,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                             MIGRATION_8_9,
                             MIGRATION_9_10,
                             MIGRATION_10_11,
-                            MIGRATION_11_12
+                            MIGRATION_11_12,
+                            MIGRATION_13_12
                         )
                         .build()
 

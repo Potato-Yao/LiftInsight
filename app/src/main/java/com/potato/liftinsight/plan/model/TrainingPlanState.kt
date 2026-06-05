@@ -127,6 +127,39 @@ fun todaysPlanMotions(plan: TrainingPlanState): List<PlanMotionState> {
     )
 }
 
+fun workoutSetTargetsWithInsertions(
+    plan: TrainingPlanState,
+    temporaryMotion: PlanMotionState,
+    nextSetIndex: Int
+): List<WorkoutSetTargetState> {
+    val planMotions = todaysPlanMotions(plan)
+    val originalTargets = workoutSetTargetsForDay(planMotions)
+
+    if (originalTargets.isEmpty()) {
+        return workoutSetTargetsForDay(listOf(temporaryMotion))
+    }
+
+    // Insert the temporary motion's target at nextSetIndex
+    val tempTarget = WorkoutSetTargetState(
+        orderIndex = nextSetIndex,
+        motionEntryId = temporaryMotion.entryId,
+        motionId = temporaryMotion.motionId,
+        motionTitle = temporaryMotion.title,
+        setIndex = 1,
+        setsInMotion = temporaryMotion.sets.coerceAtLeast(1),
+        reps = temporaryMotion.repsPerSet.coerceAtLeast(1),
+        weight = temporaryMotion.weight.coerceAtLeast(0.0),
+        intensity = temporaryMotion.intensity.coerceAtLeast(0.0)
+    )
+
+    val insertAt = nextSetIndex.coerceIn(0, originalTargets.size)
+    val merged = originalTargets.toMutableList()
+    merged.add(insertAt, tempTarget)
+
+    // Re-index orderIndex
+    return merged.mapIndexed { index, target -> target.copy(orderIndex = index) }
+}
+
 fun workoutElapsedTimeMs(
     workoutSession: WorkoutSessionState,
     now: Long
