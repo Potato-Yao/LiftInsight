@@ -349,6 +349,14 @@ class PlanControllerTest {
     }
 
     @Test
+    fun refreshState_clearsCameraVideoName() = runBlocking {
+        val controller = controller()
+        val state = initialState(controller).copy(cameraVideoName = "lift-1.mp4")
+        val refreshedState = controller.refreshState(state)
+        assertNull(refreshedState.cameraVideoName)
+    }
+
+    @Test
     fun confirmPlanDeletion_removesPlanClearsDialogAndReturnsToList() = runBlocking {
         val controller = controller()
         val state = controller.requestPlanDeletion(initialState(controller), 2)

@@ -235,6 +235,7 @@ private fun PlanControllerEnvironment.buildLoadedState(
                     sanitizedPlanEditor.planId == pendingTarget.planId
             } == true
         },
+        cameraVideoName = null,
         workoutStopPendingConfirmation = workoutStopPendingConfirmation && workoutSession.isWorkoutGoing
     )
 }
