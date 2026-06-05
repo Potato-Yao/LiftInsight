@@ -1,0 +1,127 @@
+\chapter{程序架构设计与技术实现方案}
+
+\section{总体技术方案的确定}
+
+截至项目立项时，我已经在诊所工作三个学期了。这段期间（特别是第二学年诊所规范要在换硅脂操作后烤机），我发现很多需要使用工具软件的操作都固定且繁琐，所以如果能有一个软件取代人去自动进行这些操作，诊所的工作效率和质量都会得到提升。恰好这学期Java课以项目作为作业，Java也是我熟悉的语言，我有做出项目的信心。
+
+于是，我归纳了诊所常用的各种操作，提取出程序实现的核心需求：硬件指标的读取、外部工具的调用。我必须先明确这两个需求怎么实现，才能继续开发项目。
+
+关于获取硬件指标，我首先去寻找AIDA64和HWiNFO的文档，发现它们均为闭源软件，没有可供外部调用的API。因此，我转而寻找开源的替代项目。我在网上搜索得到项目OpenHardwareMonitor，不过已经停止维护了。取而代之的是LibreHardwareMonitor，它是使用C\#语言编写的，我并不熟悉。但是我在仔细搜索、询问ChatGPT后都没有得到其它替代选择，便尝试使用LibreHardwareMonitor。
+
+LibreHardwareMonitor分为UI和LibreHardwareMonitorLib两部分，但是没有提供任何文档。我在GitHub找到了对其进行封装的项目，但是同样没有提供文档或者代码示例。最终我找到了一个叫做fan-control的Rust项目，它包含了一个LibreHardwareMonitorLib的wrapper，可以方便地进行通信、获取硬件数据。于是我将Rust代码翻译为Java代码，并小规模重构了wrapper，解决了第一个问题。
+
+关于需要调用的外部工具主要分为三类：第一是使用图形化界面的；第二是使用命令行的；第三是文本化界面或者需要在程序的解释器环境执行命令的。第一种很难实现自动操作，我的解决方案是寻找不需要操作图形化界面的替代品。我使用Furmark2（支持命令行操作）替代常用的Furmark，使用命令行操作的cpu burn替代cpuburner。第二类只需使用Process类进行调用即可。第三类需要在Process进行相对复杂的IO操作，但仍是可以实现的。
+
+关于总体架构，我选择使用模块化设计，将内核与交互界面分开，从而便于项目的维护和模块间功能的分别、隔离。
+
+\section{数据存储和处理}
+
+本项目处理的数据为各硬件指标（指CPU、GPU、内存和电池的各项参数）和系统信息（指硬盘分区、BitLocker状态、系统版本等）。硬件指标是从LibreHardwareMonitorLib获取的，系统信息则来自diskpart、manage-bde和systeminfo等程序。
+
+要想获取硬件指标，首先需要向LibreHardwareMonitor发出请求获取hardware list。hardware list是一个JSON字符串，储存了LibreHardwareMonitor能够获取的所有硬件信息以及对应的索引。向LibreHardwareMonitor发送索引就能得到对应的值。因此，本程序会遍历hardware list并解析并存储需要的项。当需要更新硬件指标时，程序遍历存储的项，依次向LibreHardwareMonitor获取对应的值。见章节\ref{lhm_section}。
+
+关于系统信息的处理则更为复杂，因为diskpart、manage-bde和systeminfo等程序并不会按照任一数据储存格式返回结果，而是返回便于人类阅读的文本，需要按照具体形式进行特殊处理。大部分程序返回的结果都有固定的形式，因此只需要直接针对某一行的某位置的子字符串进行读取即可。但是如manage-bde返回的结果结构上更多样，为了避免信息提取错漏，我为其设计了状态机。见章节\ref{managebde_section}。
+
+关于信息的存储。除储存烤机测试信息外，本程序并没有其它向本地储存文件的需求。在烤机时，程序会实时将烤机的用时、CPU温度、CPU功率、GPU温度和GPU功率储存在程序同级目录的CAFiles文件夹下，使用CSV格式存储。
+
+使用CSV主要出自存储数据的使用场景考虑：导出烤机数据是为了在需要时复盘烤机结果。这需要一种直观简单的格式，以便于人工进行数据阅读和比对，并最好能够导入到如Excel等软件进行可视化分析。这就排除了JSON、XML和TOML等常用格式。因此，紧凑、表格形式组织的CSV就成为了合适的选择。另外，需要导出数据的种类是可被提前确定的，因此使用固定列的格式更能够使得数据紧凑直观，这同样是拒绝TOML、JSON和XML等的因素。
+
+\section{架构设计、数据结构和算法的面向对象实现技术方案}\label{design_section}
+
+本项目分为Kernel和Desktop两个模块。
+
+Kernel提供了程序需要的一切获取硬件信息、与外部工具交互的方法，分为External、Hardware、Software和Utils四个包。
+
+\begin{center}
+    \begin{tabular}{cc}
+        包名 & 功能 \\
+        \hline
+        External & 包含与LibreHardwareMonitorLib wrapper等外部工具交互的helper类\\
+		Hardware & 包含用于表示各个硬件的JavaBean、获取硬件信息的manager类\\
+		Software & 包含用于表示系统信息的JavaBean、获取系统信息的manager类\\
+		Utils & 包含管理员权限检测等杂项工具\\
+    \end{tabular}
+	\captionof{table}{Kernel模块}
+\end{center}
+
+Desktop是程序交互界面的实现，使用JavaFX实现，分为Component、Controller和Utils三个包。
+
+\begin{center}
+    \begin{tabular}{cc}
+        包名 & 功能 \\
+        \hline
+        Component & 包含对一些JavaFX组件的封装\\
+		Controller & 包含各个stage的controller\\
+		Utils & 包含CSV和对话框等杂项工具\\
+    \end{tabular}
+	\captionof{table}{Desktop模块}
+\end{center}
+
+本项目在设计上充分采取面向对象设计中的封装思想。为了便于对权限进行控制、避免因修改权限导致下游代码需要修改，本项目中所有成员变量均为private标记，使用public的Getter和Setter对外开放。
+
+本项目还使用了若干设计模式，使得代码组织良好、后期改动成本下降。最常用的是Builder模式和Singleton模式。B uilder模式用于可能加入更多需要赋值、可有默认值的类。如代码\ref{stress_test_builder_code}所示。
+
+\begin{lstlisting}[language=java, firstnumber=1, label={stress_test_builder_code}, caption={StressTestUtilBuilder}]
+/**
+ * builder for {@code StressTestUtil}
+ */
+public class StressTestUtilBuilder {
+    private final StressTestUtil util;
+    public StressTestUtilBuilder() throws IOException {
+        this.util = new StressTestUtil();
+    }
+    public StressTestUtilBuilder cpuTest(boolean needTest) {
+        util.setTestCPU(needTest);
+        return this;
+    }
+    // 省略若干代码
+    public StressTestUtil build() {
+        return util;
+    }
+}
+\end{lstlisting}
+
+Singleton模式用于因为成员变量一定相同、实例没有功能上区别从而本就不应出现多个实例的类，如各个Manager类和Helper类。如代码\ref{singleton_code}所示。
+
+\begin{lstlisting}[language=java, firstnumber=1, label={singleton_code}, caption={HardwareInfoManager}]
+    private static HardwareInfoManager manager;
+    /**
+     * the constructor will parse hardware list by LHM, map hardware sensors with index in the list.
+     * then it will update sensors value by calling {@code update()} periodically.
+     *
+     * @throws IOException
+     */
+    private HardwareInfoManager() throws IOException {
+	// 省略若干代码
+	}
+
+	public static HardwareInfoManager getHardwareInfoManager() throws IOException {
+        if (manager == null) {
+            manager = new HardwareInfoManager();
+        }
+        return manager;
+    }
+\end{lstlisting}
+   
+对于储存硬件信息的各个Java Bean和图形化界面的各个Controller，都定义了父类，以便减少大量重复代码，并便于进行泛型操作。
+
+借助继承关系，在Desktop模块中，我使用泛型编写了生成新的窗口（即其对应的Controller和Stage）的方法，使得创建窗口只需要调用函数即可一行解决，极大减少了创建新窗口业务逻辑的重复代码量。如代码\ref{making_window_code}所示。
+
+\begin{lstlisting}[language=java, firstnumber=1, label={making_window_code}, caption={openWindow方法}]
+    public <Con extends Controller> Pair<Con, Stage> openWindow(String fxml, String title, Class<Con> controllerClass) {
+        try {
+            // 国际化相关代码
+            // FXML和Stage相关代码
+            // Controller相关代码
+            // 图标相关代码
+            stage.show();
+            openedWindows.put(controller, stage);
+            return new Pair<>(controller, stage);
+        } catch (Exception e) {
+            // 省略若干代码
+        }
+        return null;
+    }
+\end{lstlisting}
+
+关于异常。除部分可预料到、可以简单处理的异常外，Kernel遇到异常不会做任何处理，而是直接向上抛出。这是为了将异常处理置于调用端，增强程序的可定制性，同时降低程序业务逻辑的复杂性。由于时间紧迫，我并没有在前端做好报错的处理。目前版本中，当启动时发生错误，程序会弹出弹窗报错，但是在运行时产生的错误将会直接被忽略。

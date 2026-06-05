@@ -1,0 +1,183 @@
+\chapter{程序需求分析}
+
+\section{动因描述}
+
+我是我校校级学生组织网络开拓者协会下属电脑诊所的一员。在修电脑的过程中，我们经常需要进行烤机测试、BitLocker解锁、硬件状态查看等操作。这需要我们在诊所的工具箱CLINIC\_OP中打开位于不同目录的若干软件， 并在多个软件之间切换，非常不方便。有时，一些常见的维修需要使用命令行进行，这就要求诊所的同学记住不少Powershell命令，无疑增大了维修的精力成本。另外，诊所常做的烤机测试\footnote{烤机测试：指借助特殊软件使电脑的CPU、GPU处于最大负荷运行状态一段时间，通过对电脑温度、功率等指标的观察判断其最大性能和散热能力。}需要人工全程监视硬件状态，以判断电脑的散热能力，这理应被自动化的工具代替，作为一个自动进行的工作。
+
+因此，我开发了ClinicAssistant实用功能工具箱，提供硬件信息监视、一键激活Windows、一键进入BIOS、解锁BitLocker、重置代理、修复网卡代码56错误、快捷进入CLINIC\_OP工具等诊所常用的实用功能。另外，我对诊所判断烤机结果的经验方法进行数学建模，从而实现了自动烤机测试功能。本工具可以降低电脑维修的技术门槛、规范维修的操作流程，从而极大地便利诊所同学维修电脑，使诊所的服务效率更高、更规范。
+
+\section{竞品分析}
+
+目前，最常见的集成了若干维修工具的工具箱程序为“图吧工具箱”。
+
+图吧工具箱类似于一个导航页，收集、罗列出了电脑维修各个方面的若干软件，并为每个软件提供了简单介绍。它允许直接从程序内启动这些软件，而本身并不提供任何维修工具。除此以外，图吧工具箱无其它自动化功能。此外，图吧工具箱缺少常用命令的一键执行脚本。对于电脑维修的新手而言，图吧工具箱并不能起到太大帮助；对于经验丰富的高手来说，又没必要从图吧工具箱去启动工具。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=\textwidth]{images/tuba.png}
+    }
+    \caption{图吧工具箱}
+\end{figure}
+
+诊所最常使用的工具莫过于电脑硬件指标（温度、功率、频率等）的监测和烤机测试工具。指标监测常用软件是AIDA64和HWiNFO；烤机测试常用软件是cpuburner（集成于AIDA64）和Furmark。每次进行烤机操作时，都需要打开AIDA64和Furmark并在两个软件内操作。AIDA64可以同时进行CPU的烤机测试和硬件指标检测，但是其没有\textit{指标$-$时间图象}的功能，无法直观判断指标变化趋势。因此有时需要额外开启HWiNFO以获取图象。这样，为了完成烤机测试就需要开启三个程序，操作上非常不便。
+
+此外，上述的两款检测软件中CPU和GPU数据间被其它硬件信息分隔开，并且软件给出的信息太多，而大多对于烤机测试无用。因此烤机时必须在二者间上下滑动翻找需要的信息，也带来了不必要的繁琐操作和学习成本。
+
+\begin{figure}[H]
+  \centering
+  \begin{minipage}[t]{0.6\linewidth}
+      \centering
+      \includegraphics[width=\textwidth]{images/hwinfo.png}
+      \caption{HWiNFO}
+  \end{minipage}
+
+  \begin{minipage}[t]{0.6\linewidth}
+      \centering
+      \includegraphics[width=\textwidth]{images/aida64.png}
+      \caption{AIDA64}
+  \end{minipage}
+  \caption{两款常用硬件监测软件}
+\end{figure}
+
+因此，ClinicAssistant提供的常用指标监视和自动化、一键式操作可以极大地方便电脑维修的各种操作。
+
+\section{功能描述}
+
+本程序作为维修电脑的实用工具箱，主要面向有电脑维护维修需求的同学。通过本程序可以直观地观察到电脑的各项硬件信息和指标、方便地进行各类维护诊断操作。具体功能清单如下：
+
+硬件信息和系统信息监视：实时监视电脑的CPU温度、功率、频率；GPU温度、功率、频率；内存大小与占用率；物理硬盘数量及大小；电池充电状态、剩余电量、电池健康度和充放电功率；系统的名称、版本号、主板模具、位数、激活状态。如图\ref{monitor_view}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=\textwidth]{images/monitor_view.png}
+    }
+    \caption{监视器页面}
+    \label{monitor_view}
+\end{figure}
+
+实用功能菜单：提供了一键激活Windows、一键重启并进入BIOS、一键解锁BitLocker、一键代理重置、一键网卡Code56修复和自动烤机测试功能。如图\ref{tools_view}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=\textwidth]{images/tools_view.png}
+    }
+    \caption{实用工具页面}
+    \label{tools_view}
+\end{figure}
+
+外部功能导航：提供了快速打开外部工具的导航页，点击按钮即可打开对应工具。如图\ref{externals_view}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=\textwidth]{images/externals_view.png}
+    }
+    \caption{外部工具导航页面}
+    \label{externals_view}
+\end{figure}
+
+帮助页面：帮助界面附上了网协wiki的链接和各咨询群的群号。如图\ref{help_view}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=0.6\textwidth]{images/help_view.png}
+    }
+    \caption{帮助界面}
+    \label{help_view}
+\end{figure}
+
+关于页面：关于界面附上了网协首页与本项目GitHub仓库的链接。如图\ref{about_view}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=0.6\textwidth]{images/about_view.png}
+    }
+    \caption{关于界面}
+    \label{about_view}
+\end{figure}
+
+版本页面：关于界面附上了当前ClinicAssistant的图形化界面和内核版本。如图\ref{version_view}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=0.4\textwidth]{images/version_view.png}
+    }
+    \caption{版本界面}
+    \label{version_view}
+\end{figure}
+
+一键激活Windows：使用激活脚本激活Windows系统，点击按钮即可激活Windows系统，若已激活系统则无法按下激活按钮。如图\ref{activation_tool}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=0.2\textwidth]{images/activation_tool.png}
+    }
+    \caption{Windows激活工具}
+    \label{activation_tool}
+\end{figure}
+
+一键进入BIOS：重启电脑并进入BIOS设置界面。如图\ref{enter_bios_tool}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=0.5\textwidth]{images/enter_bios_tool.png}
+    }
+    \caption{重启并进入BIOS工具}
+    \label{enter_bios_tool}
+\end{figure}
+
+一键解锁BitLocker：实时识别电脑上所有磁盘分区的BitLocker加密情况，在没有完全解密的磁盘上按下左键即可招出确认菜单，确认后自动解锁BitLocker。如图\ref{bitlock_tools}所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{minipage}[t]{0.6\linewidth}
+      \centering
+      \includegraphics[width=\textwidth]{images/bitlocker_tool.png}
+  \end{minipage}
+
+  \begin{minipage}[t]{0.6\linewidth}
+      \centering
+      \includegraphics[width=\textwidth]{images/bitlocker_unlock_tool.png}
+  \end{minipage}
+  \caption{BitLocker解锁工具}
+  \label{bitlock_tools}
+\end{figure}
+
+一键重置网络代理：重置网络代理。如图\ref{proxy_tool}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=0.5\textwidth]{images/proxy_tool.png}
+    }
+    \caption{重置网络代理工具}
+    \label{proxy_tool}
+\end{figure}
+
+一键修复网卡代码56：修复网卡驱动报错“代码 56”。如图\ref{code56_tool}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=0.5\textwidth]{images/code56_tool.png}
+    }
+    \caption{重置网络代理工具}
+    \label{code56_tool}
+\end{figure}
+
+自动烤机：勾选需要烤CPU或/和GPU，输入被烤电脑电源适配器的功率（可选），自动进行烤鸡测试。在测试时可以查看已测试时间、\textit{温度$-$时间图象}和\textit{功率$-$时间图象}、算法对指标的实时评估 。当算法判定烤机效果已经可以说明散热良好时烤机自动结束。若CPU或GPU温度超出安全上限则烤机自动结束。如图\ref{stress_test_tool}所示。
+
+\begin{figure}[H]
+    \makebox[\textwidth]{
+        \includegraphics[width=\textwidth]{images/stress_test_tool.png}
+    }
+    \caption{自动烤机测试工具}
+    \label{stress_test_tool}
+\end{figure}
+
+烤机时会实时将当前电脑的硬件指标储存在位于CAFiles文件夹下的CSV文件中，以供参考和手动判断烤机效果。
+
+\section{UI界面与交互设计}
+
+本项目从诊所工作的实际情况出发进行设计，目标在于使得常用参数指标易于观察、常用操作可被“一键”执行，从而方便诊所的日常工作。因此，我将软件设计成了“监视器”、“工具”和“外部工具”三部分，使用左侧栏进行切换。如图\ref{monitor_view}、\ref{tools_view}和\ref{externals_view}所示。
+
+为了这个目标，整个软件都遵循着简单清晰的设计原则：仅使用按钮、文本和图表来设计交互、展示信息，以牺牲部分可定制性和更加详细的信息，换来更快速易于上手的交互逻辑。如BitLocker解锁工具（见图\ref{bitlock_tools}）和自动烤机工具（见图\ref{stress_test_tool}）就是这种设计的典型例子：BitLocker解锁工具只设计了解锁而无加锁、自动烤机工具只设计了自动判断而无定时功能，就是因为这些需求对诊所工作而言相当罕见，因此无需进行额外设计。
+
+本项目支持国际化，图形化界面的默认语言是英语。这是为了避免系统编码配置有误导致的界面乱码，这常见于使用英文作为显示语言或开启了全局UTF-8编码实验功能的系统。
