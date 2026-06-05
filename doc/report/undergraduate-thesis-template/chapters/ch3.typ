@@ -8,7 +8,7 @@
 
 寒假时我接触到了举重这项运动。由于没有教练、全靠自学，我必须得录制很多自己动作的视频以供分析问题。这就导致我手机的储存被大量视频占据。而这些视频中，准备动作占了很大篇幅，可能录制的一分半视频有七十秒是在准备，只有二十秒是真的在做动作，因此实际上占据储存空间大部分的都是无用的片段。因此我想，如果能开发一个程序自动剪辑掉水平中的非动作部分，一定能节省出很多空间。
 
-后来，结合训练的实际需求，我又对这个构想做了扩展，希望能做出一个除了训练视频的归纳外，还有运动参数分析、训练计划安排等功能的APP，名字就叫LiftInsight。
+后来，结合训练的实际需求，我又对这个构想做了扩展，希望能做出一个除了训练视频的归纳外，还有运动参数分析、训练计划安排等功能的APP，名字就叫“LiftInsight”。中文名是deepseek起的，叫“举重明析”。
 
 == 竞品分析
 
@@ -54,7 +54,7 @@ VBTgo也有杠铃轨迹识别和瞬时速度、功率计算功能，它还可以
   caption: "首页界面",
 )
 
-“记录”分为“人体”和“训练”。“人体”记录了体重、身高、最大功率和各项动作的最大重量等各项指标。“训练”记录了每次训练的容量、重量、RPE等，还记录了本次训练的视频。这里还提供了视频的预览、编辑和分析功能。
+“记录”分为“人体”和“训练”。“人体”记录了体重、身高、最大功率和各项动作的最大重量等各项指标。“训练”记录了每次训练的容量、重量、RPE等，还记录了本次训练的视频。
 
 #figure(
   [
@@ -69,102 +69,62 @@ VBTgo也有杠铃轨迹识别和瞬时速度、功率计算功能，它还可以
   caption: "记录界面",
 )
 
-// 本程序作为维修电脑的实用工具箱，主要面向有电脑维护维修需求的同学。通过本程序可以直观地观察到电脑的各项硬件信息和指标、方便地进行各类维护诊断操作。具体功能清单如下：
+每个记录的详情页都提供了视频的预览、编辑和分析功能。本项目的运动分析功能主要是在这部分承载的。
 
-// 硬件信息和系统信息监视：实时监视电脑的 CPU 温度、功率、频率；GPU 温度、功率、频率；内存大小与占用率；物理硬盘数量及大小；电池充电状态、剩余电量、电池健康度和充放电功率；系统的名称、版本号、主板模具、位数、激活状态。如 @monitor_view 所示。
+#figure(
+  [
+    #grid(
+      columns: 2,
+      // gutter: 1em,
+      stack(image("../assets/video0.jpg", width: image_scale)),
+      stack(image("../assets/video1.jpg", width: image_scale)),
+    )
+  ],
+  caption: "视频剪辑和分析界面",
+)
 
-// #figure(
-//   image("images/monitor_view.png", width: 100%),
-//   caption: [监视器页面],
-// ) <monitor_view>
+“动作”记录了数据库中全部的运动动作和相关信息，也为每个动作动作提供了修改和删除功能。
 
-// 实用功能菜单：提供了一键激活 Windows、一键重启并进入 BIOS、一键解锁 BitLocker、一键代理重置、一键网卡 Code56 修复和自动烤机测试功能。如 @tools_view 所示。
+#figure(
+  image("../assets/motion.jpg", width: small_image_scale),
+  caption: "动作界面",
+)
 
-// #figure(
-//   image("images/tools_view.png", width: 100%),
-//   caption: [实用工具页面],
-// ) <tools_view>
+“计划”界面一方面列出了可用计划、每个计划的动作列表，提供对应的新建、删除和编辑等管理功能。
 
-// 外部功能导航：提供了快速打开外部工具的导航页，点击按钮即可打开对应工具。如 @externals_view 所示。
+#figure(
+  [
+    #grid(
+      columns: 3,
+      // gutter: 1em,
+      stack(image("../assets/plan.jpg", width: big_image_scale)),
+      stack(image("../assets/plan1.jpg", width: big_image_scale)),
+      stack(image("../assets/plan2.jpg", width: big_image_scale)),
+    )
+  ],
+  caption: "计划界面",
+)
 
-// #figure(
-//   image("images/externals_view.png", width: 100%),
-//   caption: [外部工具导航页面],
-// ) <externals_view>
+实时进行的训练也在这里显示。这里会显示下一个进行的训练的重量和次数等信息，可以招出相机录制运动视频。在一组结束后会出现一个弹窗要求你输入本组训练的一些信息，用于记录情况、对本次训练进行评估。
 
-// 帮助页面：帮助界面附上了网协 wiki 的链接和各咨询群的群号。如 @help_view 所示。
+#figure(
+  [
+    #grid(
+      columns: 2,
+      // gutter: 1em,
+      stack(image("../assets/motion0.jpg", width: image_scale)),
+      stack(image("../assets/motion1.jpg", width: image_scale)),
+    )
+  ],
+  caption: "实时训练界面",
+)
 
-// #figure(
-//   image("images/help_view.png", width: 60%),
-//   caption: [帮助界面],
-// ) <help_view>
+“设置”界面是APP的各种设置，如主题、语言等，也可以在这里查看项目的相关信息，如版本和编译时间。
 
-// 关于页面：关于界面附上了网协首页与本项目 GitHub 仓库的链接。如 @about_view 所示。
-
-// #figure(
-//   image("images/about_view.png", width: 60%),
-//   caption: [关于界面],
-// ) <about_view>
-
-// 版本页面：关于界面附上了当前 ClinicAssistant 的图形化界面和内核版本。如 @version_view 所示。
-
-// #figure(
-//   image("images/version_view.png", width: 40%),
-//   caption: [版本界面],
-// ) <version_view>
-
-// 一键激活 Windows：使用激活脚本激活 Windows 系统，点击按钮即可激活 Windows 系统，若已激活系统则无法按下激活按钮。如 @activation_tool 所示。
-
-// #figure(
-//   image("images/activation_tool.png", width: 20%),
-//   caption: [Windows 激活工具],
-// ) <activation_tool>
-
-// 一键进入 BIOS：重启电脑并进入 BIOS 设置界面。如 @enter_bios_tool 所示。
-
-// #figure(
-//   image("images/enter_bios_tool.png", width: 50%),
-//   caption: [重启并进入 BIOS 工具],
-// ) <enter_bios_tool>
-
-// 一键解锁 BitLocker：实时识别电脑上所有磁盘分区的 BitLocker 加密情况，在没有完全解密的磁盘上按下左键即可招出确认菜单，确认后自动解锁 BitLocker。如 @bitlock_tools 所示。
-
-// #figure(
-//   [
-//     #set text(font: songti, size: 10pt)
-//     #set stack(dir: ttb, spacing: 0.5em)
-//     #grid(
-//       columns: 2,
-//       gutter: 1em,
-//       stack(image("images/bitlocker_tool.png", width: 100%), [(a) BitLocker 状态]),
-//       stack(image("images/bitlocker_unlock_tool.png", width: 100%), [(b) BitLocker 解锁]),
-//     )
-//   ],
-//   caption: [BitLocker 解锁工具],
-// ) <bitlock_tools>
-
-// 一键重置网络代理：重置网络代理。如 @proxy_tool 所示。
-
-// #figure(
-//   image("images/proxy_tool.png", width: 50%),
-//   caption: [重置网络代理工具],
-// ) <proxy_tool>
-
-// 一键修复网卡代码 56：修复网卡驱动报错“代码 56”。如 @code56_tool 所示。
-
-// #figure(
-//   image("images/code56_tool.png", width: 50%),
-//   caption: [重置网络代理工具],
-// ) <code56_tool>
-
-// 自动烤机：勾选需要烤 CPU 或和 GPU，输入被烤电脑电源适配器的功率（可选），自动进行烤鸡测试。在测试时可以查看已测试时间、“温度-时间图象”和“功率-时间图象”、算法对指标的实时评估。当算法判定烤机效果已经可以说明散热良好时烤机自动结束。若 CPU 或 GPU 温度超出安全上限则烤机自动结束。如 @stress_test_tool 所示。
-
-// #figure(
-//   image("images/stress_test_tool.png", width: 100%),
-//   caption: [自动烤机测试工具],
-// ) <stress_test_tool>
-
-// 烤机时会实时将当前电脑的硬件指标储存在位于 CAFiles 文件夹下的 CSV 文件中，以供参考和手动判断烤机效果。
+#figure(
+  image("../assets/settings.jpg", width: small_image_scale),
+  caption: "设置界面",
+)
 
 == UI 界面与交互设计
 
