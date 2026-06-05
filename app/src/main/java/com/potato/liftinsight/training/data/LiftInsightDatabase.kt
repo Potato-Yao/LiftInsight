@@ -18,14 +18,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MetaPlanEntity::class,
         MetaHistoryEntity::class,
         VideoProcessStateEntity::class,
-        MetaHistoryBinEntity::class
+        MetaHistoryBinEntity::class,
+        HistoryEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
     abstract fun motionDao(): MotionDao
     abstract fun planDao(): PlanDao
+    abstract fun historyDao(): HistoryDao
 
     companion object {
         @Volatile
@@ -144,6 +146,68 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        plan_id INTEGER NOT NULL,
+                        start_time INTEGER NOT NULL,
+                        end_time INTEGER NOT NULL,
+                        intensity INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(plan_id) REFERENCES plan(id) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_history_plan_id ON history (`plan_id`)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE metahistory_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        date TEXT NOT NULL,
+                        rep INTEGER NOT NULL,
+                        rpe INTEGER NOT NULL,
+                        weight REAL NOT NULL,
+                        motion_id INTEGER NOT NULL,
+                        video_name TEXT,
+                        video_source TEXT NOT NULL DEFAULT 'CAMERA_CAPTURE',
+                        imported_video_analysis_mode TEXT NOT NULL DEFAULT 'ESTIMATED',
+                        imported_reference_label TEXT NOT NULL DEFAULT '',
+                        imported_reference_pixel_distance REAL,
+                        imported_reference_distance_meters REAL,
+                        history_id INTEGER,
+                        FOREIGN KEY(motion_id) REFERENCES motion(id) ON UPDATE NO ACTION ON DELETE RESTRICT,
+                        FOREIGN KEY(history_id) REFERENCES history(id) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                    """
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO metahistory_new (
+                        id, date, rep, rpe, weight, motion_id, video_name,
+                        video_source, imported_video_analysis_mode,
+                        imported_reference_label, imported_reference_pixel_distance,
+                        imported_reference_distance_meters
+                    )
+                    SELECT
+                        id, date, rep, rpe, weight, motion_id, video_name,
+                        video_source, imported_video_analysis_mode,
+                        imported_reference_label, imported_reference_pixel_distance,
+                        imported_reference_distance_meters
+                    FROM metahistory
+                    """
+                )
+                db.execSQL("DROP TABLE metahistory")
+                db.execSQL("ALTER TABLE metahistory_new RENAME TO metahistory")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_motion_id ON metahistory (`motion_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_history_id ON metahistory (`history_id`)")
+
+                db.execSQL("ALTER TABLE metahistory_bin ADD COLUMN history_id INTEGER")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -180,7 +244,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                             MIGRATION_10_11,
                             MIGRATION_11_12,
                             MIGRATION_12_13,
-                            MIGRATION_13_12
+                            MIGRATION_13_12,
+                            MIGRATION_13_14
                         )
                         .build()
 

@@ -120,7 +120,8 @@ abstract class PlanDao {
             metahistory.imported_video_analysis_mode,
             metahistory.imported_reference_label,
             metahistory.imported_reference_pixel_distance,
-            metahistory.imported_reference_distance_meters
+            metahistory.imported_reference_distance_meters,
+            metahistory.history_id
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         ORDER BY metahistory.date DESC, metahistory.id DESC
@@ -253,7 +254,8 @@ abstract class PlanDao {
             imported_video_analysis_mode,
             imported_reference_label,
             imported_reference_pixel_distance,
-            imported_reference_distance_meters
+            imported_reference_distance_meters,
+            history_id
         FROM metahistory_bin
         ORDER BY date DESC, id DESC
         """
@@ -281,7 +283,8 @@ abstract class PlanDao {
             metahistory.imported_video_analysis_mode,
             metahistory.imported_reference_label,
             metahistory.imported_reference_pixel_distance,
-            metahistory.imported_reference_distance_meters
+            metahistory.imported_reference_distance_meters,
+            metahistory.history_id
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.id = :id
@@ -304,7 +307,8 @@ abstract class PlanDao {
             imported_video_analysis_mode,
             imported_reference_label,
             imported_reference_pixel_distance,
-            imported_reference_distance_meters
+            imported_reference_distance_meters,
+            history_id
         FROM metahistory_bin
         WHERE id = :id
         """
@@ -327,7 +331,8 @@ abstract class PlanDao {
             importedVideoAnalysisMode = row.importedVideoAnalysisMode,
             importedReferenceLabel = row.importedReferenceLabel,
             importedReferencePixelDistance = row.importedReferencePixelDistance,
-            importedReferenceDistanceMeters = row.importedReferenceDistanceMeters
+            importedReferenceDistanceMeters = row.importedReferenceDistanceMeters,
+            historyId = row.historyId
         )
 
         insertMetaHistoryBin(binEntity)
@@ -364,7 +369,8 @@ abstract class PlanDao {
             importedVideoAnalysisMode = row.importedVideoAnalysisMode,
             importedReferenceLabel = row.importedReferenceLabel,
             importedReferencePixelDistance = row.importedReferencePixelDistance,
-            importedReferenceDistanceMeters = row.importedReferenceDistanceMeters
+            importedReferenceDistanceMeters = row.importedReferenceDistanceMeters,
+            historyId = row.historyId
         )
 
         insertMetaHistory(historyEntity)

@@ -130,6 +130,30 @@ data class MetaPlanEntity(
 )
 
 @Entity(
+    tableName = "history",
+    foreignKeys = [
+        ForeignKey(
+            entity = PlanEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["plan_id"],
+            onDelete = ForeignKey.RESTRICT
+        )
+    ],
+    indices = [Index(value = ["plan_id"])]
+)
+data class HistoryEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+    @ColumnInfo(name = "plan_id")
+    val planId: Int,
+    @ColumnInfo(name = "start_time")
+    val startTime: Long,
+    @ColumnInfo(name = "end_time")
+    val endTime: Long,
+    val intensity: Int = 0
+)
+
+@Entity(
     tableName = "metahistory",
     foreignKeys = [
         ForeignKey(
@@ -137,9 +161,18 @@ data class MetaPlanEntity(
             parentColumns = ["id"],
             childColumns = ["motion_id"],
             onDelete = ForeignKey.RESTRICT
+        ),
+        ForeignKey(
+            entity = HistoryEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["history_id"],
+            onDelete = ForeignKey.SET_NULL
         )
     ],
-    indices = [Index(value = ["motion_id"])]
+    indices = [
+        Index(value = ["motion_id"]),
+        Index(value = ["history_id"])
+    ]
 )
 data class MetaHistoryEntity(
     @PrimaryKey(autoGenerate = true)
@@ -161,7 +194,9 @@ data class MetaHistoryEntity(
     @ColumnInfo(name = "imported_reference_pixel_distance")
     val importedReferencePixelDistance: Double? = null,
     @ColumnInfo(name = "imported_reference_distance_meters")
-    val importedReferenceDistanceMeters: Double? = null
+    val importedReferenceDistanceMeters: Double? = null,
+    @ColumnInfo(name = "history_id")
+    val historyId: Int? = null
 )
 
 @Entity(
@@ -218,7 +253,22 @@ data class MetaHistoryRow(
     @ColumnInfo(name = "imported_reference_pixel_distance")
     val importedReferencePixelDistance: Double?,
     @ColumnInfo(name = "imported_reference_distance_meters")
-    val importedReferenceDistanceMeters: Double?
+    val importedReferenceDistanceMeters: Double?,
+    @ColumnInfo(name = "history_id")
+    val historyId: Int? = null
+)
+
+data class HistoryRow(
+    val id: Int,
+    @ColumnInfo(name = "plan_id")
+    val planId: Int,
+    @ColumnInfo(name = "plan_name")
+    val planName: String,
+    @ColumnInfo(name = "start_time")
+    val startTime: Long,
+    @ColumnInfo(name = "end_time")
+    val endTime: Long,
+    val intensity: Int
 )
 
 @Entity(tableName = "metahistory_bin")
@@ -244,7 +294,9 @@ data class MetaHistoryBinEntity(
     @ColumnInfo(name = "imported_reference_pixel_distance")
     val importedReferencePixelDistance: Double? = null,
     @ColumnInfo(name = "imported_reference_distance_meters")
-    val importedReferenceDistanceMeters: Double? = null
+    val importedReferenceDistanceMeters: Double? = null,
+    @ColumnInfo(name = "history_id")
+    val historyId: Int? = null
 )
 
 data class MetaHistoryBinRow(
@@ -268,7 +320,9 @@ data class MetaHistoryBinRow(
     @ColumnInfo(name = "imported_reference_pixel_distance")
     val importedReferencePixelDistance: Double?,
     @ColumnInfo(name = "imported_reference_distance_meters")
-    val importedReferenceDistanceMeters: Double?
+    val importedReferenceDistanceMeters: Double?,
+    @ColumnInfo(name = "history_id")
+    val historyId: Int? = null
 )
 
 internal fun MotionEntity.toRecord(): MotionRecord {
@@ -345,7 +399,8 @@ internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
         importedVideoAnalysisMode = resolvedAnalysisMode,
         importedReferenceLabel = importedReferenceLabel,
         importedReferencePixelDistance = importedReferencePixelDistance,
-        importedReferenceDistanceMeters = importedReferenceDistanceMeters
+        importedReferenceDistanceMeters = importedReferenceDistanceMeters,
+        historyId = historyId
     )
 }
 
@@ -374,7 +429,29 @@ internal fun MetaHistoryBinRow.toRecord(): MetaHistoryRecord {
         importedVideoAnalysisMode = resolvedAnalysisMode,
         importedReferenceLabel = importedReferenceLabel,
         importedReferencePixelDistance = importedReferencePixelDistance,
-        importedReferenceDistanceMeters = importedReferenceDistanceMeters
+        importedReferenceDistanceMeters = importedReferenceDistanceMeters,
+        historyId = historyId
+    )
+}
+
+internal fun HistoryRow.toRecord(): HistoryRecord {
+    return HistoryRecord(
+        id = id,
+        planId = planId,
+        planName = planName,
+        startTime = startTime,
+        endTime = endTime,
+        intensity = intensity
+    )
+}
+
+internal fun HistoryRecord.toEntity(): HistoryEntity {
+    return HistoryEntity(
+        id = id,
+        planId = planId,
+        startTime = startTime,
+        endTime = endTime,
+        intensity = intensity
     )
 }
 

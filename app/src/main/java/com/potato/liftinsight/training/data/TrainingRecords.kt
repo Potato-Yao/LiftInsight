@@ -85,6 +85,23 @@ data class MetaHistoryRecord(
     val importedVideoAnalysisMode: ImportedVideoAnalysisMode = ImportedVideoAnalysisMode.ESTIMATED,
     val importedReferenceLabel: String = "",
     val importedReferencePixelDistance: Double? = null,
-    val importedReferenceDistanceMeters: Double? = null
+    val importedReferenceDistanceMeters: Double? = null,
+    val historyId: Int? = null
+)
+
+data class HistoryRecord(
+    val id: Int,
+    val planId: Int,
+    val planName: String,
+    val startTime: Long,
+    val endTime: Long,
+    val intensity: Int
+)
+
+data class CreateHistoryRequest(
+    val planId: Int,
+    val startTime: Long,
+    val endTime: Long,
+    val intensity: Int = 0
 )
 
