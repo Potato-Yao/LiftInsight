@@ -10,7 +10,8 @@ data class WorkoutProgressState(
     val totalSetCount: Int,
     val breakEndsAt: Long = 0L,
     val isFinished: Boolean = false,
-    val completedElapsedTimeMs: Long = 0L
+    val completedElapsedTimeMs: Long = 0L,
+    val activeHistoryId: Int? = null
 )
 
 data class WorkoutSetTargetState(
@@ -82,12 +83,14 @@ fun workoutSetTargetsForDay(todayMotions: List<PlanMotionState>): List<WorkoutSe
 fun createWorkoutProgressState(
     planId: Int,
     dayIndex: Int,
-    totalSetCount: Int
+    totalSetCount: Int,
+    activeHistoryId: Int? = null
 ): WorkoutProgressState {
     return WorkoutProgressState(
         planId = planId,
         dayIndex = dayIndex,
-        totalSetCount = totalSetCount.coerceAtLeast(0)
+        totalSetCount = totalSetCount.coerceAtLeast(0),
+        activeHistoryId = activeHistoryId
     )
 }
 

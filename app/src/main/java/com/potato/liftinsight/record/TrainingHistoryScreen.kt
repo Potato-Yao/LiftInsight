@@ -64,6 +64,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -91,7 +94,9 @@ import com.potato.liftinsight.camera.CameraScreen
 import com.potato.liftinsight.motion.MotionVideoPlayer
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.controller.TrainingHistoryController
+import com.potato.liftinsight.record.model.DisplayMode
 import com.potato.liftinsight.record.model.TrainingHistoryState
+import com.potato.liftinsight.training.data.HistoryRecord
 import com.potato.liftinsight.training.data.MetaHistoryRecord
 import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
@@ -183,6 +188,12 @@ internal fun TrainingHistoryScreen(
         }
     }
 
+    LaunchedEffect(state.displayMode) {
+        if (state.displayMode == DisplayMode.HISTORY && state.historyRecords.isEmpty()) {
+            state = controller.loadHistorySessions(state)
+        }
+    }
+
     AnimatedContent(
         targetState = state.isBinMode,
         transitionSpec = {
@@ -246,15 +257,21 @@ internal fun TrainingHistoryScreen(
                     TopAppBar(
                         title = {
                             Text(
-                                text = if (state.isBatchMode) {
-                                    stringResource(R.string.training_batch_selected_count, state.selectedRecordIds.size)
-                                } else {
-                                    stringResource(R.string.record_training_card_title)
+                                text = when {
+                                    state.isBatchMode -> stringResource(R.string.training_batch_selected_count, state.selectedRecordIds.size)
+                                    state.selectedHistorySession != null -> stringResource(R.string.training_history_session_detail_title)
+                                    else -> stringResource(R.string.record_training_card_title)
                                 }
                             )
                         },
                         navigationIcon = {
-                            IconButton(onClick = onBack) {
+                            IconButton(onClick = {
+                                if (state.selectedHistorySession != null) {
+                                    state = controller.dismissHistorySession(state)
+                                } else {
+                                    onBack()
+                                }
+                            }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                     contentDescription = stringResource(R.string.common_back)
@@ -315,127 +332,186 @@ internal fun TrainingHistoryScreen(
                     )
                 }
             ) { innerPadding ->
-                val grouped = state.records.groupBy { it.date.take(10) }
-    
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
                 ) {
-                    if (grouped.isEmpty()) {
-                        AnimatedVisibility(
-                            visible = showContent,
-                            enter = trainingSectionEnter(delayMillis = 80),
-                            exit = ExitTransition.None,
-                            modifier = Modifier.fillMaxSize()
+                    if (!state.isBatchMode) {
+                        SingleChoiceSegmentedButtonRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 8.dp)
+                                .align(Alignment.TopCenter)
                         ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
+                            SegmentedButton(
+                                selected = state.displayMode == DisplayMode.META_HISTORY,
+                                onClick = {
+                                    state = controller.switchDisplayMode(state, DisplayMode.META_HISTORY)
+                                },
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                             ) {
-                                Text(
-                                    text = stringResource(R.string.training_no_records),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(text = stringResource(R.string.training_display_mode_meta_history))
+                            }
+                            SegmentedButton(
+                                selected = state.displayMode == DisplayMode.HISTORY,
+                                onClick = {
+                                    state = controller.switchDisplayMode(state, DisplayMode.HISTORY)
+                                },
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                            ) {
+                                Text(text = stringResource(R.string.training_display_mode_history))
                             }
                         }
-                    } else {
-                        AnimatedVisibility(
-                            visible = showContent,
-                            enter = trainingSectionEnter(delayMillis = 0),
-                            exit = ExitTransition.None
-                        ) {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                grouped.forEach { (dateKey, dayRecords) ->
-                                    val isExpanded = dateKey in state.expandedDateGroups
-    
-                                    item(key = "header-$dateKey") {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable {
-                                                    state = controller.toggleDateGroup(state, dateKey)
-                                                }
-                                                .padding(top = 12.dp, bottom = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
+                    }
+
+                    AnimatedContent(
+                        targetState = state.displayMode,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = if (state.isBatchMode) 0.dp else 56.dp),
+                        label = "displayModeTransition"
+                    ) { mode ->
+                        when (mode) {
+                            DisplayMode.META_HISTORY -> {
+                                val grouped = state.records.groupBy { it.date.take(10) }
+
+                                if (grouped.isEmpty()) {
+                                    AnimatedVisibility(
+                                        visible = showContent,
+                                        enter = trainingSectionEnter(delayMillis = 80),
+                                        exit = ExitTransition.None,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = formatDateLabel(dateKey),
-                                                    style = MaterialTheme.typography.labelLarge,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                                Text(
-                                                    text = "(${dayRecords.size})",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                if (state.isBatchMode) {
-                                                    IconButton(
-                                                        onClick = {
-                                                            dayToDelete = dateKey
-                                                            showDayDeleteConfirmDialog = true
-                                                        },
-                                                        modifier = Modifier.size(24.dp)
+                                            Text(
+                                                text = stringResource(R.string.training_no_records),
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    AnimatedVisibility(
+                                        visible = showContent,
+                                        enter = trainingSectionEnter(delayMillis = 0),
+                                        exit = ExitTransition.None
+                                    ) {
+                                        LazyColumn(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 24.dp, vertical = 12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            grouped.forEach { (dateKey, dayRecords) ->
+                                                val isExpanded = dateKey in state.expandedDateGroups
+
+                                                item(key = "header-$dateKey") {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clickable {
+                                                                state = controller.toggleDateGroup(state, dateKey)
+                                                            }
+                                                            .padding(top = 12.dp, bottom = 4.dp),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
                                                     ) {
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(
+                                                                text = formatDateLabel(dateKey),
+                                                                style = MaterialTheme.typography.labelLarge,
+                                                                color = MaterialTheme.colorScheme.primary
+                                                            )
+                                                            Text(
+                                                                text = "(${dayRecords.size})",
+                                                                style = MaterialTheme.typography.labelMedium,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                            if (state.isBatchMode) {
+                                                                IconButton(
+                                                                    onClick = {
+                                                                        dayToDelete = dateKey
+                                                                        showDayDeleteConfirmDialog = true
+                                                                    },
+                                                                    modifier = Modifier.size(24.dp)
+                                                                ) {
+                                                                    Icon(
+                                                                        imageVector = Icons.Rounded.DeleteSweep,
+                                                                        contentDescription = stringResource(R.string.training_batch_delete_day),
+                                                                        modifier = Modifier.size(18.dp),
+                                                                        tint = MaterialTheme.colorScheme.error
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
                                                         Icon(
-                                                            imageVector = Icons.Rounded.DeleteSweep,
-                                                            contentDescription = stringResource(R.string.training_batch_delete_day),
-                                                            modifier = Modifier.size(18.dp),
-                                                            tint = MaterialTheme.colorScheme.error
+                                                            imageVector = if (isExpanded) {
+                                                                Icons.Rounded.ExpandLess
+                                                            } else {
+                                                                Icons.Rounded.ExpandMore
+                                                            },
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                                                         )
                                                     }
                                                 }
-                                            }
-                                            Icon(
-                                                imageVector = if (isExpanded) {
-                                                    Icons.Rounded.ExpandLess
-                                                } else {
-                                                    Icons.Rounded.ExpandMore
-                                                },
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-    
-                                    if (isExpanded) {
-                                        items(
-                                            items = dayRecords,
-                                            key = { it.id }
-                                        ) { record ->
-                                            TrainingHistoryCard(
-                                                record = record,
-                                                isBatchMode = state.isBatchMode,
-                                                isSelected = record.id in state.selectedRecordIds,
-                                                onClick = {
-                                                    if (state.isBatchMode) {
-                                                        state = controller.toggleRecordSelection(state, record.id)
-                                                    } else {
-                                                        state = controller.selectRecord(state, record)
+
+                                                if (isExpanded) {
+                                                    items(
+                                                        items = dayRecords,
+                                                        key = { it.id }
+                                                    ) { record ->
+                                                        TrainingHistoryCard(
+                                                            record = record,
+                                                            isBatchMode = state.isBatchMode,
+                                                            isSelected = record.id in state.selectedRecordIds,
+                                                            onClick = {
+                                                                if (state.isBatchMode) {
+                                                                    state = controller.toggleRecordSelection(state, record.id)
+                                                                } else {
+                                                                    state = controller.selectRecord(state, record)
+                                                                }
+                                                            }
+                                                        )
                                                     }
                                                 }
-                                            )
+
+                                                item(key = "spacer-$dateKey") {
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                }
+                                            }
+
+                                            item {
+                                                Spacer(modifier = Modifier.height(16.dp))
+                                            }
                                         }
                                     }
-    
-                                    item(key = "spacer-$dateKey") {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                    }
                                 }
-    
-                                item {
-                                    Spacer(modifier = Modifier.height(16.dp))
+                            }
+
+                            DisplayMode.HISTORY -> {
+                                if (state.selectedHistorySession != null) {
+                                    HistorySessionDetailScreen(
+                                        session = state.selectedHistorySession!!,
+                                        metaHistoryRecords = state.sessionMetaHistoryRecords,
+                                        onSelectRecord = { record -> state = controller.selectRecord(state, record) }
+                                    )
+                                } else {
+                                    ByHistoryListScreen(
+                                        historySessions = state.historyRecords,
+                                        onSelectSession = { session ->
+                                            coroutineScope.launch {
+                                                state = controller.selectHistorySession(state, session)
+                                            }
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -1878,6 +1954,191 @@ private fun DetailChip(
             }
         }
     }
+}
+
+@Composable
+private fun ByHistoryListScreen(
+    historySessions: List<HistoryRecord>,
+    onSelectSession: (HistoryRecord) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (historySessions.isEmpty()) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = stringResource(R.string.training_history_no_sessions),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    } else {
+        LazyColumn(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(historySessions, key = { it.id }) { session ->
+                HistorySessionCard(
+                    session = session,
+                    onClick = { onSelectSession(session) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistorySessionCard(
+    session: HistoryRecord,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.FitnessCenter,
+                    contentDescription = null,
+                    modifier = Modifier.padding(12.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = session.planName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = formatTimestampFull(session.startTime),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = stringResource(R.string.training_history_session_day_label, session.dayIndex),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistorySessionDetailScreen(
+    session: HistoryRecord,
+    metaHistoryRecords: List<MetaHistoryRecord>,
+    onSelectRecord: (MetaHistoryRecord) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+            item(key = "sessionInfo") {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(32.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = session.planName,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = formatDateLabel(timestampToDateString(session.startTime)),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
+                        )
+                        Text(
+                            text = stringResource(R.string.training_history_session_day_label, session.dayIndex),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
+                        )
+                    }
+                }
+            }
+
+            if (metaHistoryRecords.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.training_no_records),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                items(metaHistoryRecords, key = { it.id }) { record ->
+                    TrainingHistoryCard(
+                        record = record,
+                        onClick = { onSelectRecord(record) }
+                    )
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+        }
+}
+
+private fun timestampToDateString(timestamp: Long): String {
+    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    return formatter.format(timestamp)
+}
+
+private fun formatTimestampFull(timestamp: Long): String {
+    val formatter = SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault())
+    return formatter.format(timestamp)
+}
+
+private fun formatTimestampTime(timestamp: Long): String {
+    val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+    return formatter.format(timestamp)
 }
 
 private fun formatDateLabel(dateKey: String): String {

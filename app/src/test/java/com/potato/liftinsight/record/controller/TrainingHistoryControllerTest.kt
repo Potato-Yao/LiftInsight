@@ -4,6 +4,9 @@ import android.content.Context
 import android.os.Environment
 import androidx.test.core.app.ApplicationProvider
 import com.potato.liftinsight.plan.data.TrainingPlanStore
+import com.potato.liftinsight.record.model.DisplayMode
+import com.potato.liftinsight.training.data.HistoryEntity
+import com.potato.liftinsight.training.data.HistoryRecord
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.video.VideoProcessor
 import java.io.File
@@ -151,6 +154,30 @@ class TrainingHistoryControllerTest {
                         name = motionName
                     )
                 )
+            }
+        }
+    }
+
+    private fun createTestPlanAndHistory(): Int {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                val planId = database.planDao().createPlan(
+                    com.potato.liftinsight.training.data.PlanEntity(
+                        name = "Test Plan",
+                        cyclePeriod = 7,
+                        currentIndex = 1
+                    ),
+                    emptyList()
+                )
+                database.historyDao().insertHistory(
+                    HistoryEntity(
+                        planId = planId,
+                        startTime = 1000L,
+                        endTime = 2000L,
+                        intensity = 7,
+                        dayIndex = 1
+                    )
+                ).toInt()
             }
         }
     }
@@ -666,5 +693,177 @@ class TrainingHistoryControllerTest {
         assertNull(updatedState.selectedBinRecord)
         assertFalse(updatedState.isBatchMode)
         assertTrue(updatedState.selectedRecordIds.isEmpty())
+    }
+
+    // --- switchDisplayMode ---
+
+    @Test
+    fun switchDisplayMode_changesDisplayMode() {
+        val state = controller.emptyState()
+
+        val updatedState = controller.switchDisplayMode(state, DisplayMode.HISTORY)
+
+        assertEquals(DisplayMode.HISTORY, updatedState.displayMode)
+    }
+
+    @Test
+    fun switchDisplayMode_clearsSelectedHistorySession() {
+        val session = HistoryRecord(
+            id = 1,
+            planId = 1,
+            planName = "Test Plan",
+            startTime = 1000L,
+            endTime = 2000L,
+            intensity = 5,
+            dayIndex = 1
+        )
+        val state = controller.emptyState().copy(
+            displayMode = DisplayMode.HISTORY,
+            selectedHistorySession = session,
+            sessionMetaHistoryRecords = listOf(
+                com.potato.liftinsight.training.data.MetaHistoryRecord(
+                    id = 1,
+                    date = "2024-01-01",
+                    rep = 5,
+                    rpe = 8,
+                    weight = 80.0,
+                    motionId = 1,
+                    motionName = "Snatch"
+                )
+            )
+        )
+
+        val updatedState = controller.switchDisplayMode(state, DisplayMode.META_HISTORY)
+
+        assertEquals(DisplayMode.META_HISTORY, updatedState.displayMode)
+        assertNull(updatedState.selectedHistorySession)
+        assertTrue(updatedState.sessionMetaHistoryRecords.isEmpty())
+    }
+
+    @Test
+    fun switchDisplayMode_switchesBackToMetaHistory() {
+        val state = controller.emptyState().copy(displayMode = DisplayMode.HISTORY)
+
+        val updatedState = controller.switchDisplayMode(state, DisplayMode.META_HISTORY)
+
+        assertEquals(DisplayMode.META_HISTORY, updatedState.displayMode)
+    }
+
+    // --- loadHistorySessions ---
+
+    @Test
+    fun loadHistorySessions_loadsSessionsFromStore() = runBlocking {
+        insertTestMotion()
+        insertTestHistoryRecord()
+        createTestPlanAndHistory()
+
+        val updatedState = controller.loadHistorySessions(controller.emptyState())
+
+        assertTrue(updatedState.historyRecords.isNotEmpty())
+    }
+
+    @Test
+    fun loadHistorySessions_returnsEmptyWhenNoSessions() = runBlocking {
+        val updatedState = controller.loadHistorySessions(controller.emptyState())
+
+        assertTrue(updatedState.historyRecords.isEmpty())
+    }
+
+    // --- selectHistorySession ---
+
+    @Test
+    fun selectHistorySession_setsSelectedSession() = runBlocking {
+        insertTestMotion()
+        insertTestHistoryRecord()
+        val historyId = createTestPlanAndHistory()
+        val stateWithHistory = controller.loadHistorySessions(controller.emptyState())
+        val session = stateWithHistory.historyRecords.first { it.id == historyId }
+
+        val updatedState = controller.selectHistorySession(stateWithHistory, session)
+
+        assertNotNull(updatedState.selectedHistorySession)
+        assertEquals(session.id, updatedState.selectedHistorySession!!.id)
+    }
+
+    @Test
+    fun selectHistorySession_loadsSessionMetaHistoryRecords() = runBlocking {
+        insertTestMotion()
+        val recordId = insertTestHistoryRecord().toInt()
+        val historyId = createTestPlanAndHistory()
+        withContext(Dispatchers.IO) {
+            database.historyDao().attachMetaHistories(historyId, listOf(recordId))
+        }
+        val stateWithHistory = controller.loadHistorySessions(controller.emptyState())
+        val session = stateWithHistory.historyRecords.first { it.id == historyId }
+
+        val updatedState = controller.selectHistorySession(stateWithHistory, session)
+
+        assertTrue(updatedState.sessionMetaHistoryRecords.isNotEmpty())
+    }
+
+    // --- dismissHistorySession ---
+
+    @Test
+    fun dismissHistorySession_clearsSelectedSession() {
+        val session = HistoryRecord(
+            id = 1,
+            planId = 1,
+            planName = "Test Plan",
+            startTime = 1000L,
+            endTime = 2000L,
+            intensity = 5,
+            dayIndex = 1
+        )
+        val state = controller.emptyState().copy(
+            selectedHistorySession = session,
+            sessionMetaHistoryRecords = listOf(
+                com.potato.liftinsight.training.data.MetaHistoryRecord(
+                    id = 1,
+                    date = "2024-01-01",
+                    rep = 5,
+                    rpe = 8,
+                    weight = 80.0,
+                    motionId = 1,
+                    motionName = "Snatch"
+                )
+            )
+        )
+
+        val updatedState = controller.dismissHistorySession(state)
+
+        assertNull(updatedState.selectedHistorySession)
+        assertTrue(updatedState.sessionMetaHistoryRecords.isEmpty())
+    }
+
+    @Test
+    fun dismissHistorySession_preservesOtherState() {
+        val records = listOf(
+            com.potato.liftinsight.training.data.MetaHistoryRecord(
+                id = 1,
+                date = "2024-01-01",
+                rep = 5,
+                rpe = 8,
+                weight = 80.0,
+                motionId = 1,
+                motionName = "Snatch"
+            )
+        )
+        val state = controller.emptyState().copy(
+            records = records,
+            selectedHistorySession = HistoryRecord(
+                id = 1,
+                planId = 1,
+                planName = "Test Plan",
+                startTime = 1000L,
+                endTime = 2000L,
+                intensity = 5,
+                dayIndex = 1
+            ),
+            sessionMetaHistoryRecords = records
+        )
+
+        val updatedState = controller.dismissHistorySession(state)
+
+        assertEquals(records, updatedState.records)
     }
 }

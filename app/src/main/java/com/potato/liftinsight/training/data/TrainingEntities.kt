@@ -87,7 +87,9 @@ data class WorkoutProgressEntity(
     @ColumnInfo(name = "is_finished")
     val isFinished: Boolean = false,
     @ColumnInfo(name = "completed_elapsed_time_ms")
-    val completedElapsedTimeMs: Long = 0L
+    val completedElapsedTimeMs: Long = 0L,
+    @ColumnInfo(name = "active_history_id")
+    val activeHistoryId: Int? = null
 )
 
 @Entity(
@@ -150,7 +152,9 @@ data class HistoryEntity(
     val startTime: Long,
     @ColumnInfo(name = "end_time")
     val endTime: Long,
-    val intensity: Int = 0
+    val intensity: Int = 0,
+    @ColumnInfo(name = "day_index")
+    val dayIndex: Int = 0
 )
 
 @Entity(
@@ -268,7 +272,9 @@ data class HistoryRow(
     val startTime: Long,
     @ColumnInfo(name = "end_time")
     val endTime: Long,
-    val intensity: Int
+    val intensity: Int,
+    @ColumnInfo(name = "day_index")
+    val dayIndex: Int = 0
 )
 
 @Entity(tableName = "metahistory_bin")
@@ -441,7 +447,8 @@ internal fun HistoryRow.toRecord(): HistoryRecord {
         planName = planName,
         startTime = startTime,
         endTime = endTime,
-        intensity = intensity
+        intensity = intensity,
+        dayIndex = dayIndex
     )
 }
 
@@ -451,7 +458,8 @@ internal fun HistoryRecord.toEntity(): HistoryEntity {
         planId = planId,
         startTime = startTime,
         endTime = endTime,
-        intensity = intensity
+        intensity = intensity,
+        dayIndex = dayIndex
     )
 }
 

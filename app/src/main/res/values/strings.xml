@@ -325,6 +325,13 @@
     <string name="training_bin_revert_confirm_title">Restore this record?</string>
     <string name="training_bin_revert_confirm_message">This record will be moved back to your training history.</string>
 
+    <!-- Training history - display mode -->
+    <string name="training_display_mode_meta_history">By Record</string>
+    <string name="training_display_mode_history">By Session</string>
+    <string name="training_history_session_day_label">Day %1$d</string>
+    <string name="training_history_no_sessions">No training sessions yet</string>
+    <string name="training_history_session_detail_title">Session Detail</string>
+
     <!-- Training history - batch delete confirmations -->
     <string name="training_batch_delete_confirm_title">Delete selected records?</string>
     <string name="training_batch_delete_confirm_message">%1$d record(s) will be moved to the trash bin.</string>

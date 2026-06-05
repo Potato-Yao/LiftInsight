@@ -62,7 +62,8 @@ data class CreateMetaHistoryRequest(
     val importedVideoAnalysisMode: ImportedVideoAnalysisMode = ImportedVideoAnalysisMode.ESTIMATED,
     val importedReferenceLabel: String = "",
     val importedReferencePixelDistance: Double? = null,
-    val importedReferenceDistanceMeters: Double? = null
+    val importedReferenceDistanceMeters: Double? = null,
+    val historyId: Int? = null
 )
 
 enum class VideoProcessState {
@@ -95,13 +96,15 @@ data class HistoryRecord(
     val planName: String,
     val startTime: Long,
     val endTime: Long,
-    val intensity: Int
+    val intensity: Int,
+    val dayIndex: Int = 0
 )
 
 data class CreateHistoryRequest(
     val planId: Int,
     val startTime: Long,
     val endTime: Long,
-    val intensity: Int = 0
+    val intensity: Int = 0,
+    val dayIndex: Int = 0
 )
 

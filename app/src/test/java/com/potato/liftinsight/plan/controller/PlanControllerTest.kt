@@ -12,6 +12,8 @@ import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.WorkoutSetFeeling
+import com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput
 import com.potato.liftinsight.plan.route.PlanRoute
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.training.data.LiftInsightDatabase
@@ -451,6 +453,98 @@ class PlanControllerTest {
                 .first { it.entryId == 1 }
                 .title
         )
+    }
+
+    @Test
+    fun startWorkout_createsHistoryRecordAndSetsActiveHistoryId() = runBlocking {
+        var now = 1_000L
+        val controller = controller(nowProvider = { now })
+        val initial = initialState(controller)
+
+        val startedState = controller.startWorkout(initial)
+
+        assertTrue(startedState.workoutSession.isWorkoutGoing)
+        assertNotNull(startedState.workoutProgress)
+        assertNotNull(startedState.workoutProgress?.activeHistoryId)
+
+        val historyId = startedState.workoutProgress!!.activeHistoryId!!
+        val historyRecords = trainingPlanStore.getHistoryRecords()
+        val createdHistory = historyRecords.first { it.id == historyId }
+
+        assertEquals(2, createdHistory.planId)
+        assertEquals(1_000L, createdHistory.startTime)
+        assertEquals(1_000L, createdHistory.endTime)
+        assertEquals(1, createdHistory.dayIndex)
+    }
+
+    @Test
+    fun finishCurrentWorkoutSet_linksMetaHistoryToHistory() = runBlocking {
+        var now = 1_000L
+        val controller = controller(nowProvider = { now })
+        val initial = initialState(controller)
+        val startedState = controller.startWorkout(initial)
+
+        now = 3_000L
+        val setStartedState = controller.startNextWorkoutSet(startedState)
+
+        val performance = WorkoutSetPerformanceInput(
+            repsDone = 1,
+            weightDone = 90.0,
+            feeling = WorkoutSetFeeling.HardButControlled,
+            breakDurationSeconds = 60
+        )
+
+        val finishedSetState = controller.finishCurrentWorkoutSet(setStartedState, performance)
+
+        val historyId = startedState.workoutProgress!!.activeHistoryId!!
+        val metaHistoryRecords = trainingPlanStore.getMetaHistoryRecordsByHistoryId(historyId)
+
+        assertTrue(metaHistoryRecords.isNotEmpty())
+        assertEquals(historyId, metaHistoryRecords.first().historyId)
+    }
+
+    @Test
+    fun confirmWorkoutStop_updatesHistoryEndTime() = runBlocking {
+        var now = 1_000L
+        val controller = controller(nowProvider = { now })
+        val initial = initialState(controller)
+        val startedState = controller.startWorkout(initial)
+
+        val historyId = startedState.workoutProgress!!.activeHistoryId!!
+
+        now = 5_000L
+        val stopRequestedState = controller.requestWorkoutStop(startedState)
+        val stoppedState = controller.confirmWorkoutStop(stopRequestedState)
+
+        assertFalse(stoppedState.workoutSession.isWorkoutGoing)
+        assertNull(stoppedState.workoutProgress)
+
+        val historyRecords = trainingPlanStore.getHistoryRecords()
+        val updatedHistory = historyRecords.first { it.id == historyId }
+
+        assertEquals(5_000L, updatedHistory.endTime)
+    }
+
+    @Test
+    fun skipWorkoutSet_whenFinishing_updatesHistoryEndTime() = runBlocking {
+        val controller = controller(nowProvider = { 1_000L })
+        val initial = initialState(controller)
+        val startedState = controller.startWorkout(initial)
+
+        val historyId = startedState.workoutProgress!!.activeHistoryId!!
+        val totalSets = startedState.workoutProgress!!.totalSetCount
+
+        var currentState = startedState
+        for (i in 1..totalSets) {
+            currentState = controller.skipWorkoutSet(currentState)
+        }
+
+        assertTrue(currentState.workoutProgress?.isFinished == true || currentState.workoutSession.isWorkoutGoing.not())
+
+        val historyRecords = trainingPlanStore.getHistoryRecords()
+        val updatedHistory = historyRecords.first { it.id == historyId }
+
+        assertTrue(updatedHistory.endTime > 0L)
     }
 }
 

@@ -4,7 +4,9 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import com.potato.liftinsight.plan.data.TrainingPlanStore
+import com.potato.liftinsight.record.model.DisplayMode
 import com.potato.liftinsight.record.model.TrainingHistoryState
+import com.potato.liftinsight.training.data.HistoryRecord
 import com.potato.liftinsight.training.data.MetaHistoryRecord
 import com.potato.liftinsight.training.data.UpdateImportedVideoMetadataRequest
 import com.potato.liftinsight.video.VideoExportHelper
@@ -484,6 +486,38 @@ class TrainingHistoryController(
             selectedBinRecord = null,
             selectedRecordIds = emptySet(),
             isBatchMode = false
+        )
+    }
+
+    fun switchDisplayMode(state: TrainingHistoryState, mode: DisplayMode): TrainingHistoryState {
+        return state.copy(
+            displayMode = mode,
+            selectedHistorySession = null,
+            sessionMetaHistoryRecords = emptyList()
+        )
+    }
+
+    suspend fun loadHistorySessions(state: TrainingHistoryState): TrainingHistoryState {
+        val historyRecords = withContext(Dispatchers.IO) {
+            trainingPlanStore.getHistoryRecords()
+        }
+        return state.copy(historyRecords = historyRecords)
+    }
+
+    suspend fun selectHistorySession(state: TrainingHistoryState, session: HistoryRecord): TrainingHistoryState {
+        val records = withContext(Dispatchers.IO) {
+            trainingPlanStore.getMetaHistoryRecordsByHistoryId(session.id)
+        }
+        return state.copy(
+            selectedHistorySession = session,
+            sessionMetaHistoryRecords = records
+        )
+    }
+
+    fun dismissHistorySession(state: TrainingHistoryState): TrainingHistoryState {
+        return state.copy(
+            selectedHistorySession = null,
+            sessionMetaHistoryRecords = emptyList()
         )
     }
 

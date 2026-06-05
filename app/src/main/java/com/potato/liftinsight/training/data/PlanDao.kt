@@ -132,6 +132,31 @@ abstract class PlanDao {
     @Query(
         """
         SELECT
+            metahistory.id,
+            metahistory.date,
+            metahistory.rep,
+            metahistory.rpe,
+            metahistory.weight,
+            metahistory.motion_id,
+            motion.name AS motion_name,
+            metahistory.video_name,
+            metahistory.video_source,
+            metahistory.imported_video_analysis_mode,
+            metahistory.imported_reference_label,
+            metahistory.imported_reference_pixel_distance,
+            metahistory.imported_reference_distance_meters,
+            metahistory.history_id
+        FROM metahistory
+        INNER JOIN motion ON motion.id = metahistory.motion_id
+        WHERE metahistory.history_id = :historyId
+        ORDER BY metahistory.date DESC, metahistory.id DESC
+        """
+    )
+    abstract fun getMetaHistoryRowsByHistoryId(historyId: Int): List<MetaHistoryRow>
+
+    @Query(
+        """
+        SELECT
             metaplan.id,
             metaplan.plan_id,
             metaplan.motion_id,

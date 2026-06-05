@@ -16,6 +16,9 @@ import com.potato.liftinsight.training.data.CreateMetaHistoryRequest
 import com.potato.liftinsight.training.data.CreateMotionRequest
 import com.potato.liftinsight.training.data.CreateMetaPlanRequest
 import com.potato.liftinsight.training.data.CreatePlanRequest
+import com.potato.liftinsight.training.data.CreateHistoryRequest
+import com.potato.liftinsight.training.data.HistoryEntity
+import com.potato.liftinsight.training.data.HistoryRecord
 import com.potato.liftinsight.training.data.ImportedVideoMetadataRecord
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.MetaHistoryEntity
@@ -330,6 +333,58 @@ class TrainingPlanStore private constructor(
         logTrace("getMetaHistoryRecords result: count=${records.size}")
 
         return records
+    }
+
+    fun getMetaHistoryRecordsByHistoryId(historyId: Int): List<MetaHistoryRecord> {
+        logTrace("getMetaHistoryRecordsByHistoryId start: historyId=$historyId")
+
+        val rows = database.planDao().getMetaHistoryRowsByHistoryId(historyId)
+        val records = rows.map { row -> row.toRecord() }
+
+        logTrace("getMetaHistoryRecordsByHistoryId result: count=${records.size}")
+
+        return records
+    }
+
+    fun getHistoryRecords(): List<HistoryRecord> {
+        logTrace("getHistoryRecords start")
+
+        val rows = database.historyDao().getHistoryRows()
+        val records = rows.map { row -> row.toRecord() }
+
+        logTrace("getHistoryRecords result: count=${records.size}")
+
+        return records
+    }
+
+    fun createHistoryRecord(request: CreateHistoryRequest): Int {
+        logTrace(
+            "createHistoryRecord start: planId=${request.planId}, startTime=${request.startTime}, endTime=${request.endTime}, dayIndex=${request.dayIndex}"
+        )
+
+        val historyId = database.historyDao().insertHistory(
+            HistoryEntity(
+                planId = request.planId,
+                startTime = request.startTime,
+                endTime = request.endTime,
+                intensity = request.intensity,
+                dayIndex = request.dayIndex
+            )
+        ).toInt()
+
+        logger.info(TAG, "Created history record: id=$historyId")
+        logTrace("createHistoryRecord result: historyId=$historyId")
+
+        return historyId
+    }
+
+    fun updateHistoryEndTime(historyId: Int, endTime: Long) {
+        logTrace("updateHistoryEndTime start: historyId=$historyId, endTime=$endTime")
+
+        database.historyDao().updateHistoryEndTime(historyId, endTime)
+
+        logger.info(TAG, "Updated history end time: historyId=$historyId, endTime=$endTime")
+        logTrace("updateHistoryEndTime result: updated=true")
     }
 
     fun updateMetaHistoryVideoName(historyId: Int, videoName: String?): Boolean {
@@ -647,7 +702,8 @@ private fun WorkoutProgressEntity.toState(): WorkoutProgressState {
         totalSetCount = totalSetCount,
         breakEndsAt = breakEndsAt,
         isFinished = isFinished,
-        completedElapsedTimeMs = completedElapsedTimeMs
+        completedElapsedTimeMs = completedElapsedTimeMs,
+        activeHistoryId = activeHistoryId
     )
 }
 
@@ -660,7 +716,8 @@ private fun WorkoutProgressState.toEntity(): WorkoutProgressEntity {
         totalSetCount = totalSetCount,
         breakEndsAt = breakEndsAt,
         isFinished = isFinished,
-        completedElapsedTimeMs = completedElapsedTimeMs
+        completedElapsedTimeMs = completedElapsedTimeMs,
+        activeHistoryId = activeHistoryId
     )
 }
 
@@ -676,6 +733,7 @@ private fun CreateMetaHistoryRequest.toEntity(): MetaHistoryEntity {
         importedVideoAnalysisMode = importedVideoAnalysisMode.name,
         importedReferenceLabel = importedReferenceLabel,
         importedReferencePixelDistance = importedReferencePixelDistance,
-        importedReferenceDistanceMeters = importedReferenceDistanceMeters
+        importedReferenceDistanceMeters = importedReferenceDistanceMeters,
+        historyId = historyId
     )
 }

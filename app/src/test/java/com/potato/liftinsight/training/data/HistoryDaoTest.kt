@@ -62,7 +62,8 @@ class HistoryDaoTest {
                 planId = planId,
                 startTime = 5000L,
                 endTime = 8000L,
-                intensity = 8
+                intensity = 8,
+                dayIndex = 3
             )
         ).toInt()
 
@@ -75,6 +76,7 @@ class HistoryDaoTest {
         assertEquals(5000L, row.startTime)
         assertEquals(8000L, row.endTime)
         assertEquals(8, row.intensity)
+        assertEquals(3, row.dayIndex)
     }
 
     @Test
@@ -279,6 +281,29 @@ class HistoryDaoTest {
 
         val binRows = planDao.getMetaHistoryBinRows()
         assertEquals(0, binRows.size)
+    }
+
+    @Test
+    fun updateHistoryEndTime_modifiesEndTime() {
+        val planId = createPlan("Test Plan")
+        val historyId = historyDao.insertHistory(
+            HistoryEntity(planId = planId, startTime = 1000L, endTime = 2000L, intensity = 5)
+        ).toInt()
+
+        val updated = historyDao.updateHistoryEndTime(historyId, 5000L)
+
+        assertEquals(1, updated)
+
+        val row = historyDao.getHistoryRowById(historyId)
+        assertNotNull(row)
+        assertEquals(5000L, row!!.endTime)
+        assertEquals(1000L, row.startTime)
+    }
+
+    @Test
+    fun updateHistoryEndTime_returnsZeroForMissingId() {
+        val updated = historyDao.updateHistoryEndTime(999, 5000L)
+        assertEquals(0, updated)
     }
 
     private fun createPlan(name: String): Int {

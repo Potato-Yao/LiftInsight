@@ -14,6 +14,7 @@ import com.potato.liftinsight.plan.model.workoutElapsedTimeMs
 import com.potato.liftinsight.plan.model.workoutSetTargetsWithInsertions
 import com.potato.liftinsight.plan.model.workoutSetTargetsForDay
 import com.potato.liftinsight.plan.route.PlanRoute
+import com.potato.liftinsight.training.data.CreateHistoryRequest
 import com.potato.liftinsight.training.data.CreateMetaHistoryRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,16 +42,31 @@ internal suspend fun PlanControllerEnvironment.startWorkout(state: PlanState): P
 
     logDebug("Starting workout session")
 
-    withContext(Dispatchers.IO) {
+    val activeHistoryId = withContext(Dispatchers.IO) {
         trainingPlanStore.startWorkout(now)
+
+        val historyId = trainingPlanStore.createHistoryRecord(
+            CreateHistoryRequest(
+                planId = currentPlan.id,
+                startTime = now,
+                endTime = now,
+                dayIndex = dayIndex
+            )
+        )
+
         trainingPlanStore.saveWorkoutProgress(
             createWorkoutProgressState(
                 planId = currentPlan.id,
                 dayIndex = dayIndex,
-                totalSetCount = workoutTargets.size
+                totalSetCount = workoutTargets.size,
+                activeHistoryId = historyId
             )
         )
+
+        historyId
     }
+
+    logDebug("Created history record for workout: historyId=$activeHistoryId")
 
     return reloadState(state)
 }
@@ -160,7 +176,8 @@ internal suspend fun PlanControllerEnvironment.skipWorkoutSet(state: PlanState):
         return state
     }
 
-    val elapsedTimeMs = workoutElapsedTimeMs(state.workoutSession, nowProvider())
+    val now = nowProvider()
+    val elapsedTimeMs = workoutElapsedTimeMs(state.workoutSession, now)
     val updatedProgress = com.potato.liftinsight.plan.model.skipWorkoutSet(
         progress = workoutProgress,
         completedElapsedTimeMs = elapsedTimeMs
@@ -175,6 +192,10 @@ internal suspend fun PlanControllerEnvironment.skipWorkoutSet(state: PlanState):
         trainingPlanStore.saveWorkoutProgress(updatedProgress)
 
         if (updatedProgress.isFinished) {
+            val activeHistoryId = workoutProgress.activeHistoryId
+            if (activeHistoryId != null) {
+                trainingPlanStore.updateHistoryEndTime(activeHistoryId, now)
+            }
             trainingPlanStore.stopWorkout()
         }
     }
@@ -231,7 +252,8 @@ internal suspend fun PlanControllerEnvironment.finishCurrentWorkoutSet(
         rpe = performance.feeling.toRpe(),
         weight = performance.weightDone,
         motionId = motionId,
-        videoName = performance.videoName
+        videoName = performance.videoName,
+        historyId = workoutProgress.activeHistoryId
     )
 
     withContext(Dispatchers.IO) {
@@ -242,6 +264,10 @@ internal suspend fun PlanControllerEnvironment.finishCurrentWorkoutSet(
         }
 
         if (updatedProgress.isFinished) {
+            val activeHistoryId = workoutProgress.activeHistoryId
+            if (activeHistoryId != null) {
+                trainingPlanStore.updateHistoryEndTime(activeHistoryId, now)
+            }
             trainingPlanStore.stopWorkout()
         }
     }
@@ -300,7 +326,13 @@ internal suspend fun PlanControllerEnvironment.confirmWorkoutStop(state: PlanSta
 
     logDebug("Stopping workout session")
 
+    val now = nowProvider()
+
     withContext(Dispatchers.IO) {
+        val activeHistoryId = state.workoutProgress?.activeHistoryId
+        if (activeHistoryId != null) {
+            trainingPlanStore.updateHistoryEndTime(activeHistoryId, now)
+        }
         trainingPlanStore.stopWorkout()
         trainingPlanStore.clearWorkoutProgress()
     }

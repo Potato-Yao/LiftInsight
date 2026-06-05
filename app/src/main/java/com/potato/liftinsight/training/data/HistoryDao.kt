@@ -24,7 +24,8 @@ interface HistoryDao {
             plan.name AS plan_name,
             history.start_time,
             history.end_time,
-            history.intensity
+            history.intensity,
+            history.day_index
         FROM history
         INNER JOIN plan ON plan.id = history.plan_id
         WHERE history.id = :historyId
@@ -40,7 +41,8 @@ interface HistoryDao {
             plan.name AS plan_name,
             history.start_time,
             history.end_time,
-            history.intensity
+            history.intensity,
+            history.day_index
         FROM history
         INNER JOIN plan ON plan.id = history.plan_id
         ORDER BY history.start_time DESC, history.id DESC
@@ -60,4 +62,7 @@ interface HistoryDao {
         """
     )
     fun getAttachedMetaHistoryIds(historyId: Int): List<Int>
+
+    @Query("UPDATE history SET end_time = :endTime WHERE id = :historyId")
+    fun updateHistoryEndTime(historyId: Int, endTime: Long): Int
 }

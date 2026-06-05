@@ -7,10 +7,15 @@ import com.potato.liftinsight.common.logging.RecordingAppLogger
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.WorkoutProgressState
+import com.potato.liftinsight.plan.model.createWorkoutProgressState
+import com.potato.liftinsight.training.data.CreateHistoryRequest
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -364,6 +369,193 @@ class TrainingPlanStoreTest {
         assertEquals(0L, stoppedSession.startedAt)
         assertEquals(0L, stoppedSession.lastResumedAt)
         assertEquals(0L, stoppedSession.elapsedBeforePauseMs)
+    }
+
+    @Test
+    fun createHistoryRecord_insertsHistoryWithCorrectFields() {
+        trainingPlanStore.ensureAvailableMotions(listOf(AvailableMotionState(id = 1, title = "Snatch")))
+        val snatch = trainingPlanStore.getAvailableMotions().single()
+        val planId = trainingPlanStore.createTrainingPlan(
+            TrainingPlanState(
+                id = 0,
+                name = "History Test",
+                lastAppliedAt = 0L,
+                cyclePeriod = 7,
+                currentIndex = 1,
+                motions = listOf(
+                    PlanMotionState(
+                        entryId = 0,
+                        motionId = snatch.id,
+                        title = snatch.title,
+                        dayIndex = 1,
+                        sets = 5,
+                        repsPerSet = 2,
+                        intensity = 0.8,
+                        weight = 80.0,
+                        orderIndex = 1
+                    )
+                )
+            )
+        )
+
+        val historyId = trainingPlanStore.createHistoryRecord(
+            CreateHistoryRequest(
+                planId = planId,
+                startTime = 1000L,
+                endTime = 1000L,
+                dayIndex = 1
+            )
+        )
+
+        assertTrue(historyId > 0)
+
+        val historyRecords = trainingPlanStore.getHistoryRecords()
+        val created = historyRecords.first { it.id == historyId }
+
+        assertEquals(planId, created.planId)
+        assertEquals(1000L, created.startTime)
+        assertEquals(1000L, created.endTime)
+        assertEquals(0, created.intensity)
+        assertEquals(1, created.dayIndex)
+    }
+
+    @Test
+    fun updateHistoryEndTime_modifiesEndTime() {
+        trainingPlanStore.ensureAvailableMotions(listOf(AvailableMotionState(id = 1, title = "Snatch")))
+        val snatch = trainingPlanStore.getAvailableMotions().single()
+        val planId = trainingPlanStore.createTrainingPlan(
+            TrainingPlanState(
+                id = 0,
+                name = "End Time Test",
+                lastAppliedAt = 0L,
+                cyclePeriod = 7,
+                currentIndex = 1,
+                motions = listOf(
+                    PlanMotionState(
+                        entryId = 0,
+                        motionId = snatch.id,
+                        title = snatch.title,
+                        dayIndex = 1,
+                        sets = 3,
+                        repsPerSet = 2,
+                        intensity = 0.7,
+                        weight = 70.0,
+                        orderIndex = 1
+                    )
+                )
+            )
+        )
+
+        val historyId = trainingPlanStore.createHistoryRecord(
+            CreateHistoryRequest(
+                planId = planId,
+                startTime = 1000L,
+                endTime = 1000L,
+                dayIndex = 1
+            )
+        )
+
+        trainingPlanStore.updateHistoryEndTime(historyId, 5000L)
+
+        val historyRecords = trainingPlanStore.getHistoryRecords()
+        val updated = historyRecords.first { it.id == historyId }
+
+        assertEquals(5000L, updated.endTime)
+    }
+
+    @Test
+    fun workoutProgress_withActiveHistoryId_persistsCorrectly() {
+        trainingPlanStore.ensureAvailableMotions(listOf(AvailableMotionState(id = 1, title = "Snatch")))
+        val snatch = trainingPlanStore.getAvailableMotions().single()
+        val planId = trainingPlanStore.createTrainingPlan(
+            TrainingPlanState(
+                id = 0,
+                name = "Progress Test",
+                lastAppliedAt = 0L,
+                cyclePeriod = 7,
+                currentIndex = 1,
+                motions = listOf(
+                    PlanMotionState(
+                        entryId = 0,
+                        motionId = snatch.id,
+                        title = snatch.title,
+                        dayIndex = 1,
+                        sets = 5,
+                        repsPerSet = 2,
+                        intensity = 0.8,
+                        weight = 80.0,
+                        orderIndex = 1
+                    )
+                )
+            )
+        )
+
+        val historyId = trainingPlanStore.createHistoryRecord(
+            CreateHistoryRequest(
+                planId = planId,
+                startTime = 1000L,
+                endTime = 1000L,
+                dayIndex = 1
+            )
+        )
+
+        val progress = createWorkoutProgressState(
+            planId = planId,
+            dayIndex = 1,
+            totalSetCount = 5,
+            activeHistoryId = historyId
+        )
+
+        trainingPlanStore.saveWorkoutProgress(progress)
+
+        val loadedProgress = trainingPlanStore.getWorkoutProgress()
+
+        assertNotNull(loadedProgress)
+        assertEquals(historyId, loadedProgress!!.activeHistoryId)
+        assertEquals(planId, loadedProgress.planId)
+        assertEquals(1, loadedProgress.dayIndex)
+        assertEquals(5, loadedProgress.totalSetCount)
+    }
+
+    @Test
+    fun workoutProgress_withoutActiveHistoryId_persistsNull() {
+        trainingPlanStore.ensureAvailableMotions(listOf(AvailableMotionState(id = 1, title = "Snatch")))
+        val snatch = trainingPlanStore.getAvailableMotions().single()
+        val planId = trainingPlanStore.createTrainingPlan(
+            TrainingPlanState(
+                id = 0,
+                name = "Null History Test",
+                lastAppliedAt = 0L,
+                cyclePeriod = 7,
+                currentIndex = 1,
+                motions = listOf(
+                    PlanMotionState(
+                        entryId = 0,
+                        motionId = snatch.id,
+                        title = snatch.title,
+                        dayIndex = 1,
+                        sets = 3,
+                        repsPerSet = 2,
+                        intensity = 0.7,
+                        weight = 70.0,
+                        orderIndex = 1
+                    )
+                )
+            )
+        )
+
+        val progress = createWorkoutProgressState(
+            planId = planId,
+            dayIndex = 1,
+            totalSetCount = 3
+        )
+
+        trainingPlanStore.saveWorkoutProgress(progress)
+
+        val loadedProgress = trainingPlanStore.getWorkoutProgress()
+
+        assertNotNull(loadedProgress)
+        assertNull(loadedProgress!!.activeHistoryId)
     }
 
     private fun localEpochDay(timestamp: Long): Long {
