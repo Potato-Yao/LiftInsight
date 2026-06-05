@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,23 +41,18 @@ fun NativeCameraScreen(
     motionTitle: String,
     motionId: Int,
     setIndex: Int,
-    setsInMotion: Int,
-    expectedReps: Int,
-    expectedWeight: Double,
-    expectedIntensity: Double,
     onRecordingFinished: (videoName: String?) -> Unit,
-    onNativeCameraUnavailable: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val cameraController = remember { CameraController() }
     val currentOnBack by rememberUpdatedState(onBack)
     val currentOnRecordingFinished by rememberUpdatedState(onRecordingFinished)
-    val currentOnNativeCameraUnavailable by rememberUpdatedState(onNativeCameraUnavailable)
     var outputVideoPath by rememberSaveable { mutableStateOf<String?>(null) }
     var launchStarted by rememberSaveable { mutableStateOf(false) }
     var resultHandled by rememberSaveable { mutableStateOf(false) }
+    var systemCameraUnavailable by rememberSaveable { mutableStateOf(false) }
 
     val captureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -85,7 +81,7 @@ fun NativeCameraScreen(
     }
 
     LaunchedEffect(context, motionId, setIndex, launchStarted, resultHandled) {
-        if (launchStarted || resultHandled) {
+        if (launchStarted || resultHandled || systemCameraUnavailable) {
             return@LaunchedEffect
         }
 
@@ -118,7 +114,7 @@ fun NativeCameraScreen(
                 videoFile.delete()
             }
 
-            currentOnNativeCameraUnavailable()
+            systemCameraUnavailable = true
         }
     }
 
@@ -128,27 +124,59 @@ fun NativeCameraScreen(
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        Surface(
-            shape = MaterialTheme.shapes.extraLarge,
-            color = Color.Black.copy(alpha = 0.4f)
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        if (systemCameraUnavailable) {
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = Color.Black.copy(alpha = 0.4f)
             ) {
-                Text(
-                    text = motionTitle,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = stringResource(R.string.camera_opening_native),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.72f),
-                    textAlign = TextAlign.Center
-                )
+                Column(
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(R.string.plan_camera_no_app),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                    Surface(
+                        onClick = currentOnBack,
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.primary
+                    ) {
+                        Text(
+                            text = stringResource(R.string.common_back),
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
+        } else {
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = Color.Black.copy(alpha = 0.4f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = motionTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = stringResource(R.string.camera_opening_native),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.72f),
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
     }
