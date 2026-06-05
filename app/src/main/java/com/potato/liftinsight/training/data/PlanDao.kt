@@ -231,4 +231,158 @@ abstract class PlanDao {
             plan.toRecord(metaPlansByPlanId[plan.id].orEmpty())
         }
     }
+
+    @Insert
+    abstract fun insertMetaHistoryBin(entity: MetaHistoryBinEntity): Long
+
+    @Query("DELETE FROM metahistory WHERE id = :id")
+    abstract fun deleteMetaHistoryById(id: Int): Int
+
+    @Query(
+        """
+        SELECT
+            id,
+            date,
+            rep,
+            rpe,
+            weight,
+            motion_id,
+            motion_name,
+            video_name,
+            video_source,
+            imported_video_analysis_mode,
+            imported_reference_label,
+            imported_reference_pixel_distance,
+            imported_reference_distance_meters
+        FROM metahistory_bin
+        ORDER BY date DESC, id DESC
+        """
+    )
+    abstract fun getMetaHistoryBinRows(): List<MetaHistoryBinRow>
+
+    @Query("DELETE FROM metahistory_bin WHERE id = :id")
+    abstract fun deleteMetaHistoryBinById(id: Int): Int
+
+    @Query("DELETE FROM metahistory_bin WHERE id IN (:ids)")
+    abstract fun deleteMetaHistoryBinByIds(ids: List<Int>): Int
+
+    @Query(
+        """
+        SELECT
+            metahistory.id,
+            metahistory.date,
+            metahistory.rep,
+            metahistory.rpe,
+            metahistory.weight,
+            metahistory.motion_id,
+            motion.name AS motion_name,
+            metahistory.video_name,
+            metahistory.video_source,
+            metahistory.imported_video_analysis_mode,
+            metahistory.imported_reference_label,
+            metahistory.imported_reference_pixel_distance,
+            metahistory.imported_reference_distance_meters
+        FROM metahistory
+        INNER JOIN motion ON motion.id = metahistory.motion_id
+        WHERE metahistory.id = :id
+        """
+    )
+    protected abstract fun getMetaHistoryRowById(id: Int): MetaHistoryRow?
+
+    @Query(
+        """
+        SELECT
+            id,
+            date,
+            rep,
+            rpe,
+            weight,
+            motion_id,
+            motion_name,
+            video_name,
+            video_source,
+            imported_video_analysis_mode,
+            imported_reference_label,
+            imported_reference_pixel_distance,
+            imported_reference_distance_meters
+        FROM metahistory_bin
+        WHERE id = :id
+        """
+    )
+    protected abstract fun getMetaHistoryBinRowById(id: Int): MetaHistoryBinRow?
+
+    @Transaction
+    open fun softDeleteMetaHistory(historyId: Int): Boolean {
+        val row = getMetaHistoryRowById(historyId) ?: return false
+
+        val binEntity = MetaHistoryBinEntity(
+            date = row.date,
+            rep = row.rep,
+            rpe = row.rpe,
+            weight = row.weight,
+            motionId = row.motionId,
+            motionName = row.motionName,
+            videoName = row.videoName,
+            videoSource = row.videoSource,
+            importedVideoAnalysisMode = row.importedVideoAnalysisMode,
+            importedReferenceLabel = row.importedReferenceLabel,
+            importedReferencePixelDistance = row.importedReferencePixelDistance,
+            importedReferenceDistanceMeters = row.importedReferenceDistanceMeters
+        )
+
+        insertMetaHistoryBin(binEntity)
+        deleteMetaHistoryById(historyId)
+
+        return true
+    }
+
+    @Transaction
+    open fun softDeleteMetaHistoryByIds(historyIds: List<Int>): Int {
+        var count = 0
+
+        for (id in historyIds) {
+            if (softDeleteMetaHistory(id)) {
+                count++
+            }
+        }
+
+        return count
+    }
+
+    @Transaction
+    open fun revertBinRecord(binId: Int): Boolean {
+        val row = getMetaHistoryBinRowById(binId) ?: return false
+
+        val historyEntity = MetaHistoryEntity(
+            date = row.date,
+            rep = row.rep,
+            rpe = row.rpe,
+            weight = row.weight,
+            motionId = row.motionId,
+            videoName = row.videoName,
+            videoSource = row.videoSource,
+            importedVideoAnalysisMode = row.importedVideoAnalysisMode,
+            importedReferenceLabel = row.importedReferenceLabel,
+            importedReferencePixelDistance = row.importedReferencePixelDistance,
+            importedReferenceDistanceMeters = row.importedReferenceDistanceMeters
+        )
+
+        insertMetaHistory(historyEntity)
+        deleteMetaHistoryBinById(binId)
+
+        return true
+    }
+
+    @Transaction
+    open fun revertBinRecords(binIds: List<Int>): Int {
+        var count = 0
+
+        for (id in binIds) {
+            if (revertBinRecord(id)) {
+                count++
+            }
+        }
+
+        return count
+    }
 }

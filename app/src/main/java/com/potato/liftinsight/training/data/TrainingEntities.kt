@@ -221,6 +221,56 @@ data class MetaHistoryRow(
     val importedReferenceDistanceMeters: Double?
 )
 
+@Entity(tableName = "metahistory_bin")
+data class MetaHistoryBinEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+    val date: String,
+    val rep: Int,
+    val rpe: Int,
+    val weight: Double,
+    @ColumnInfo(name = "motion_id")
+    val motionId: Int,
+    @ColumnInfo(name = "motion_name")
+    val motionName: String,
+    @ColumnInfo(name = "video_name")
+    val videoName: String? = null,
+    @ColumnInfo(name = "video_source")
+    val videoSource: String = ImportedVideoSource.CAMERA_CAPTURE.name,
+    @ColumnInfo(name = "imported_video_analysis_mode")
+    val importedVideoAnalysisMode: String = ImportedVideoAnalysisMode.ESTIMATED.name,
+    @ColumnInfo(name = "imported_reference_label")
+    val importedReferenceLabel: String = "",
+    @ColumnInfo(name = "imported_reference_pixel_distance")
+    val importedReferencePixelDistance: Double? = null,
+    @ColumnInfo(name = "imported_reference_distance_meters")
+    val importedReferenceDistanceMeters: Double? = null
+)
+
+data class MetaHistoryBinRow(
+    val id: Int,
+    val date: String,
+    val rep: Int,
+    val rpe: Int,
+    val weight: Double,
+    @ColumnInfo(name = "motion_id")
+    val motionId: Int,
+    @ColumnInfo(name = "motion_name")
+    val motionName: String,
+    @ColumnInfo(name = "video_name")
+    val videoName: String? = null,
+    @ColumnInfo(name = "video_source")
+    val videoSource: String,
+    @ColumnInfo(name = "imported_video_analysis_mode")
+    val importedVideoAnalysisMode: String,
+    @ColumnInfo(name = "imported_reference_label")
+    val importedReferenceLabel: String,
+    @ColumnInfo(name = "imported_reference_pixel_distance")
+    val importedReferencePixelDistance: Double?,
+    @ColumnInfo(name = "imported_reference_distance_meters")
+    val importedReferenceDistanceMeters: Double?
+)
+
 internal fun MotionEntity.toRecord(): MotionRecord {
     return MotionRecord(
         id = id,
@@ -271,6 +321,35 @@ internal fun MetaPlanRow.toRecord(): MetaPlanRecord {
 }
 
 internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
+    val resolvedVideoSource = try {
+        ImportedVideoSource.valueOf(videoSource)
+    } catch (_: IllegalArgumentException) {
+        ImportedVideoSource.CAMERA_CAPTURE
+    }
+    val resolvedAnalysisMode = try {
+        ImportedVideoAnalysisMode.valueOf(importedVideoAnalysisMode)
+    } catch (_: IllegalArgumentException) {
+        ImportedVideoAnalysisMode.ESTIMATED
+    }
+
+    return MetaHistoryRecord(
+        id = id,
+        date = date,
+        rep = rep,
+        rpe = rpe,
+        weight = weight,
+        motionId = motionId,
+        motionName = motionName,
+        videoName = videoName,
+        videoSource = resolvedVideoSource,
+        importedVideoAnalysisMode = resolvedAnalysisMode,
+        importedReferenceLabel = importedReferenceLabel,
+        importedReferencePixelDistance = importedReferencePixelDistance,
+        importedReferenceDistanceMeters = importedReferenceDistanceMeters
+    )
+}
+
+internal fun MetaHistoryBinRow.toRecord(): MetaHistoryRecord {
     val resolvedVideoSource = try {
         ImportedVideoSource.valueOf(videoSource)
     } catch (_: IllegalArgumentException) {

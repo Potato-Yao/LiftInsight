@@ -299,4 +299,39 @@
     <string name="training_video_editor_processed_copy_note">Processed review video will be cut too, so the current process state stays usable.</string>
     <string name="training_video_editor_loading">Loading video editor…</string>
     <string name="training_video_editor_save_error">LiftInsight could not save this video edit.</string>
+
+    <!-- Training history - delete -->
+    <string name="training_delete_record">Delete record</string>
+    <string name="training_delete_record_content_description">Delete this training record</string>
+    <string name="training_delete_confirm_title">Delete this record?</string>
+    <string name="training_delete_confirm_message">This record will be moved to the trash bin. You can restore it later if needed.</string>
+    <string name="training_delete_action">Delete</string>
+
+    <!-- Training history - batch mode -->
+    <string name="training_batch_mode">Batch edit</string>
+    <string name="training_batch_exit">Exit batch</string>
+    <string name="training_batch_delete_selected">Delete selected</string>
+    <string name="training_batch_delete_day">Delete day</string>
+    <string name="training_batch_select_all">Select all</string>
+    <string name="training_batch_selected_count">%1$d selected</string>
+
+    <!-- Training history - trash bin -->
+    <string name="training_bin_title">Trash</string>
+    <string name="training_bin_empty">Trash is empty</string>
+    <string name="training_bin_permanent_delete">Delete permanently</string>
+    <string name="training_bin_revert">Restore</string>
+    <string name="training_bin_permanent_delete_confirm_title">Delete permanently?</string>
+    <string name="training_bin_permanent_delete_confirm_message">This record will be permanently deleted and cannot be restored.</string>
+    <string name="training_bin_revert_confirm_title">Restore this record?</string>
+    <string name="training_bin_revert_confirm_message">This record will be moved back to your training history.</string>
+
+    <!-- Training history - batch delete confirmations -->
+    <string name="training_batch_delete_confirm_title">Delete selected records?</string>
+    <string name="training_batch_delete_confirm_message">%1$d record(s) will be moved to the trash bin.</string>
+    <string name="training_batch_delete_day_confirm_title">Delete all records for this day?</string>
+    <string name="training_batch_delete_day_confirm_message">All records for %1$s will be moved to the trash bin.</string>
+    <string name="training_bin_permanent_delete_batch_confirm_title">Delete selected permanently?</string>
+    <string name="training_bin_permanent_delete_batch_confirm_message">%1$d record(s) will be permanently deleted and cannot be restored.</string>
+    <string name="training_bin_revert_batch_confirm_title">Restore selected records?</string>
+    <string name="training_bin_revert_batch_confirm_message">%1$d record(s) will be moved back to your training history.</string>
 </resources>

@@ -35,14 +35,22 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.RestoreFromTrash
+import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.VideocamOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -116,6 +124,17 @@ internal fun TrainingHistoryScreen(
     var cameraTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var calibrationTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var showContent by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var recordToDelete by remember { mutableStateOf<MetaHistoryRecord?>(null) }
+    var showBatchDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showDayDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var dayToDelete by remember { mutableStateOf<String?>(null) }
+    var showBinPermanentDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var binRecordToDelete by remember { mutableStateOf<MetaHistoryRecord?>(null) }
+    var showBinRevertConfirmDialog by remember { mutableStateOf(false) }
+    var binRecordToRevert by remember { mutableStateOf<MetaHistoryRecord?>(null) }
+    var showBinBatchDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showBinBatchRevertConfirmDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     val localVideoPicker = rememberLauncherForActivityResult(
@@ -134,7 +153,7 @@ internal fun TrainingHistoryScreen(
     }
 
     LaunchedEffect(Unit) {
-        state = controller.loadState()
+        state = controller.initializeExpandedGroups(controller.loadState())
         showContent = true
     }
 
@@ -159,89 +178,229 @@ internal fun TrainingHistoryScreen(
         }
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(text = stringResource(R.string.record_training_card_title))
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.common_back)
-                        )
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
-        val grouped = state.records.groupBy { it.date.take(10) }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            if (grouped.isEmpty()) {
-                AnimatedVisibility(
-                    visible = showContent,
-                    enter = trainingSectionEnter(delayMillis = 80),
-                    exit = ExitTransition.None,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+    if (state.isBinMode) {
+        BinScreen(
+            state = state,
+            controller = controller,
+            onBack = { state = controller.exitBinMode(state) },
+            onSelectRecord = { record -> state = controller.selectBinRecord(state, record) },
+            onToggleBatchMode = { state = controller.toggleBatchMode(state) },
+            onToggleRecordSelection = { recordId -> state = controller.toggleRecordSelection(state, recordId) },
+            onSelectAll = {
+                val allIds = state.binRecords.map { it.id }.toSet()
+                state = state.copy(selectedRecordIds = allIds)
+            },
+            onPermanentDelete = { record ->
+                binRecordToDelete = record
+                showBinPermanentDeleteConfirmDialog = true
+            },
+            onRevert = { record ->
+                binRecordToRevert = record
+                showBinRevertConfirmDialog = true
+            },
+            onBatchPermanentDelete = { showBinBatchDeleteConfirmDialog = true },
+            onBatchRevert = { showBinBatchRevertConfirmDialog = true },
+            modifier = modifier
+        )
+    } else {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                TopAppBar(
+                    title = {
                         Text(
-                            text = stringResource(R.string.training_no_records),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = if (state.isBatchMode) {
+                                stringResource(R.string.training_batch_selected_count, state.selectedRecordIds.size)
+                            } else {
+                                stringResource(R.string.record_training_card_title)
+                            }
                         )
-                    }
-                }
-            } else {
-                AnimatedVisibility(
-                    visible = showContent,
-                    enter = trainingSectionEnter(delayMillis = 0),
-                    exit = ExitTransition.None
-                ) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 24.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        grouped.forEach { (dateKey, dayRecords) ->
-                            item(key = "header-$dateKey") {
-                                Text(
-                                    text = formatDateLabel(dateKey),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.common_back)
+                            )
+                        }
+                    },
+                    actions = {
+                        if (state.isBatchMode) {
+                            IconButton(onClick = {
+                                val allIds = state.records.map { it.id }.toSet()
+                                state = state.copy(
+                                    selectedRecordIds = if (state.selectedRecordIds.size == state.records.size) {
+                                        emptySet()
+                                    } else {
+                                        allIds
+                                    }
+                                )
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.SelectAll,
+                                    contentDescription = stringResource(R.string.training_batch_select_all)
                                 )
                             }
 
-                            items(
-                                items = dayRecords,
-                                key = { it.id }
-                            ) { record ->
-                                TrainingHistoryCard(
-                                    record = record,
-                                    onClick = { state = controller.selectRecord(state, record) }
+                            IconButton(onClick = { showBatchDeleteConfirmDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.DeleteSweep,
+                                    contentDescription = stringResource(R.string.training_batch_delete_selected)
                                 )
                             }
 
-                            item(key = "spacer-$dateKey") {
-                                Spacer(modifier = Modifier.height(8.dp))
+                            IconButton(onClick = { state = controller.toggleBatchMode(state) }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = stringResource(R.string.training_batch_exit)
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = { state = controller.toggleBatchMode(state) }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Edit,
+                                    contentDescription = stringResource(R.string.training_batch_mode)
+                                )
+                            }
+
+                            IconButton(onClick = {
+                                coroutineScope.launch {
+                                    state = controller.loadBinState()
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.DeleteForever,
+                                    contentDescription = stringResource(R.string.training_bin_title)
+                                )
                             }
                         }
+                    }
+                )
+            }
+        ) { innerPadding ->
+            val grouped = state.records.groupBy { it.date.take(10) }
 
-                        item {
-                            Spacer(modifier = Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                if (grouped.isEmpty()) {
+                    AnimatedVisibility(
+                        visible = showContent,
+                        enter = trainingSectionEnter(delayMillis = 80),
+                        exit = ExitTransition.None,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(R.string.training_no_records),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    AnimatedVisibility(
+                        visible = showContent,
+                        enter = trainingSectionEnter(delayMillis = 0),
+                        exit = ExitTransition.None
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 24.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            grouped.forEach { (dateKey, dayRecords) ->
+                                val isExpanded = dateKey in state.expandedDateGroups
+
+                                item(key = "header-$dateKey") {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                state = controller.toggleDateGroup(state, dateKey)
+                                            }
+                                            .padding(top = 12.dp, bottom = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = formatDateLabel(dateKey),
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "(${dayRecords.size})",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            if (state.isBatchMode) {
+                                                IconButton(
+                                                    onClick = {
+                                                        dayToDelete = dateKey
+                                                        showDayDeleteConfirmDialog = true
+                                                    },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.DeleteSweep,
+                                                        contentDescription = stringResource(R.string.training_batch_delete_day),
+                                                        modifier = Modifier.size(18.dp),
+                                                        tint = MaterialTheme.colorScheme.error
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Icon(
+                                            imageVector = if (isExpanded) {
+                                                Icons.Rounded.ExpandLess
+                                            } else {
+                                                Icons.Rounded.ExpandMore
+                                            },
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                if (isExpanded) {
+                                    items(
+                                        items = dayRecords,
+                                        key = { it.id }
+                                    ) { record ->
+                                        TrainingHistoryCard(
+                                            record = record,
+                                            isBatchMode = state.isBatchMode,
+                                            isSelected = record.id in state.selectedRecordIds,
+                                            onClick = {
+                                                if (state.isBatchMode) {
+                                                    state = controller.toggleRecordSelection(state, record.id)
+                                                } else {
+                                                    state = controller.selectRecord(state, record)
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+
+                                item(key = "spacer-$dateKey") {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
+
+                            item {
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
                         }
                     }
                 }
@@ -271,6 +430,10 @@ internal fun TrainingHistoryScreen(
                         rpe = rpe
                     )
                 }
+            },
+            onDeleteRecord = {
+                recordToDelete = record
+                showDeleteConfirmDialog = true
             },
             onPlayVideo = {
                 val videoName = record.videoName
@@ -335,6 +498,238 @@ internal fun TrainingHistoryScreen(
                         controller.submitVideoProcessing(videoName)
                         state = controller.requestVideoStatusRefresh(state)
                     }
+            }
+        )
+    }
+
+    if (showDeleteConfirmDialog && recordToDelete != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteConfirmDialog = false
+                recordToDelete = null
+            },
+            title = { Text(text = stringResource(R.string.training_delete_confirm_title)) },
+            text = { Text(text = stringResource(R.string.training_delete_confirm_message)) },
+            confirmButton = {
+                Button(onClick = {
+                    val record = recordToDelete
+                    showDeleteConfirmDialog = false
+                    recordToDelete = null
+                    if (record != null) {
+                        state = controller.dismissSelectedRecord(state)
+                        coroutineScope.launch {
+                            state = controller.softDeleteRecord(state, record)
+                        }
+                    }
+                }) {
+                    Text(text = stringResource(R.string.training_delete_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDeleteConfirmDialog = false
+                    recordToDelete = null
+                }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
+    if (showBatchDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showBatchDeleteConfirmDialog = false },
+            title = { Text(text = stringResource(R.string.training_batch_delete_confirm_title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.training_batch_delete_confirm_message,
+                        state.selectedRecordIds.size
+                    )
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showBatchDeleteConfirmDialog = false
+                    coroutineScope.launch {
+                        state = controller.deleteSelectedRecords(state)
+                    }
+                }) {
+                    Text(text = stringResource(R.string.training_delete_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBatchDeleteConfirmDialog = false }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
+    if (showDayDeleteConfirmDialog && dayToDelete != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showDayDeleteConfirmDialog = false
+                dayToDelete = null
+            },
+            title = { Text(text = stringResource(R.string.training_batch_delete_day_confirm_title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.training_batch_delete_day_confirm_message,
+                        formatDateLabel(dayToDelete!!)
+                    )
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val dateKey = dayToDelete
+                    showDayDeleteConfirmDialog = false
+                    dayToDelete = null
+                    if (dateKey != null) {
+                        coroutineScope.launch {
+                            state = controller.deleteDayRecords(state, dateKey)
+                        }
+                    }
+                }) {
+                    Text(text = stringResource(R.string.training_delete_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDayDeleteConfirmDialog = false
+                    dayToDelete = null
+                }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
+    if (showBinPermanentDeleteConfirmDialog && binRecordToDelete != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showBinPermanentDeleteConfirmDialog = false
+                binRecordToDelete = null
+            },
+            title = { Text(text = stringResource(R.string.training_bin_permanent_delete_confirm_title)) },
+            text = { Text(text = stringResource(R.string.training_bin_permanent_delete_confirm_message)) },
+            confirmButton = {
+                Button(onClick = {
+                    val binRecord = binRecordToDelete
+                    showBinPermanentDeleteConfirmDialog = false
+                    binRecordToDelete = null
+                    if (binRecord != null) {
+                        state = controller.dismissBinRecord(state)
+                        coroutineScope.launch {
+                            state = controller.permanentlyDeleteBinRecord(state, binRecord.id)
+                        }
+                    }
+                }) {
+                    Text(text = stringResource(R.string.training_bin_permanent_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showBinPermanentDeleteConfirmDialog = false
+                    binRecordToDelete = null
+                }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
+    if (showBinRevertConfirmDialog && binRecordToRevert != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showBinRevertConfirmDialog = false
+                binRecordToRevert = null
+            },
+            title = { Text(text = stringResource(R.string.training_bin_revert_confirm_title)) },
+            text = { Text(text = stringResource(R.string.training_bin_revert_confirm_message)) },
+            confirmButton = {
+                Button(onClick = {
+                    val binRecord = binRecordToRevert
+                    showBinRevertConfirmDialog = false
+                    binRecordToRevert = null
+                    if (binRecord != null) {
+                        state = controller.dismissBinRecord(state)
+                        coroutineScope.launch {
+                            state = controller.revertBinRecord(state, binRecord.id)
+                        }
+                    }
+                }) {
+                    Text(text = stringResource(R.string.training_bin_revert))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showBinRevertConfirmDialog = false
+                    binRecordToRevert = null
+                }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
+    if (showBinBatchDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showBinBatchDeleteConfirmDialog = false },
+            title = { Text(text = stringResource(R.string.training_bin_permanent_delete_batch_confirm_title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.training_bin_permanent_delete_batch_confirm_message,
+                        state.selectedRecordIds.size
+                    )
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showBinBatchDeleteConfirmDialog = false
+                    coroutineScope.launch {
+                        state = controller.permanentlyDeleteSelectedBinRecords(state)
+                    }
+                }) {
+                    Text(text = stringResource(R.string.training_bin_permanent_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBinBatchDeleteConfirmDialog = false }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            }
+        )
+    }
+
+    if (showBinBatchRevertConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showBinBatchRevertConfirmDialog = false },
+            title = { Text(text = stringResource(R.string.training_bin_revert_batch_confirm_title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.training_bin_revert_batch_confirm_message,
+                        state.selectedRecordIds.size
+                    )
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showBinBatchRevertConfirmDialog = false
+                    coroutineScope.launch {
+                        state = controller.revertSelectedBinRecords(state)
+                    }
+                }) {
+                    Text(text = stringResource(R.string.training_bin_revert))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBinBatchRevertConfirmDialog = false }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
             }
         )
     }
@@ -544,6 +939,8 @@ internal fun TrainingHistoryScreen(
 @Composable
 private fun TrainingHistoryCard(
     record: MetaHistoryRecord,
+    isBatchMode: Boolean = false,
+    isSelected: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -551,11 +948,19 @@ private fun TrainingHistoryCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = if (isSelected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        },
         shape = RoundedCornerShape(28.dp),
         border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+            width = if (isSelected) 2.dp else 1.dp,
+            color = if (isSelected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+            }
         )
     ) {
         Row(
@@ -565,16 +970,24 @@ private fun TrainingHistoryCard(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.Top
         ) {
-            Surface(
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.FitnessCenter,
-                    contentDescription = null,
-                    modifier = Modifier.padding(12.dp),
-                    tint = MaterialTheme.colorScheme.primary
+            if (isBatchMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onClick() },
+                    modifier = Modifier.padding(top = 4.dp)
                 )
+            } else {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.FitnessCenter,
+                        contentDescription = null,
+                        modifier = Modifier.padding(12.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             Column(
@@ -593,11 +1006,13 @@ private fun TrainingHistoryCard(
                         modifier = Modifier.weight(1f)
                     )
 
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (!isBatchMode) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Text(
@@ -612,21 +1027,23 @@ private fun TrainingHistoryCard(
                 )
             }
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                horizontalAlignment = Alignment.End
-            ) {
-                Text(
-                    text = stringResource(R.string.training_weight_value, record.weight),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+            if (!isBatchMode) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        text = stringResource(R.string.training_weight_value, record.weight),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
 
-                Text(
-                    text = stringResource(R.string.training_rep_value, record.rep),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    Text(
+                        text = stringResource(R.string.training_rep_value, record.rep),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
@@ -643,6 +1060,7 @@ private fun TrainingHistoryDetailSheet(
     canCalibrateVideo: Boolean,
     onDismiss: () -> Unit,
     onSaveDetails: (weight: Double, rep: Int, rpe: Int) -> Unit,
+    onDeleteRecord: () -> Unit,
     onPlayVideo: () -> Unit,
     onImportVideo: () -> Unit,
     onCalibrateVideo: () -> Unit,
@@ -704,31 +1122,45 @@ private fun TrainingHistoryDetailSheet(
                         modifier = Modifier.weight(1f)
                     )
 
-                    IconButton(
-                        onClick = {
-                            if (isEditing) {
-                                saveDetails()
-                            } else {
-                                isEditing = true
-                            }
-                        },
-                        enabled = if (isEditing) canSaveDetails else true
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isEditing) {
-                                Icons.Rounded.Check
-                            } else {
-                                Icons.Rounded.Edit
-                            },
-                            contentDescription = stringResource(
-                                if (isEditing) {
-                                    R.string.training_detail_save_content_description
-                                } else {
-                                    R.string.training_detail_edit_content_description
-                                },
-                                record.motionName
+                        IconButton(onClick = onDeleteRecord) {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = stringResource(
+                                    R.string.training_delete_record_content_description
+                                ),
+                                tint = MaterialTheme.colorScheme.error
                             )
-                        )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                if (isEditing) {
+                                    saveDetails()
+                                } else {
+                                    isEditing = true
+                                }
+                            },
+                            enabled = if (isEditing) canSaveDetails else true
+                        ) {
+                            Icon(
+                                imageVector = if (isEditing) {
+                                    Icons.Rounded.Check
+                                } else {
+                                    Icons.Rounded.Edit
+                                },
+                                contentDescription = stringResource(
+                                    if (isEditing) {
+                                        R.string.training_detail_save_content_description
+                                    } else {
+                                        R.string.training_detail_edit_content_description
+                                    },
+                                    record.motionName
+                                )
+                            )
+                        }
                     }
                 }
 
@@ -962,6 +1394,302 @@ private fun TrainingHistoryDetailSheet(
                 ) {
                     Text(text = stringResource(R.string.common_cancel))
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BinScreen(
+    state: TrainingHistoryState,
+    controller: TrainingHistoryController,
+    onBack: () -> Unit,
+    onSelectRecord: (MetaHistoryRecord) -> Unit,
+    onToggleBatchMode: () -> Unit,
+    onToggleRecordSelection: (Int) -> Unit,
+    onSelectAll: () -> Unit,
+    onPermanentDelete: (MetaHistoryRecord) -> Unit,
+    onRevert: (MetaHistoryRecord) -> Unit,
+    onBatchPermanentDelete: () -> Unit,
+    onBatchRevert: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val grouped = state.binRecords.groupBy { it.date.take(10) }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = if (state.isBatchMode) {
+                            stringResource(R.string.training_batch_selected_count, state.selectedRecordIds.size)
+                        } else {
+                            stringResource(R.string.training_bin_title)
+                        }
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
+                    }
+                },
+                actions = {
+                    if (state.isBatchMode) {
+                        IconButton(onClick = onSelectAll) {
+                            Icon(
+                                imageVector = Icons.Rounded.SelectAll,
+                                contentDescription = stringResource(R.string.training_batch_select_all)
+                            )
+                        }
+
+                        IconButton(onClick = onBatchRevert) {
+                            Icon(
+                                imageVector = Icons.Rounded.RestoreFromTrash,
+                                contentDescription = stringResource(R.string.training_bin_revert)
+                            )
+                        }
+
+                        IconButton(onClick = onBatchPermanentDelete) {
+                            Icon(
+                                imageVector = Icons.Rounded.DeleteForever,
+                                contentDescription = stringResource(R.string.training_bin_permanent_delete)
+                            )
+                        }
+
+                        IconButton(onClick = onToggleBatchMode) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = stringResource(R.string.training_batch_exit)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = onToggleBatchMode) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = stringResource(R.string.training_batch_mode)
+                            )
+                        }
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            if (grouped.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.training_bin_empty),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    grouped.forEach { (dateKey, dayRecords) ->
+                        item(key = "bin-header-$dateKey") {
+                            Text(
+                                text = formatDateLabel(dateKey),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                            )
+                        }
+
+                        items(
+                            items = dayRecords,
+                            key = { it.id }
+                        ) { record ->
+                            TrainingHistoryCard(
+                                record = record,
+                                isBatchMode = state.isBatchMode,
+                                isSelected = record.id in state.selectedRecordIds,
+                                onClick = {
+                                    if (state.isBatchMode) {
+                                        onToggleRecordSelection(record.id)
+                                    } else {
+                                        onSelectRecord(record)
+                                    }
+                                }
+                            )
+                        }
+
+                        item(key = "bin-spacer-$dateKey") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
+            }
+        }
+    }
+
+    state.selectedBinRecord?.let { record ->
+        BinDetailSheet(
+            record = record,
+            onDismiss = { controller.dismissBinRecord(state) },
+            onRevert = { onRevert(record) },
+            onPermanentDelete = { onPermanentDelete(record) }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BinDetailSheet(
+    record: MetaHistoryRecord,
+    onDismiss: () -> Unit,
+    onRevert: () -> Unit,
+    onPermanentDelete: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = record.motionName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = stringResource(
+                        R.string.training_detail_summary,
+                        record.weight,
+                        record.rep,
+                        record.rpe
+                    ),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                DetailChip(
+                    label = stringResource(R.string.training_detail_date),
+                    value = record.date
+                )
+            }
+
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = RoundedCornerShape(28.dp),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.training_detail_section_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    DetailRow(
+                        label = stringResource(R.string.training_detail_weight),
+                        value = stringResource(R.string.training_weight_value, record.weight)
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+
+                    DetailRow(
+                        label = stringResource(R.string.training_detail_reps),
+                        value = stringResource(R.string.training_detail_reps_value, record.rep)
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+
+                    DetailRow(
+                        label = stringResource(R.string.training_detail_rpe),
+                        value = stringResource(R.string.training_detail_rpe_value, record.rpe)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = onRevert,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.RestoreFromTrash,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.training_bin_revert),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+
+                Button(
+                    onClick = onPermanentDelete,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteForever,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.training_bin_permanent_delete),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text(text = stringResource(R.string.common_cancel))
             }
         }
     }

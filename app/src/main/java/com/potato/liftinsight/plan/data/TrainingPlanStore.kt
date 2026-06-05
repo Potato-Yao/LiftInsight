@@ -429,6 +429,77 @@ class TrainingPlanStore private constructor(
         return planStore.deletePlan(planId)
     }
 
+    fun softDeleteMetaHistory(historyId: Int): Boolean {
+        logTrace("softDeleteMetaHistory start: historyId=$historyId")
+
+        val result = database.planDao().softDeleteMetaHistory(historyId)
+
+        logTrace("softDeleteMetaHistory result: historyId=$historyId, deleted=$result")
+
+        return result
+    }
+
+    fun softDeleteMetaHistoryByIds(historyIds: List<Int>): Int {
+        logTrace("softDeleteMetaHistoryByIds start: historyIds=$historyIds")
+
+        val count = database.planDao().softDeleteMetaHistoryByIds(historyIds)
+
+        logTrace("softDeleteMetaHistoryByIds result: count=$count")
+
+        return count
+    }
+
+    fun getBinRecords(): List<MetaHistoryRecord> {
+        logTrace("getBinRecords start")
+
+        val rows = database.planDao().getMetaHistoryBinRows()
+        val records = rows.map { row -> row.toRecord() }
+
+        logTrace("getBinRecords result: count=${records.size}")
+
+        return records
+    }
+
+    fun permanentlyDeleteBinRecord(binId: Int): Boolean {
+        logTrace("permanentlyDeleteBinRecord start: binId=$binId")
+
+        val deleted = database.planDao().deleteMetaHistoryBinById(binId) > 0
+
+        logTrace("permanentlyDeleteBinRecord result: binId=$binId, deleted=$deleted")
+
+        return deleted
+    }
+
+    fun permanentlyDeleteBinRecords(binIds: List<Int>): Int {
+        logTrace("permanentlyDeleteBinRecords start: binIds=$binIds")
+
+        val count = database.planDao().deleteMetaHistoryBinByIds(binIds)
+
+        logTrace("permanentlyDeleteBinRecords result: count=$count")
+
+        return count
+    }
+
+    fun revertBinRecord(binId: Int): Boolean {
+        logTrace("revertBinRecord start: binId=$binId")
+
+        val result = database.planDao().revertBinRecord(binId)
+
+        logTrace("revertBinRecord result: binId=$binId, reverted=$result")
+
+        return result
+    }
+
+    fun revertBinRecords(binIds: List<Int>): Int {
+        logTrace("revertBinRecords start: binIds=$binIds")
+
+        val count = database.planDao().revertBinRecords(binIds)
+
+        logTrace("revertBinRecords result: count=$count")
+
+        return count
+    }
+
     fun seedPlansIfEmpty(
         plans: List<TrainingPlanState>,
         currentPlanId: Int

@@ -14,6 +14,7 @@ import com.potato.liftinsight.video.imported.ImportedVideoSource
 import java.io.File
 import java.io.IOException
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
@@ -236,6 +237,250 @@ class TrainingHistoryController(
         }
 
         videoProcessor.submitForProcessing(videoName)
+    }
+
+    suspend fun softDeleteRecord(
+        state: TrainingHistoryState,
+        record: MetaHistoryRecord
+    ): TrainingHistoryState {
+        val deleted = withContext(Dispatchers.IO) {
+            trainingPlanStore.softDeleteMetaHistory(record.id)
+        }
+
+        if (!deleted) {
+            return state
+        }
+
+        val updatedRecords = state.records.filter { it.id != record.id }
+        val updatedSelectedRecord = if (state.selectedRecord?.id == record.id) {
+            null
+        } else {
+            state.selectedRecord
+        }
+
+        return state.copy(
+            records = updatedRecords,
+            selectedRecord = updatedSelectedRecord
+        )
+    }
+
+    suspend fun deleteSelectedRecords(state: TrainingHistoryState): TrainingHistoryState {
+        val ids = state.selectedRecordIds.toList()
+
+        if (ids.isEmpty()) {
+            return state
+        }
+
+        val count = withContext(Dispatchers.IO) {
+            trainingPlanStore.softDeleteMetaHistoryByIds(ids)
+        }
+
+        if (count == 0) {
+            return state
+        }
+
+        val updatedRecords = state.records.filter { it.id !in state.selectedRecordIds }
+
+        return state.copy(
+            records = updatedRecords,
+            selectedRecordIds = emptySet()
+        )
+    }
+
+    suspend fun deleteDayRecords(
+        state: TrainingHistoryState,
+        dateKey: String
+    ): TrainingHistoryState {
+        val dayRecordIds = state.records
+            .filter { it.date.take(10) == dateKey }
+            .map { it.id }
+
+        if (dayRecordIds.isEmpty()) {
+            return state
+        }
+
+        val count = withContext(Dispatchers.IO) {
+            trainingPlanStore.softDeleteMetaHistoryByIds(dayRecordIds)
+        }
+
+        if (count == 0) {
+            return state
+        }
+
+        val updatedRecords = state.records.filter { it.date.take(10) != dateKey }
+
+        return state.copy(records = updatedRecords)
+    }
+
+    fun toggleBatchMode(state: TrainingHistoryState): TrainingHistoryState {
+        return state.copy(
+            isBatchMode = !state.isBatchMode,
+            selectedRecordIds = if (state.isBatchMode) emptySet() else state.selectedRecordIds
+        )
+    }
+
+    fun toggleRecordSelection(
+        state: TrainingHistoryState,
+        recordId: Int
+    ): TrainingHistoryState {
+        val updatedSelection = if (recordId in state.selectedRecordIds) {
+            state.selectedRecordIds - recordId
+        } else {
+            state.selectedRecordIds + recordId
+        }
+
+        return state.copy(selectedRecordIds = updatedSelection)
+    }
+
+    fun toggleDateGroup(
+        state: TrainingHistoryState,
+        dateKey: String
+    ): TrainingHistoryState {
+        val updatedExpanded = if (dateKey in state.expandedDateGroups) {
+            state.expandedDateGroups - dateKey
+        } else {
+            state.expandedDateGroups + dateKey
+        }
+
+        return state.copy(expandedDateGroups = updatedExpanded)
+    }
+
+    fun initializeExpandedGroups(state: TrainingHistoryState): TrainingHistoryState {
+        val todayKey = LocalDate.now().toString()
+
+        return state.copy(expandedDateGroups = setOf(todayKey))
+    }
+
+    suspend fun loadBinState(): TrainingHistoryState {
+        val records = withContext(Dispatchers.IO) {
+            trainingPlanStore.getBinRecords()
+        }
+
+        return TrainingHistoryState(
+            isBinMode = true,
+            binRecords = records
+        )
+    }
+
+    fun selectBinRecord(
+        state: TrainingHistoryState,
+        record: MetaHistoryRecord
+    ): TrainingHistoryState {
+        return state.copy(selectedBinRecord = record)
+    }
+
+    fun dismissBinRecord(state: TrainingHistoryState): TrainingHistoryState {
+        return state.copy(selectedBinRecord = null)
+    }
+
+    suspend fun permanentlyDeleteBinRecord(
+        state: TrainingHistoryState,
+        binId: Int
+    ): TrainingHistoryState {
+        val deleted = withContext(Dispatchers.IO) {
+            trainingPlanStore.permanentlyDeleteBinRecord(binId)
+        }
+
+        if (!deleted) {
+            return state
+        }
+
+        val updatedBinRecords = state.binRecords.filter { it.id != binId }
+        val updatedSelectedBinRecord = if (state.selectedBinRecord?.id == binId) {
+            null
+        } else {
+            state.selectedBinRecord
+        }
+
+        return state.copy(
+            binRecords = updatedBinRecords,
+            selectedBinRecord = updatedSelectedBinRecord
+        )
+    }
+
+    suspend fun revertBinRecord(
+        state: TrainingHistoryState,
+        binId: Int
+    ): TrainingHistoryState {
+        val reverted = withContext(Dispatchers.IO) {
+            trainingPlanStore.revertBinRecord(binId)
+        }
+
+        if (!reverted) {
+            return state
+        }
+
+        val updatedBinRecords = state.binRecords.filter { it.id != binId }
+        val updatedSelectedBinRecord = if (state.selectedBinRecord?.id == binId) {
+            null
+        } else {
+            state.selectedBinRecord
+        }
+
+        return state.copy(
+            binRecords = updatedBinRecords,
+            selectedBinRecord = updatedSelectedBinRecord
+        )
+    }
+
+    suspend fun permanentlyDeleteSelectedBinRecords(
+        state: TrainingHistoryState
+    ): TrainingHistoryState {
+        val ids = state.selectedRecordIds.toList()
+
+        if (ids.isEmpty()) {
+            return state
+        }
+
+        val count = withContext(Dispatchers.IO) {
+            trainingPlanStore.permanentlyDeleteBinRecords(ids)
+        }
+
+        if (count == 0) {
+            return state
+        }
+
+        val updatedBinRecords = state.binRecords.filter { it.id !in state.selectedRecordIds }
+
+        return state.copy(
+            binRecords = updatedBinRecords,
+            selectedRecordIds = emptySet()
+        )
+    }
+
+    suspend fun revertSelectedBinRecords(
+        state: TrainingHistoryState
+    ): TrainingHistoryState {
+        val ids = state.selectedRecordIds.toList()
+
+        if (ids.isEmpty()) {
+            return state
+        }
+
+        val count = withContext(Dispatchers.IO) {
+            trainingPlanStore.revertBinRecords(ids)
+        }
+
+        if (count == 0) {
+            return state
+        }
+
+        val updatedBinRecords = state.binRecords.filter { it.id !in state.selectedRecordIds }
+
+        return state.copy(
+            binRecords = updatedBinRecords,
+            selectedRecordIds = emptySet()
+        )
+    }
+
+    fun exitBinMode(state: TrainingHistoryState): TrainingHistoryState {
+        return state.copy(
+            isBinMode = false,
+            binRecords = emptyList(),
+            selectedBinRecord = null,
+            selectedRecordIds = emptySet(),
+            isBatchMode = false
+        )
     }
 
     private suspend fun attachVideoToRecord(

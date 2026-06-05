@@ -17,9 +17,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutProgressEntity::class,
         MetaPlanEntity::class,
         MetaHistoryEntity::class,
-        VideoProcessStateEntity::class
+        VideoProcessStateEntity::class,
+        MetaHistoryBinEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -110,6 +111,30 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS metahistory_bin (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        date TEXT NOT NULL,
+                        rep INTEGER NOT NULL,
+                        rpe INTEGER NOT NULL,
+                        weight REAL NOT NULL,
+                        motion_id INTEGER NOT NULL,
+                        motion_name TEXT NOT NULL,
+                        video_name TEXT,
+                        video_source TEXT NOT NULL DEFAULT 'CAMERA_CAPTURE',
+                        imported_video_analysis_mode TEXT NOT NULL DEFAULT 'ESTIMATED',
+                        imported_reference_label TEXT NOT NULL DEFAULT '',
+                        imported_reference_pixel_distance REAL,
+                        imported_reference_distance_meters REAL
+                    )
+                    """
+                )
+            }
+        }
+
         val MIGRATION_13_12 = object : Migration(13, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE workout_progress_new (`id` INTEGER NOT NULL, `plan_id` INTEGER NOT NULL, `plan_day_index` INTEGER NOT NULL, `next_set_index` INTEGER NOT NULL, `active_set_index` INTEGER, `total_set_count` INTEGER NOT NULL, `break_ends_at` INTEGER NOT NULL, `is_finished` INTEGER NOT NULL, `completed_elapsed_time_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))")
@@ -154,6 +179,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                             MIGRATION_9_10,
                             MIGRATION_10_11,
                             MIGRATION_11_12,
+                            MIGRATION_12_13,
                             MIGRATION_13_12
                         )
                         .build()
