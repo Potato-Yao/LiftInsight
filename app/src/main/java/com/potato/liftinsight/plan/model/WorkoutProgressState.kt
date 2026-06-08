@@ -11,7 +11,8 @@ data class WorkoutProgressState(
     val breakEndsAt: Long = 0L,
     val isFinished: Boolean = false,
     val completedElapsedTimeMs: Long = 0L,
-    val activeHistoryId: Int? = null
+    val activeHistoryId: Int? = null,
+    val workoutIntensity: Int? = null
 )
 
 data class WorkoutSetTargetState(
@@ -31,6 +32,14 @@ enum class WorkoutSetFeeling {
     Simple,
     HardButControlled,
     AlmostLostControl
+}
+
+enum class WorkoutSessionFeeling(val sRpe: Int) {
+    Easy(4),
+    FeelTraining(5),
+    Hard(6),
+    ExtremelyHard(9),
+    AlmostDead(10)
 }
 
 data class WorkoutSetPerformanceInput(
@@ -135,7 +144,8 @@ fun sanitizeWorkoutProgressState(
         totalSetCount = normalizedTotalSetCount,
         breakEndsAt = currentProgress.breakEndsAt.coerceAtLeast(0L),
         isFinished = finished,
-        completedElapsedTimeMs = currentProgress.completedElapsedTimeMs.coerceAtLeast(0L)
+        completedElapsedTimeMs = currentProgress.completedElapsedTimeMs.coerceAtLeast(0L),
+        workoutIntensity = currentProgress.workoutIntensity
     )
 }
 

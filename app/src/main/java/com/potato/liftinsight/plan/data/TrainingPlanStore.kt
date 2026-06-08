@@ -387,6 +387,13 @@ class TrainingPlanStore private constructor(
         logTrace("updateHistoryEndTime result: updated=true")
     }
 
+    fun updateHistoryIntensity(historyId: Int, intensity: Int) {
+        logTrace("updateHistoryIntensity start: historyId=$historyId, intensity=$intensity")
+        database.historyDao().updateHistoryIntensity(historyId, intensity)
+        logger.info(TAG, "Updated history intensity: historyId=$historyId, intensity=$intensity")
+        logTrace("updateHistoryIntensity result: updated=true")
+    }
+
     fun updateMetaHistoryVideoName(historyId: Int, videoName: String?): Boolean {
         logTrace("updateMetaHistoryVideoName start: historyId=$historyId, videoName=$videoName")
 
@@ -703,7 +710,8 @@ private fun WorkoutProgressEntity.toState(): WorkoutProgressState {
         breakEndsAt = breakEndsAt,
         isFinished = isFinished,
         completedElapsedTimeMs = completedElapsedTimeMs,
-        activeHistoryId = activeHistoryId
+        activeHistoryId = activeHistoryId,
+        workoutIntensity = workoutIntensity
     )
 }
 
@@ -717,7 +725,8 @@ private fun WorkoutProgressState.toEntity(): WorkoutProgressEntity {
         breakEndsAt = breakEndsAt,
         isFinished = isFinished,
         completedElapsedTimeMs = completedElapsedTimeMs,
-        activeHistoryId = activeHistoryId
+        activeHistoryId = activeHistoryId,
+        workoutIntensity = workoutIntensity
     )
 }
 

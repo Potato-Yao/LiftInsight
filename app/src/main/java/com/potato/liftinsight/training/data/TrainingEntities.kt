@@ -89,7 +89,9 @@ data class WorkoutProgressEntity(
     @ColumnInfo(name = "completed_elapsed_time_ms")
     val completedElapsedTimeMs: Long = 0L,
     @ColumnInfo(name = "active_history_id")
-    val activeHistoryId: Int? = null
+    val activeHistoryId: Int? = null,
+    @ColumnInfo(name = "workout_intensity")
+    val workoutIntensity: Int? = null
 )
 
 @Entity(

@@ -4,6 +4,7 @@ import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput
+import com.potato.liftinsight.plan.model.WorkoutSessionFeeling
 import com.potato.liftinsight.plan.model.completedWorkoutSetCount
 import com.potato.liftinsight.plan.model.createWorkoutProgressState
 import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
@@ -18,6 +19,7 @@ import com.potato.liftinsight.training.data.CreateHistoryRequest
 import com.potato.liftinsight.training.data.CreateMetaHistoryRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 internal suspend fun PlanControllerEnvironment.startWorkout(state: PlanState): PlanState {
     if (state.workoutSession.isWorkoutGoing) {
@@ -343,6 +345,41 @@ internal suspend fun PlanControllerEnvironment.confirmWorkoutStop(state: PlanSta
         workoutInsertedMotions = emptyList(),
         mergedTodayTargets = emptyList()
     )
+}
+
+internal suspend fun PlanControllerEnvironment.submitWorkoutFeeling(
+    state: PlanState,
+    feeling: WorkoutSessionFeeling
+): PlanState {
+    val workoutProgress = state.workoutProgress ?: run {
+        logWarn("Ignoring workout feeling submission because no workout progress is available")
+        return state
+    }
+
+    if (!workoutProgress.isFinished) {
+        logWarn("Ignoring workout feeling submission because workout is not finished")
+        return state
+    }
+
+    if (workoutProgress.workoutIntensity != null) {
+        logWarn("Ignoring workout feeling submission because intensity was already recorded")
+        return state
+    }
+
+    val durationMinutes = ((workoutProgress.completedElapsedTimeMs / 60_000.0)).roundToInt().coerceAtLeast(1)
+    val intensity = feeling.sRpe * durationMinutes
+    val activeHistoryId = workoutProgress.activeHistoryId
+
+    withContext(Dispatchers.IO) {
+        if (activeHistoryId != null) {
+            trainingPlanStore.updateHistoryIntensity(activeHistoryId, intensity)
+        }
+        trainingPlanStore.saveWorkoutProgress(workoutProgress.copy(workoutIntensity = intensity))
+    }
+
+    logDebug("Recorded workout feeling: feeling=${feeling.name}, sRpe=${feeling.sRpe}, durationMin=$durationMinutes, intensity=$intensity")
+
+    return reloadState(state)
 }
 
 internal fun PlanControllerEnvironment.openWorkoutMotionPicker(state: PlanState): PlanState {

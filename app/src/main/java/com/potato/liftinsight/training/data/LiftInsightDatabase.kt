@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MetaHistoryBinEntity::class,
         HistoryEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -220,6 +220,12 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE workout_progress ADD COLUMN workout_intensity INTEGER")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -259,7 +265,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                             MIGRATION_13_12,
                             MIGRATION_13_14,
                             MIGRATION_14_15,
-                            MIGRATION_15_16
+                            MIGRATION_15_16,
+                            MIGRATION_16_17
                         )
                         .build()
 

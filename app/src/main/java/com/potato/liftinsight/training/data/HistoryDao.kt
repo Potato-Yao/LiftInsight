@@ -65,4 +65,7 @@ interface HistoryDao {
 
     @Query("UPDATE history SET end_time = :endTime WHERE id = :historyId")
     fun updateHistoryEndTime(historyId: Int, endTime: Long): Int
+
+    @Query("UPDATE history SET intensity = :intensity WHERE id = :historyId")
+    fun updateHistoryIntensity(historyId: Int, intensity: Int): Int
 }

@@ -2,6 +2,7 @@
 description: Plans user requirements into constraints, questions, and ordered implementation tasks.
 mode: subagent
 model: xiaomi-token-plan-cn/mimo-v2.5-pro
+# model: deepseek/deepseek-v4-pro
 permission:
   read: allow
   glob: allow

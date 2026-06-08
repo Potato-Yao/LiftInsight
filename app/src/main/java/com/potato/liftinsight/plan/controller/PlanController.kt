@@ -7,6 +7,7 @@ import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.model.AvailableMotionState
 import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput
+import com.potato.liftinsight.plan.model.WorkoutSessionFeeling
 import com.potato.liftinsight.video.NoOpVideoProcessor
 import com.potato.liftinsight.video.VideoProcessor
 
@@ -75,6 +76,11 @@ class PlanController(
 
     suspend fun confirmWorkoutStop(state: PlanState): PlanState =
         environment.confirmWorkoutStop(state)
+
+    suspend fun submitWorkoutFeeling(
+        state: PlanState,
+        feeling: WorkoutSessionFeeling
+    ): PlanState = environment.submitWorkoutFeeling(state, feeling)
 
     fun showPlanDetail(state: PlanState, planId: Int): PlanState =
         environment.showPlanDetail(state, planId)

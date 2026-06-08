@@ -10,6 +10,11 @@ import com.potato.liftinsight.plan.route.MotionDeleteTarget
 import com.potato.liftinsight.plan.route.PlanEditorState
 import com.potato.liftinsight.plan.route.PlanRoute
 
+sealed interface SessionIntensityDisplay {
+    data object NotAvailable : SessionIntensityDisplay
+    data class Available(val intensity: Int, val isFromToday: Boolean) : SessionIntensityDisplay
+}
+
 data class PlanState(
     val availableMotions: List<AvailableMotionState>,
     val trainingPlans: List<TrainingPlanState>,
@@ -23,5 +28,6 @@ data class PlanState(
     val workoutStopPendingConfirmation: Boolean = false,
     val cameraVideoName: String? = null,
     val workoutInsertedMotions: List<PlanMotionState> = emptyList(),
-    val mergedTodayTargets: List<WorkoutSetTargetState> = emptyList()
+    val mergedTodayTargets: List<WorkoutSetTargetState> = emptyList(),
+    val sessionIntensityDisplay: SessionIntensityDisplay = SessionIntensityDisplay.NotAvailable
 )

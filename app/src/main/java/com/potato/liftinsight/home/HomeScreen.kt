@@ -36,6 +36,7 @@ import com.potato.liftinsight.R
 import com.potato.liftinsight.common.MetricCard
 import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.model.todaysPlanMotions
+import com.potato.liftinsight.plan.model.SessionIntensityDisplay
 import com.potato.liftinsight.plan.model.trainingPlan
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 
@@ -163,9 +164,13 @@ internal fun HomeScreen(
             enter = screenSectionEnter(delayMillis = 190),
             exit = ExitTransition.None
         ) {
+            val intensityDisplay = planState.sessionIntensityDisplay
             MetricCard(
                 title = stringResource(R.string.home_todays_task_intensity),
-                subtitle = stringResource(R.string.home_no_data_placeholder),
+                subtitle = when (intensityDisplay) {
+                    is SessionIntensityDisplay.Available -> null
+                    SessionIntensityDisplay.NotAvailable -> stringResource(R.string.home_no_data_placeholder)
+                },
                 modifier = Modifier.fillMaxWidth(),
                 leadingContent = {
                     Icon(
@@ -174,7 +179,18 @@ internal fun HomeScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
-            ) {}
+            ) {
+                when (intensityDisplay) {
+                    is SessionIntensityDisplay.Available -> {
+                        Text(
+                            text = stringResource(R.string.plan_workout_intensity_value, intensityDisplay.intensity),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    SessionIntensityDisplay.NotAvailable -> {}
+                }
+            }
         }
     }
 }

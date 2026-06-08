@@ -292,7 +292,7 @@ fun MotionVideoPlayer(
                 color = Color.Black.copy(alpha = 0.65f)
             ) {
                 Text(
-                    text = state.gestureState.seekTimeLabel.ifEmpty { "00:00" },
+                    text = state.gestureState.seekTimeLabel.ifEmpty { stringResource(R.string.motion_video_seek_default_time) },
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.SemiBold,

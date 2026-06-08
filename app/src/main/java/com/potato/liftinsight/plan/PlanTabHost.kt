@@ -44,6 +44,7 @@ import com.potato.liftinsight.plan.controller.PlanController
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.model.TrainingPlanState
+import com.potato.liftinsight.plan.model.WorkoutSessionFeeling
 import com.potato.liftinsight.plan.model.todaysPlanMotions
 import com.potato.liftinsight.plan.model.trainingPlan
 import com.potato.liftinsight.plan.route.PlanRoute
@@ -165,6 +166,13 @@ internal fun PlanTabHost(
                     pendingCameraVideo = planState.cameraVideoName,
                     onCameraVideoCleared = {
                         onPlanStateChange(planController.clearCameraVideo(planState))
+                    },
+                    onWorkoutFeelingSubmit = { feeling ->
+                        coroutineScope.launch {
+                            onPlanStateChange(
+                                planController.submitWorkoutFeeling(planState, feeling)
+                            )
+                        }
                     },
                     modifier = Modifier.padding(contentPadding)
                 )

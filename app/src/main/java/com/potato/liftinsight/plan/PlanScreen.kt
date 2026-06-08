@@ -7,10 +7,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -53,6 +55,7 @@ import com.potato.liftinsight.R
 import com.potato.liftinsight.plan.model.PlanMotionState
 import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.WorkoutProgressState
+import com.potato.liftinsight.plan.model.WorkoutSessionFeeling
 import com.potato.liftinsight.plan.model.WorkoutSetFeeling
 import com.potato.liftinsight.plan.model.WorkoutSetPerformanceInput
 import com.potato.liftinsight.plan.model.WorkoutSetTargetState
@@ -81,6 +84,7 @@ internal fun PlanScreen(
     onCameraClick: (() -> Unit)? = null,
     pendingCameraVideo: String? = null,
     onCameraVideoCleared: () -> Unit = {},
+    onWorkoutFeelingSubmit: (WorkoutSessionFeeling) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showContent by remember { mutableStateOf(false) }
@@ -202,6 +206,7 @@ internal fun PlanScreen(
                     onCameraClick = onCameraClick,
                     pendingCameraVideo = pendingCameraVideo,
                     onCameraVideoCleared = onCameraVideoCleared,
+                    onWorkoutFeelingSubmit = onWorkoutFeelingSubmit,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -302,6 +307,7 @@ private fun TodayPlanSection(
     onCameraClick: (() -> Unit)? = null,
     pendingCameraVideo: String? = null,
     onCameraVideoCleared: () -> Unit = {},
+    onWorkoutFeelingSubmit: (WorkoutSessionFeeling) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     when (content) {
@@ -367,6 +373,7 @@ private fun TodayPlanSection(
         is PlanWorkoutSectionContent.Completed -> {
             CompletedWorkoutSection(
                 progress = content.progress,
+                onWorkoutFeelingSubmit = onWorkoutFeelingSubmit,
                 modifier = modifier
             )
         }
@@ -484,6 +491,7 @@ private fun ActiveWorkoutSection(
 @Composable
 private fun CompletedWorkoutSection(
     progress: WorkoutProgressState,
+    onWorkoutFeelingSubmit: (WorkoutSessionFeeling) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -527,11 +535,17 @@ private fun CompletedWorkoutSection(
             supportingText = stringResource(R.string.plan_workout_time_cost_supporting_text)
         )
 
-        WorkoutMetricCard(
-            label = stringResource(R.string.plan_workout_workload_label),
-            value = stringResource(R.string.plan_workout_workload_empty_value),
-            supportingText = stringResource(R.string.plan_workout_workload_supporting_text)
-        )
+        if (progress.workoutIntensity != null) {
+            WorkoutMetricCard(
+                label = stringResource(R.string.plan_workout_intensity_label),
+                value = stringResource(R.string.plan_workout_intensity_value, progress.workoutIntensity!!),
+                supportingText = stringResource(R.string.plan_workout_intensity_supporting)
+            )
+        } else {
+            WorkoutFeelingSelectorCard(
+                onFeelingSelected = onWorkoutFeelingSubmit
+            )
+        }
     }
 }
 
@@ -691,6 +705,86 @@ private fun WorkoutMetricCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+@Composable
+private fun WorkoutFeelingSelectorCard(
+    onFeelingSelected: (WorkoutSessionFeeling) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.plan_workout_feeling_session_label),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Text(
+                text = stringResource(R.string.plan_workout_feeling_session_supporting),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            val feelings = WorkoutSessionFeeling.entries
+            feelings.chunked(2).forEach { rowFeelings ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowFeelings.forEach { feeling ->
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onFeelingSelected(feeling) },
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                            )
+                        ) {
+                            Text(
+                                text = sessionFeelingLabel(feeling),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                style = MaterialTheme.typography.labelLarge,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                    if (rowFeelings.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun sessionFeelingLabel(feeling: WorkoutSessionFeeling): String {
+    return when (feeling) {
+        WorkoutSessionFeeling.Easy -> stringResource(R.string.plan_workout_feeling_session_easy)
+        WorkoutSessionFeeling.FeelTraining -> stringResource(R.string.plan_workout_feeling_session_feel_training)
+        WorkoutSessionFeeling.Hard -> stringResource(R.string.plan_workout_feeling_session_hard)
+        WorkoutSessionFeeling.ExtremelyHard -> stringResource(R.string.plan_workout_feeling_session_extremely_hard)
+        WorkoutSessionFeeling.AlmostDead -> stringResource(R.string.plan_workout_feeling_session_almost_dead)
     }
 }
 

@@ -64,9 +64,16 @@
     <string name="plan_workout_done_subtitle">Today\'s planned sets are finished for the current plan day.</string>
     <string name="plan_workout_time_cost_label">Time cost</string>
     <string name="plan_workout_time_cost_supporting_text">The workout timer is captured when the final set is finished.</string>
-    <string name="plan_workout_workload_label">Work load</string>
-    <string name="plan_workout_workload_empty_value"></string>
-    <string name="plan_workout_workload_supporting_text">Work load will appear here in a future update.</string>
+    <string name="plan_workout_feeling_session_label">Mark your feel about the whole training</string>
+    <string name="plan_workout_feeling_session_supporting">Choose how this session felt overall to record session intensity.</string>
+    <string name="plan_workout_feeling_session_easy">Easy</string>
+    <string name="plan_workout_feeling_session_feel_training">Feel training</string>
+    <string name="plan_workout_feeling_session_hard">Hard</string>
+    <string name="plan_workout_feeling_session_extremely_hard">Extremely hard</string>
+    <string name="plan_workout_feeling_session_almost_dead">Almost dead</string>
+    <string name="plan_workout_intensity_label">Intensity</string>
+    <string name="plan_workout_intensity_value">%1$d</string>
+    <string name="plan_workout_intensity_supporting">Calculated as sRPE × session duration in minutes.</string>
     <string name="plan_workout_mark_performance_title">Mark your performance</string>
     <string name="plan_workout_mark_performance_subtitle">%1$s · Set %2$d/%3$d</string>
     <string name="plan_workout_reps_done_label">Reps you done</string>
@@ -260,6 +267,7 @@
     <string name="motion_video_speed_btn_1">Normal playback speed</string>
     <string name="motion_video_speed_btn_125">Playback speed 1.25x</string>
     <string name="motion_video_speed_btn_15">Playback speed 1.5x</string>
+    <string name="motion_video_seek_default_time">00:00</string>
     <string name="camera_permission_required">Camera permission is required to record lifts.</string>
     <string name="camera_grant_permission">Grant permission</string>
     <string name="camera_opening_native">Opening your system camera in video mode...</string>

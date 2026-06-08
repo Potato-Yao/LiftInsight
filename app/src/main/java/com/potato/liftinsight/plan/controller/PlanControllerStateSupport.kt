@@ -8,6 +8,7 @@ import com.potato.liftinsight.plan.model.TrainingPlanState
 import com.potato.liftinsight.plan.model.WorkoutProgressState
 import com.potato.liftinsight.plan.model.WorkoutSessionState
 import com.potato.liftinsight.plan.model.WorkoutSetTargetState
+import com.potato.liftinsight.plan.model.SessionIntensityDisplay
 import com.potato.liftinsight.plan.model.normalizedPlanCurrentIndex
 import com.potato.liftinsight.plan.model.sanitizeWorkoutProgressState
 import com.potato.liftinsight.plan.model.sortPlansByLastApplied
@@ -17,8 +18,10 @@ import com.potato.liftinsight.plan.model.workoutSetTargetsForDay
 import com.potato.liftinsight.plan.route.MotionDeleteTarget
 import com.potato.liftinsight.plan.route.PlanEditorState
 import com.potato.liftinsight.plan.route.PlanRoute
+import com.potato.liftinsight.training.data.HistoryRecord
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 internal suspend fun PlanControllerEnvironment.loadState(
     emptyState: PlanState,
@@ -266,7 +269,12 @@ private fun PlanControllerEnvironment.buildLoadedState(
         cameraVideoName = null,
         workoutStopPendingConfirmation = workoutStopPendingConfirmation && workoutSession.isWorkoutGoing,
         workoutInsertedMotions = preservedInsertedMotions,
-        mergedTodayTargets = preservedMergedTargets
+        mergedTodayTargets = preservedMergedTargets,
+        sessionIntensityDisplay = resolveSessionIntensity(
+            workoutProgress = sanitizedWorkoutProgress,
+            currentPlan = currentPlan,
+            historyRecords = trainingPlanStore.getHistoryRecords()
+        )
     )
 }
 
@@ -351,6 +359,32 @@ internal fun PlanControllerEnvironment.deleteTrainingPlanAndUpdateSelection(plan
     }
 
     return true
+}
+
+private fun resolveSessionIntensity(
+    workoutProgress: WorkoutProgressState?,
+    currentPlan: TrainingPlanState?,
+    historyRecords: List<HistoryRecord>
+): SessionIntensityDisplay {
+    if (workoutProgress?.isFinished == true && workoutProgress.workoutIntensity != null) {
+        return SessionIntensityDisplay.Available(
+            intensity = workoutProgress.workoutIntensity,
+            isFromToday = true
+        )
+    }
+
+    if (currentPlan == null) return SessionIntensityDisplay.NotAvailable
+
+    val currentDayIndex = normalizedPlanCurrentIndex(currentPlan)
+    val recentRecords = historyRecords
+        .filter { it.dayIndex == currentDayIndex }
+        .sortedByDescending { it.startTime }
+        .take(3)
+
+    if (recentRecords.isEmpty()) return SessionIntensityDisplay.NotAvailable
+
+    val average = recentRecords.map { it.intensity }.average().roundToInt()
+    return SessionIntensityDisplay.Available(intensity = average, isFromToday = false)
 }
 
 internal fun localDateTimeString(timestamp: Long): String {

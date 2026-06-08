@@ -26,7 +26,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -121,13 +120,13 @@ fun NativeCameraScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         if (systemCameraUnavailable) {
             Surface(
                 shape = MaterialTheme.shapes.extraLarge,
-                color = Color.Black.copy(alpha = 0.4f)
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp),
@@ -137,7 +136,7 @@ fun NativeCameraScreen(
                     Text(
                         text = stringResource(R.string.plan_camera_no_app),
                         style = MaterialTheme.typography.titleLarge,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
                     Surface(
@@ -157,7 +156,7 @@ fun NativeCameraScreen(
         } else {
             Surface(
                 shape = MaterialTheme.shapes.extraLarge,
-                color = Color.Black.copy(alpha = 0.4f)
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp),
@@ -167,13 +166,13 @@ fun NativeCameraScreen(
                     Text(
                         text = motionTitle,
                         style = MaterialTheme.typography.titleLarge,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
                     Text(
                         text = stringResource(R.string.camera_opening_native),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.72f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
                         textAlign = TextAlign.Center
                     )
                 }
