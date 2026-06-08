@@ -128,14 +128,12 @@ fun todaysPlanMotions(plan: TrainingPlanState): List<PlanMotionState> {
 }
 
 fun workoutSetTargetsWithInsertions(
-    plan: TrainingPlanState,
+    existingTargets: List<WorkoutSetTargetState>,
     temporaryMotion: PlanMotionState,
     nextSetIndex: Int
 ): List<WorkoutSetTargetState> {
-    val planMotions = todaysPlanMotions(plan)
-    val originalTargets = workoutSetTargetsForDay(planMotions)
-
-    if (originalTargets.isEmpty()) {
+    // If no existing targets, create from the temporary motion only
+    if (existingTargets.isEmpty()) {
         return workoutSetTargetsForDay(listOf(temporaryMotion))
     }
 
@@ -152,8 +150,8 @@ fun workoutSetTargetsWithInsertions(
         intensity = temporaryMotion.intensity.coerceAtLeast(0.0)
     )
 
-    val insertAt = nextSetIndex.coerceIn(0, originalTargets.size)
-    val merged = originalTargets.toMutableList()
+    val insertAt = nextSetIndex.coerceIn(0, existingTargets.size)
+    val merged = existingTargets.toMutableList()
     merged.add(insertAt, tempTarget)
 
     // Re-index orderIndex

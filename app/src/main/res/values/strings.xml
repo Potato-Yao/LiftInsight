@@ -82,7 +82,7 @@
     <string name="plan_workout_feeling_too_easy">Too easy</string>
     <string name="plan_workout_feeling_simple">Simple</string>
     <string name="plan_workout_feeling_hard_but_controlled">Hard but controlled</string>
-    <string name="plan_workout_feeling_almost_lost_control">Almost lost control</string>
+    <string name="plan_workout_feeling_almost_lost_control">Almost lost control or failed</string>
     <string name="plan_workout_break_time_label">Break time</string>
     <string name="plan_workout_break_min_label">Min</string>
     <string name="plan_workout_break_sec_label">Sec</string>

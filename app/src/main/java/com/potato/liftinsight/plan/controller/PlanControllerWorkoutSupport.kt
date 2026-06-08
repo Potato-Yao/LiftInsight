@@ -442,9 +442,17 @@ internal suspend fun PlanControllerEnvironment.insertMotionIntoWorkout(
         return state
     }
 
+    // Get existing merged targets or fall back to plan targets
+    val existingTargets = if (state.mergedTodayTargets.isNotEmpty()) {
+        state.mergedTodayTargets
+    } else {
+        val planMotions = todaysPlanMotions(currentPlan)
+        workoutSetTargetsForDay(planMotions)
+    }
+
     // Merge at target level to preserve correct set counts
     val mergedTargets = workoutSetTargetsWithInsertions(
-        plan = currentPlan,
+        existingTargets = existingTargets,
         temporaryMotion = insertedMotion,
         nextSetIndex = workoutProgress.nextSetIndex
     )
