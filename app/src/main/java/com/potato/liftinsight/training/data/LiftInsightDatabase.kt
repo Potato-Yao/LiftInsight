@@ -7,6 +7,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.potato.liftinsight.common.logging.AndroidAppLogger
 
 @Database(
     entities = [
@@ -30,11 +31,14 @@ abstract class LiftInsightDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
 
     companion object {
+        private const val TAG = "LiftInsightDatabase"
+
         @Volatile
         private var instance: LiftInsightDatabase? = null
 
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 2 -> 3")
                 db.execSQL("ALTER TABLE motion ADD COLUMN default_sets INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE motion ADD COLUMN default_reps_per_set INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE plan ADD COLUMN last_applied_at INTEGER NOT NULL DEFAULT 0")
@@ -45,6 +49,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
 
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 3 -> 4")
                 db.execSQL("CREATE TABLE motion_new (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL)")
                 db.execSQL("INSERT INTO motion_new (`id`, `name`) SELECT `id`, `name` FROM motion")
                 db.execSQL("DROP TABLE motion")
@@ -56,6 +61,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
 
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 4 -> 5")
                 db.execSQL("CREATE TABLE plan_new (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `cycle_period` INTEGER NOT NULL, `current_index` INTEGER NOT NULL, `last_applied_at` INTEGER NOT NULL)")
                 db.execSQL("INSERT INTO plan_new (`id`, `name`, `cycle_period`, `current_index`, `last_applied_at`) SELECT `id`, `name`, `repeat_cycle`, 0, `last_applied_at` FROM plan")
                 db.execSQL("DROP TABLE plan")
@@ -65,6 +71,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
 
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 5 -> 6")
                 db.execSQL("ALTER TABLE metaplan ADD COLUMN day_index INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("DROP INDEX index_metaplan_plan_id_order_index")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_metaplan_plan_id_day_index_order_index ON metaplan (`plan_id`, `day_index`, `order_index`)")
@@ -73,24 +80,28 @@ abstract class LiftInsightDatabase : RoomDatabase() {
 
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 6 -> 7")
                 db.execSQL("CREATE TABLE IF NOT EXISTS workout_session (`id` INTEGER NOT NULL, `is_workout_going` INTEGER NOT NULL, `is_paused` INTEGER NOT NULL, `started_at` INTEGER NOT NULL, `last_resumed_at` INTEGER NOT NULL, `elapsed_before_pause_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))")
             }
         }
 
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 7 -> 8")
                 db.execSQL("ALTER TABLE plan_selection ADD COLUMN current_day_epoch INTEGER")
             }
         }
 
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 8 -> 9")
                 db.execSQL("CREATE TABLE IF NOT EXISTS workout_progress (`id` INTEGER NOT NULL, `plan_id` INTEGER NOT NULL, `plan_day_index` INTEGER NOT NULL, `next_set_index` INTEGER NOT NULL, `active_set_index` INTEGER, `total_set_count` INTEGER NOT NULL, `break_ends_at` INTEGER NOT NULL, `is_finished` INTEGER NOT NULL, `completed_elapsed_time_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))")
             }
         }
 
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 9 -> 10")
                 db.execSQL("CREATE TABLE IF NOT EXISTS metahistory (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `rep` INTEGER NOT NULL, `rpe` INTEGER NOT NULL, `weight` REAL NOT NULL, `motion_id` INTEGER NOT NULL, `video_name` TEXT, FOREIGN KEY(`motion_id`) REFERENCES `motion`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_motion_id ON metahistory (`motion_id`)")
             }
@@ -98,6 +109,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
 
         val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 10 -> 11")
                 db.execSQL("CREATE TABLE IF NOT EXISTS video_process_state (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `video_name` TEXT NOT NULL, `state` TEXT NOT NULL, `progress` INTEGER NOT NULL, `processed_video_name` TEXT)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_video_process_state_video_name ON video_process_state (`video_name`)")
             }
@@ -105,6 +117,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
 
         val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 11 -> 12")
                 db.execSQL("ALTER TABLE metahistory ADD COLUMN video_source TEXT NOT NULL DEFAULT 'CAMERA_CAPTURE'")
                 db.execSQL("ALTER TABLE metahistory ADD COLUMN imported_video_analysis_mode TEXT NOT NULL DEFAULT 'ESTIMATED'")
                 db.execSQL("ALTER TABLE metahistory ADD COLUMN imported_reference_label TEXT NOT NULL DEFAULT ''")
@@ -115,6 +128,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
 
         val MIGRATION_12_13 = object : Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 12 -> 13")
                 db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS metahistory_bin (
@@ -139,6 +153,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
 
         val MIGRATION_13_12 = object : Migration(13, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 13 -> 12")
                 db.execSQL("CREATE TABLE workout_progress_new (`id` INTEGER NOT NULL, `plan_id` INTEGER NOT NULL, `plan_day_index` INTEGER NOT NULL, `next_set_index` INTEGER NOT NULL, `active_set_index` INTEGER, `total_set_count` INTEGER NOT NULL, `break_ends_at` INTEGER NOT NULL, `is_finished` INTEGER NOT NULL, `completed_elapsed_time_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))")
                 db.execSQL("INSERT INTO workout_progress_new (`id`, `plan_id`, `plan_day_index`, `next_set_index`, `active_set_index`, `total_set_count`, `break_ends_at`, `is_finished`, `completed_elapsed_time_ms`) SELECT `id`, `plan_id`, `plan_day_index`, `next_set_index`, `active_set_index`, `total_set_count`, `break_ends_at`, `is_finished`, `completed_elapsed_time_ms` FROM workout_progress")
                 db.execSQL("DROP TABLE workout_progress")
@@ -148,6 +163,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
 
         val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 13 -> 14")
                 db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS history (
@@ -210,24 +226,28 @@ abstract class LiftInsightDatabase : RoomDatabase() {
 
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 14 -> 15")
                 db.execSQL("ALTER TABLE history ADD COLUMN day_index INTEGER NOT NULL DEFAULT 0")
             }
         }
 
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 15 -> 16")
                 db.execSQL("ALTER TABLE workout_progress ADD COLUMN active_history_id INTEGER")
             }
         }
 
         val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 16 -> 17")
                 db.execSQL("ALTER TABLE workout_progress ADD COLUMN workout_intensity INTEGER")
             }
         }
 
         val MIGRATION_17_18 = object : Migration(17, 18) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 17 -> 18")
                 db.execSQL("ALTER TABLE motion ADD COLUMN type TEXT NOT NULL DEFAULT 'BARBELL'")
             }
         }
@@ -250,6 +270,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                     } else {
                         "lift_insight.db"
                     }
+
+                    AndroidAppLogger.info(TAG, "Creating database instance: databaseName=$databaseName")
 
                     val createdInstance = Room.databaseBuilder(
                         context.applicationContext,
@@ -278,6 +300,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                         .build()
 
                     instance = createdInstance
+                    AndroidAppLogger.debug(TAG, "Database instance created successfully")
                     createdInstance
                 }
             }

@@ -3,6 +3,7 @@ package com.potato.liftinsight.record.controller
 import android.content.Context
 import android.os.Environment
 import androidx.test.core.app.ApplicationProvider
+import com.potato.liftinsight.common.logging.RecordingAppLogger
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.model.DisplayMode
 import com.potato.liftinsight.training.data.HistoryEntity
@@ -31,6 +32,7 @@ class TrainingHistoryControllerTest {
     private lateinit var database: LiftInsightDatabase
     private lateinit var trainingPlanStore: TrainingPlanStore
     private lateinit var videoProcessor: VideoProcessor
+    private lateinit var logger: RecordingAppLogger
     private lateinit var controller: TrainingHistoryController
 
     @Before
@@ -39,6 +41,7 @@ class TrainingHistoryControllerTest {
         database = LiftInsightDatabase.from(context)
         trainingPlanStore = TrainingPlanStore.from(context)
         videoProcessor = VideoProcessor.from(context)
+        logger = RecordingAppLogger()
 
         withContext(Dispatchers.IO) {
             database.clearAllTables()
@@ -46,8 +49,16 @@ class TrainingHistoryControllerTest {
 
         controller = TrainingHistoryController(
             trainingPlanStore = trainingPlanStore,
-            videoProcessor = videoProcessor
+            videoProcessor = videoProcessor,
+            logger = logger
         )
+    }
+
+    @Test
+    fun loadState_logsDebugEntry() = runBlocking {
+        controller.loadState()
+
+        assertTrue(logger.entries().any { it.tag == "TrainingHistoryController" && it.level == "debug" })
     }
 
     @Test

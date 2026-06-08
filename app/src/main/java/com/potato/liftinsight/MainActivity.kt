@@ -18,12 +18,14 @@ import com.potato.liftinsight.video.VideoProcessor
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        android.util.Log.i("MainActivity", "onCreate: starting application")
         enableEdgeToEdge()
 
         val themeStore = ThemeStore.from(applicationContext)
         val trainingPlanStore = TrainingPlanStore.from(applicationContext)
         val videoProcessor = VideoProcessor.from(applicationContext)
         val enableDebugPlanSeed = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        android.util.Log.d("MainActivity", "onCreate: stores and processor initialized")
 
         setContent {
             var themeMode by remember(themeStore) {
@@ -43,5 +45,6 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+        android.util.Log.d("MainActivity", "onCreate: setContent completed")
     }
 }

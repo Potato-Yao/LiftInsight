@@ -4,6 +4,8 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 import java.io.File
 import java.nio.ByteBuffer
 import kotlinx.coroutines.Dispatchers
@@ -11,8 +13,18 @@ import kotlinx.coroutines.withContext
 
 internal object VideoEditor {
     private const val DEFAULT_BUFFER_SIZE_BYTES = 1_048_576
+    private const val TAG = "VideoEditor"
+
+    @Volatile
+    private var logger: AppLogger = AndroidAppLogger
+
+    internal fun setLogger(logger: AppLogger) {
+        this.logger = logger
+    }
 
     suspend fun durationMs(file: File): Long = withContext(Dispatchers.IO) {
+        logger.debug(TAG, "durationMs start: file=${file.name}")
+
         if (!file.exists()) {
             return@withContext 0L
         }
@@ -34,6 +46,8 @@ internal object VideoEditor {
         processedFile: File?,
         selection: VideoEditSelection
     ): Boolean = withContext(Dispatchers.IO) {
+        logger.debug(TAG, "applyEditInPlace start: sourceFile=${sourceFile.name}")
+
         if (!sourceFile.exists()) {
             return@withContext false
         }
@@ -66,7 +80,9 @@ internal object VideoEditor {
                 }
             }
 
-            true
+            val result = true
+            logger.debug(TAG, "applyEditInPlace result: $result")
+            result
         } finally {
             if (sourceTempFile.exists()) {
                 sourceTempFile.delete()
@@ -177,14 +193,16 @@ internal object VideoEditor {
             } finally {
                 try {
                     muxer.stop()
-                } catch (_: Exception) {
+                } catch (error: Exception) {
+                    logger.warn(TAG, "Failed to stop muxer during writeEditedCopy cleanup")
                 }
 
                 muxer.release()
             }
 
             return outputFile.exists() && outputFile.length() > 0L
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            logger.error(TAG, "Failed to write edited video copy: input=${inputFile.name}", error)
             if (outputFile.exists()) {
                 outputFile.delete()
             }

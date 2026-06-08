@@ -3,6 +3,8 @@ package com.potato.liftinsight.record.controller
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.model.DisplayMode
 import com.potato.liftinsight.record.model.TrainingHistoryState
@@ -24,21 +26,41 @@ import kotlinx.coroutines.withContext
 
 class TrainingHistoryController(
     private val trainingPlanStore: TrainingPlanStore,
-    private val videoProcessor: VideoProcessor
+    private val videoProcessor: VideoProcessor,
+    private val logger: AppLogger = AndroidAppLogger
 ) {
     fun emptyState(): TrainingHistoryState {
         return TrainingHistoryState()
     }
 
+    private fun logDebug(message: String) {
+        logger.debug(TAG, message)
+    }
+
+    private fun logWarn(message: String) {
+        logger.warn(TAG, message)
+    }
+
+    private fun logError(message: String, throwable: Throwable) {
+        logger.error(TAG, message, throwable)
+    }
+
+    companion object {
+        private const val TAG = "TrainingHistoryController"
+    }
+
     suspend fun loadState(): TrainingHistoryState {
+        logDebug("loadState start")
         val records = withContext(Dispatchers.IO) {
             trainingPlanStore.getMetaHistoryRecords()
         }
+        logDebug("loadState result: loaded ${records.size} records")
 
         return TrainingHistoryState(records = records)
     }
 
     fun selectRecord(state: TrainingHistoryState, record: MetaHistoryRecord): TrainingHistoryState {
+        logDebug("selectRecord start: recordId=${record.id}")
         val selectedRecord = state.records.firstOrNull { historyRecord ->
             historyRecord.id == record.id
         } ?: record
@@ -47,14 +69,17 @@ class TrainingHistoryController(
     }
 
     fun dismissSelectedRecord(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("dismissSelectedRecord start")
         return state.copy(selectedRecord = null)
     }
 
     fun clearVideoStatus(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("clearVideoStatus start")
         return state.copy(selectedVideoStatus = null)
     }
 
     fun requestVideoStatusRefresh(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("requestVideoStatusRefresh start")
         return state.copy(
             selectedVideoStatus = null,
             videoStatusRefreshKey = state.videoStatusRefreshKey + 1
@@ -62,9 +87,11 @@ class TrainingHistoryController(
     }
 
     suspend fun refreshSelectedVideoStatus(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("refreshSelectedVideoStatus start")
         val videoName = state.selectedRecord?.videoName
 
         if (videoName.isNullOrBlank()) {
+            logWarn("refreshSelectedVideoStatus: videoName is null or blank, clearing video status")
             return clearVideoStatus(state)
         }
 
@@ -82,6 +109,7 @@ class TrainingHistoryController(
         rep: Int,
         rpe: Int
     ): TrainingHistoryState {
+        logDebug("updateRecordDetails start: historyId=$historyId")
         val didUpdate = withContext(Dispatchers.IO) {
             trainingPlanStore.updateMetaHistoryDetails(
                 historyId = historyId,
@@ -92,6 +120,7 @@ class TrainingHistoryController(
         }
 
         if (!didUpdate) {
+            logWarn("updateRecordDetails: update failed for historyId=$historyId")
             return state
         }
 
@@ -108,6 +137,7 @@ class TrainingHistoryController(
         uri: Uri,
         targetRecord: MetaHistoryRecord
     ): TrainingHistoryState {
+        logDebug("attachLocalVideo start: recordId=${targetRecord.id}, uri=$uri")
         val importedVideoName = withContext(Dispatchers.IO) {
             importVideoIntoAppStorage(
                 context = context,
@@ -139,7 +169,9 @@ class TrainingHistoryController(
         targetRecord: MetaHistoryRecord,
         videoName: String
     ): TrainingHistoryState {
+        logDebug("attachCapturedVideo start: recordId=${targetRecord.id}, videoName=$videoName")
         if (videoName.isBlank()) {
+            logWarn("attachCapturedVideo: videoName is blank")
             return state
         }
 
@@ -167,6 +199,7 @@ class TrainingHistoryController(
         pixelDistance: Double,
         distanceMeters: Double
     ): TrainingHistoryState {
+        logDebug("updateReferenceCalibration start: recordId=${record.id}")
         return updateImportedVideoMetadata(
             state = state,
             request = UpdateImportedVideoMetadataRequest(
@@ -181,6 +214,7 @@ class TrainingHistoryController(
     }
 
     suspend fun resolvePlaybackUri(videoName: String): Uri? {
+        logDebug("resolvePlaybackUri start: videoName=$videoName")
         val playbackFile = withContext(Dispatchers.IO) {
             videoProcessor.getPlaybackVideoFile(videoName)
         }
@@ -189,7 +223,9 @@ class TrainingHistoryController(
     }
 
     suspend fun exportVideo(context: Context, videoName: String): Uri? {
+        logDebug("exportVideo start: videoName=$videoName")
         if (videoName.isBlank()) {
+            logWarn("exportVideo: videoName is blank")
             return null
         }
 
@@ -204,7 +240,9 @@ class TrainingHistoryController(
     }
 
     suspend fun exportOriginalVideo(context: Context, videoName: String): Uri? {
+        logDebug("exportOriginalVideo start: videoName=$videoName")
         if (videoName.isBlank()) {
+            logWarn("exportOriginalVideo: videoName is blank")
             return null
         }
 
@@ -219,7 +257,9 @@ class TrainingHistoryController(
     }
 
     suspend fun exportProcessedVideo(context: Context, videoName: String): Uri? {
+        logDebug("exportProcessedVideo start: videoName=$videoName")
         if (videoName.isBlank()) {
+            logWarn("exportProcessedVideo: videoName is blank")
             return null
         }
 
@@ -234,7 +274,9 @@ class TrainingHistoryController(
     }
 
     fun submitVideoProcessing(videoName: String) {
+        logDebug("submitVideoProcessing start: videoName=$videoName")
         if (videoName.isBlank()) {
+            logWarn("submitVideoProcessing: videoName is blank")
             return
         }
 
@@ -245,14 +287,17 @@ class TrainingHistoryController(
         state: TrainingHistoryState,
         record: MetaHistoryRecord
     ): TrainingHistoryState {
+        logDebug("softDeleteRecord start: recordId=${record.id}")
         val deleted = withContext(Dispatchers.IO) {
             trainingPlanStore.softDeleteMetaHistory(record.id)
         }
 
         if (!deleted) {
+            logWarn("softDeleteRecord: deletion failed for recordId=${record.id}")
             return state
         }
 
+        logDebug("softDeleteRecord: successfully deleted recordId=${record.id}")
         val updatedRecords = state.records.filter { it.id != record.id }
         val updatedSelectedRecord = if (state.selectedRecord?.id == record.id) {
             null
@@ -268,8 +313,10 @@ class TrainingHistoryController(
 
     suspend fun deleteSelectedRecords(state: TrainingHistoryState): TrainingHistoryState {
         val ids = state.selectedRecordIds.toList()
+        logDebug("deleteSelectedRecords start: count=${ids.size}")
 
         if (ids.isEmpty()) {
+            logWarn("deleteSelectedRecords: no records selected")
             return state
         }
 
@@ -278,9 +325,11 @@ class TrainingHistoryController(
         }
 
         if (count == 0) {
+            logWarn("deleteSelectedRecords: deletion failed, no records were deleted")
             return state
         }
 
+        logDebug("deleteSelectedRecords: deleted $count records")
         val updatedRecords = state.records.filter { it.id !in state.selectedRecordIds }
 
         return state.copy(
@@ -293,11 +342,13 @@ class TrainingHistoryController(
         state: TrainingHistoryState,
         dateKey: String
     ): TrainingHistoryState {
+        logDebug("deleteDayRecords start: dateKey=$dateKey")
         val dayRecordIds = state.records
             .filter { it.date.take(10) == dateKey }
             .map { it.id }
 
         if (dayRecordIds.isEmpty()) {
+            logWarn("deleteDayRecords: no records found for dateKey=$dateKey")
             return state
         }
 
@@ -306,15 +357,18 @@ class TrainingHistoryController(
         }
 
         if (count == 0) {
+            logWarn("deleteDayRecords: deletion failed, no records were deleted")
             return state
         }
 
+        logDebug("deleteDayRecords: deleted $count records")
         val updatedRecords = state.records.filter { it.date.take(10) != dateKey }
 
         return state.copy(records = updatedRecords)
     }
 
     fun toggleBatchMode(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("toggleBatchMode start: current=${state.isBatchMode}, new=${!state.isBatchMode}")
         return state.copy(
             isBatchMode = !state.isBatchMode,
             selectedRecordIds = if (state.isBatchMode) emptySet() else state.selectedRecordIds
@@ -325,6 +379,7 @@ class TrainingHistoryController(
         state: TrainingHistoryState,
         recordId: Int
     ): TrainingHistoryState {
+        logDebug("toggleRecordSelection start: recordId=$recordId")
         val updatedSelection = if (recordId in state.selectedRecordIds) {
             state.selectedRecordIds - recordId
         } else {
@@ -338,6 +393,7 @@ class TrainingHistoryController(
         state: TrainingHistoryState,
         dateKey: String
     ): TrainingHistoryState {
+        logDebug("toggleDateGroup start: dateKey=$dateKey")
         val updatedExpanded = if (dateKey in state.expandedDateGroups) {
             state.expandedDateGroups - dateKey
         } else {
@@ -348,16 +404,19 @@ class TrainingHistoryController(
     }
 
     fun initializeExpandedGroups(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("initializeExpandedGroups start")
         val todayKey = LocalDate.now().toString()
 
         return state.copy(expandedDateGroups = setOf(todayKey))
     }
 
     suspend fun loadBinState(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("loadBinState start")
         val binRecords = withContext(Dispatchers.IO) {
             trainingPlanStore.getBinRecords()
         }
 
+        logDebug("loadBinState result: loaded ${binRecords.size} bin records")
         return state.copy(
             isBinMode = true,
             binRecords = binRecords,
@@ -372,10 +431,12 @@ class TrainingHistoryController(
         state: TrainingHistoryState,
         record: MetaHistoryRecord
     ): TrainingHistoryState {
+        logDebug("selectBinRecord start: recordId=${record.id}")
         return state.copy(selectedBinRecord = record)
     }
 
     fun dismissBinRecord(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("dismissBinRecord start")
         return state.copy(selectedBinRecord = null)
     }
 
@@ -383,14 +444,17 @@ class TrainingHistoryController(
         state: TrainingHistoryState,
         binId: Int
     ): TrainingHistoryState {
+        logDebug("permanentlyDeleteBinRecord start: binId=$binId")
         val deleted = withContext(Dispatchers.IO) {
             trainingPlanStore.permanentlyDeleteBinRecord(binId)
         }
 
         if (!deleted) {
+            logWarn("permanentlyDeleteBinRecord: deletion failed for binId=$binId")
             return state
         }
 
+        logDebug("permanentlyDeleteBinRecord: successfully deleted binId=$binId")
         val updatedBinRecords = state.binRecords.filter { it.id != binId }
         val updatedSelectedBinRecord = if (state.selectedBinRecord?.id == binId) {
             null
@@ -408,14 +472,17 @@ class TrainingHistoryController(
         state: TrainingHistoryState,
         binId: Int
     ): TrainingHistoryState {
+        logDebug("revertBinRecord start: binId=$binId")
         val reverted = withContext(Dispatchers.IO) {
             trainingPlanStore.revertBinRecord(binId)
         }
 
         if (!reverted) {
+            logWarn("revertBinRecord: revert failed for binId=$binId")
             return state
         }
 
+        logDebug("revertBinRecord: successfully reverted binId=$binId")
         val updatedBinRecords = state.binRecords.filter { it.id != binId }
         val updatedSelectedBinRecord = if (state.selectedBinRecord?.id == binId) {
             null
@@ -433,8 +500,10 @@ class TrainingHistoryController(
         state: TrainingHistoryState
     ): TrainingHistoryState {
         val ids = state.selectedRecordIds.toList()
+        logDebug("permanentlyDeleteSelectedBinRecords start: count=${ids.size}")
 
         if (ids.isEmpty()) {
+            logWarn("permanentlyDeleteSelectedBinRecords: no records selected")
             return state
         }
 
@@ -443,9 +512,11 @@ class TrainingHistoryController(
         }
 
         if (count == 0) {
+            logWarn("permanentlyDeleteSelectedBinRecords: deletion failed, no records were deleted")
             return state
         }
 
+        logDebug("permanentlyDeleteSelectedBinRecords: deleted $count records")
         val updatedBinRecords = state.binRecords.filter { it.id !in state.selectedRecordIds }
 
         return state.copy(
@@ -458,8 +529,10 @@ class TrainingHistoryController(
         state: TrainingHistoryState
     ): TrainingHistoryState {
         val ids = state.selectedRecordIds.toList()
+        logDebug("revertSelectedBinRecords start: count=${ids.size}")
 
         if (ids.isEmpty()) {
+            logWarn("revertSelectedBinRecords: no records selected")
             return state
         }
 
@@ -468,9 +541,11 @@ class TrainingHistoryController(
         }
 
         if (count == 0) {
+            logWarn("revertSelectedBinRecords: revert failed, no records were reverted")
             return state
         }
 
+        logDebug("revertSelectedBinRecords: reverted $count records")
         val updatedBinRecords = state.binRecords.filter { it.id !in state.selectedRecordIds }
 
         return state.copy(
@@ -480,6 +555,7 @@ class TrainingHistoryController(
     }
 
     fun exitBinMode(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("exitBinMode start")
         return state.copy(
             isBinMode = false,
             binRecords = emptyList(),
@@ -490,6 +566,7 @@ class TrainingHistoryController(
     }
 
     fun switchDisplayMode(state: TrainingHistoryState, mode: DisplayMode): TrainingHistoryState {
+        logDebug("switchDisplayMode start: mode=$mode")
         return state.copy(
             displayMode = mode,
             selectedHistorySession = null,
@@ -498,13 +575,16 @@ class TrainingHistoryController(
     }
 
     suspend fun loadHistorySessions(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("loadHistorySessions start")
         val historyRecords = withContext(Dispatchers.IO) {
             trainingPlanStore.getHistoryRecords()
         }
+        logDebug("loadHistorySessions result: loaded ${historyRecords.size} sessions")
         return state.copy(historyRecords = historyRecords)
     }
 
     suspend fun selectHistorySession(state: TrainingHistoryState, session: HistoryRecord): TrainingHistoryState {
+        logDebug("selectHistorySession start: sessionId=${session.id}")
         val records = withContext(Dispatchers.IO) {
             trainingPlanStore.getMetaHistoryRecordsByHistoryId(session.id)
         }
@@ -515,6 +595,7 @@ class TrainingHistoryController(
     }
 
     fun dismissHistorySession(state: TrainingHistoryState): TrainingHistoryState {
+        logDebug("dismissHistorySession start")
         return state.copy(
             selectedHistorySession = null,
             sessionMetaHistoryRecords = emptyList()
@@ -591,7 +672,8 @@ class TrainingHistoryController(
             } ?: return null
 
             outputFile.name
-        } catch (_: IOException) {
+        } catch (error: IOException) {
+            logError("Failed to import video into app storage: uri=$uri", error)
             null
         }
     }

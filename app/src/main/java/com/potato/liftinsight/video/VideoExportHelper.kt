@@ -6,6 +6,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.potato.liftinsight.common.logging.AndroidAppLogger
+import com.potato.liftinsight.common.logging.AppLogger
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
@@ -13,9 +15,19 @@ import kotlinx.coroutines.withContext
 
 object VideoExportHelper {
     private const val EXPORT_DIRECTORY = "LiftInsight"
+    private const val TAG = "VideoExportHelper"
+
+    @Volatile
+    private var logger: AppLogger = AndroidAppLogger
+
+    internal fun setLogger(logger: AppLogger) {
+        this.logger = logger
+    }
 
     suspend fun exportToGallery(context: Context, sourceFile: File): Uri? =
         withContext(Dispatchers.IO) {
+            logger.debug(TAG, "exportToGallery start: sourceFile=${sourceFile.name}")
+
             if (!sourceFile.exists() || !sourceFile.canRead()) {
                 return@withContext null
             }
@@ -56,11 +68,14 @@ object VideoExportHelper {
                     resolver.update(uri, finalValues, null, null)
                 }
 
+                logger.debug(TAG, "exportToGallery result: uri=$uri")
                 uri
-            } catch (_: IOException) {
+            } catch (error: IOException) {
+                logger.error(TAG, "Failed to export video to gallery: sourceFile=${sourceFile.name}", error)
                 resolver.delete(uri, null, null)
                 null
-            } catch (_: SecurityException) {
+            } catch (error: SecurityException) {
+                logger.error(TAG, "Security exception during video export: sourceFile=${sourceFile.name}", error)
                 resolver.delete(uri, null, null)
                 null
             }

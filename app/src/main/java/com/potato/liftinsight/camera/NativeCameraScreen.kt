@@ -106,7 +106,8 @@ fun NativeCameraScreen(
 
         try {
             captureLauncher.launch(intent)
-        } catch (_: ActivityNotFoundException) {
+        } catch (error: ActivityNotFoundException) {
+            android.util.Log.w("NativeCameraScreen", "System camera app not available", error)
             resultHandled = true
 
             if (videoFile.exists()) {
