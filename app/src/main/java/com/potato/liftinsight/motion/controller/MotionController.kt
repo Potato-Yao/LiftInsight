@@ -10,6 +10,7 @@ import com.potato.liftinsight.motion.model.MotionState
 import com.potato.liftinsight.training.data.CreateMotionRequest
 import com.potato.liftinsight.training.data.MotionRecord
 import com.potato.liftinsight.training.data.MotionStore
+import com.potato.liftinsight.training.data.MotionType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -50,7 +51,8 @@ class MotionController(
         return state.copy(
             editor = MotionEditorState(
                 motionId = motion.id,
-                name = motion.name
+                name = motion.name,
+                type = motion.type
             )
         )
     }
@@ -74,6 +76,22 @@ class MotionController(
         )
     }
 
+    fun updateEditorType(state: MotionState, type: MotionType): MotionState {
+        val editor = state.editor ?: run {
+            logWarn("Ignoring motion type update because no editor is open")
+            return state
+        }
+
+        logDebug("Updating motion editor type: motionId=${editor.motionId ?: -1}")
+
+        return state.copy(
+            editor = editor.copy(
+                type = type,
+                message = null
+            )
+        )
+    }
+
     fun closeEditor(state: MotionState): MotionState {
         logDebug("Closing motion editor")
         return state.copy(editor = null)
@@ -90,12 +108,13 @@ class MotionController(
         return withContext(Dispatchers.IO) {
             try {
                 if (editor.motionId == null) {
-                    motionStore.createMotion(CreateMotionRequest(name = editor.name))
+                    motionStore.createMotion(CreateMotionRequest(name = editor.name, type = editor.type))
                 } else {
                     val updated = motionStore.updateMotion(
                         MotionRecord(
                             id = editor.motionId,
-                            name = editor.name
+                            name = editor.name,
+                            type = editor.type
                         )
                     )
 
@@ -170,7 +189,8 @@ class MotionController(
             val motions = motionStore.getMotions().map { motion ->
                 MotionRowState(
                     id = motion.id,
-                    name = motion.name
+                    name = motion.name,
+                    type = motion.type
                 )
             }
 

@@ -301,6 +301,9 @@ internal fun PlanTabHost(
                     onMotionNameChange = { name ->
                         onMotionStateChange(motionController.updateEditorName(motionState, name))
                     },
+                    onMotionTypeChange = { type ->
+                        onMotionStateChange(motionController.updateEditorType(motionState, type))
+                    },
                     onSubmitMotion = {
                         coroutineScope.launch {
                             val result = motionController.submitMotion(motionState)
@@ -353,6 +356,9 @@ internal fun PlanTabHost(
                     },
                     onMotionNameChange = { name ->
                         onMotionStateChange(motionController.updateEditorName(motionState, name))
+                    },
+                    onMotionTypeChange = { type ->
+                        onMotionStateChange(motionController.updateEditorType(motionState, type))
                     },
                     onSubmitMotion = {
                         coroutineScope.launch {

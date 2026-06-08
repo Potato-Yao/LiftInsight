@@ -10,6 +10,7 @@ import com.potato.liftinsight.training.data.CreateMotionRequest
 import com.potato.liftinsight.training.data.CreatePlanRequest
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.MotionStore
+import com.potato.liftinsight.training.data.MotionType
 import com.potato.liftinsight.training.data.PlanStore
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -79,6 +80,7 @@ class MotionControllerTest {
         assertTrue(result.didChangeData)
         assertNull(result.state.editor)
         assertEquals(listOf("Snatch"), result.state.motions.map { motion -> motion.name })
+        assertEquals(MotionType.BARBELL, result.state.motions.first().type)
         assertEquals(listOf("S"), result.state.sections.map { section -> section.label })
     }
 
@@ -94,6 +96,30 @@ class MotionControllerTest {
         assertTrue(result.didChangeData)
         assertEquals(listOf("Power Clean"), result.state.motions.map { motion -> motion.name })
         assertEquals(listOf("P"), result.state.sections.map { section -> section.label })
+    }
+
+    @Test
+    fun submitMotion_createsMotionWithSpecificType() = runBlocking {
+        val createState = controller.openCreateMotion(controller.loadState())
+        val typedState = controller.updateEditorType(createState, MotionType.MACHINE_COMPOUND)
+        val namedState = controller.updateEditorName(typedState, "Cable Fly")
+        val result = controller.submitMotion(namedState)
+
+        assertTrue(result.didChangeData)
+        assertNull(result.state.editor)
+        assertEquals(MotionType.MACHINE_COMPOUND, result.state.motions.first().type)
+    }
+
+    @Test
+    fun submitMotion_updatesMotionType() = runBlocking {
+        val motionId = motionStore.createMotion(CreateMotionRequest(name = "Snatch"))
+        val state = controller.loadState()
+        val openEditorState = controller.openEditMotion(state, motionId)
+        val typedState = controller.updateEditorType(openEditorState, MotionType.STATIC)
+        val result = controller.submitMotion(typedState)
+
+        assertTrue(result.didChangeData)
+        assertEquals(MotionType.STATIC, result.state.motions.first().type)
     }
 
     @Test

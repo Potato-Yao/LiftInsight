@@ -1,6 +1,7 @@
 package com.potato.liftinsight.training.data
 
 import android.content.Context
+import android.database.Cursor
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import org.junit.After
@@ -15,9 +16,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-class Migration14_15Test {
+class Migration17_18Test {
     private lateinit var context: Context
-    private val dbName = "migration_14_15_test.db"
+    private val dbName = "migration_17_18_test.db"
 
     @Before
     fun setUp() {
@@ -31,17 +32,17 @@ class Migration14_15Test {
     }
 
     @Test
-    fun migration14_15_addsDayIndexColumnToHistory() {
-        createV14DatabaseWithData()
+    fun migration17_18_addsTypeColumnToMotion() {
+        createV17DatabaseWithData()
 
         val database = Room.databaseBuilder(context, LiftInsightDatabase::class.java, dbName)
-            .addMigrations(LiftInsightDatabase.MIGRATION_14_15, LiftInsightDatabase.MIGRATION_15_16, LiftInsightDatabase.MIGRATION_16_17, LiftInsightDatabase.MIGRATION_17_18)
+            .addMigrations(LiftInsightDatabase.MIGRATION_17_18)
             .allowMainThreadQueries()
             .build()
 
         val db = database.openHelper.readableDatabase
 
-        val columnCursor = db.query("PRAGMA table_info(history)")
+        val columnCursor: Cursor = db.query("PRAGMA table_info(motion)")
         val columnNames = mutableListOf<String>()
         while (columnCursor.moveToNext()) {
             columnNames.add(columnCursor.getString(columnCursor.getColumnIndexOrThrow("name")))
@@ -49,60 +50,57 @@ class Migration14_15Test {
         columnCursor.close()
 
         assertTrue(
-            "history table should have day_index column",
-            columnNames.contains("day_index")
+            "motion table should have type column",
+            columnNames.contains("type")
         )
 
         database.close()
     }
 
     @Test
-    fun migration14_15_existingRowsGetDefaultDayIndexZero() {
-        createV14DatabaseWithData()
+    fun migration17_18_existingRowsGetDefaultBarbellType() {
+        createV17DatabaseWithData()
 
         val database = Room.databaseBuilder(context, LiftInsightDatabase::class.java, dbName)
-            .addMigrations(LiftInsightDatabase.MIGRATION_14_15, LiftInsightDatabase.MIGRATION_15_16, LiftInsightDatabase.MIGRATION_16_17, LiftInsightDatabase.MIGRATION_17_18)
+            .addMigrations(LiftInsightDatabase.MIGRATION_17_18)
             .allowMainThreadQueries()
             .build()
 
-        val historyRows = database.historyDao().getHistoryRows()
+        val motions = database.motionDao().getMotionEntities()
 
-        assertEquals(2, historyRows.size)
-        assertEquals(0, historyRows[0].dayIndex)
-        assertEquals(0, historyRows[1].dayIndex)
+        assertEquals(2, motions.size)
+        motions.forEach { motion ->
+            assertEquals("BARBELL", motion.type)
+        }
 
         database.close()
     }
 
     @Test
-    fun migration14_15_newInsertsWithDayIndexWorkCorrectly() {
-        createV14DatabaseWithData()
+    fun migration17_18_newInsertsWithTypeWorkCorrectly() {
+        createV17DatabaseWithData()
 
         val database = Room.databaseBuilder(context, LiftInsightDatabase::class.java, dbName)
-            .addMigrations(LiftInsightDatabase.MIGRATION_14_15, LiftInsightDatabase.MIGRATION_15_16, LiftInsightDatabase.MIGRATION_16_17, LiftInsightDatabase.MIGRATION_17_18)
+            .addMigrations(LiftInsightDatabase.MIGRATION_17_18)
             .allowMainThreadQueries()
             .build()
 
-        val historyId = database.historyDao().insertHistory(
-            HistoryEntity(
-                planId = 1,
-                startTime = 5000L,
-                endTime = 6000L,
-                intensity = 9,
-                dayIndex = 5
+        val motionId = database.motionDao().insertMotionEntity(
+            MotionEntity(
+                name = "Cable Fly",
+                type = MotionType.MACHINE_COMPOUND.name
             )
-        )
+        ).toInt()
 
-        assertTrue(historyId > 0)
-
-        val row = database.historyDao().getHistoryRowById(historyId.toInt())
-        assertNotNull(row)
-        assertEquals(5, row!!.dayIndex)
+        val motion = database.motionDao().getMotionEntity(motionId)
+        assertNotNull(motion)
+        assertEquals("Cable Fly", motion!!.name)
+        assertEquals("MACHINE_COMPOUND", motion.type)
 
         database.close()
     }
 
-    private fun createV14DatabaseWithData() {
+    private fun createV17DatabaseWithData() {
         val db = context.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null)
 
         db.execSQL(
@@ -113,7 +111,7 @@ class Migration14_15Test {
             )
             """
         )
-        db.execSQL("CREATE UNIQUE INDEX index_motion_name ON motion (name)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_motion_name ON motion (name)")
 
         db.execSQL(
             """
@@ -138,7 +136,7 @@ class Migration14_15Test {
             )
             """
         )
-        db.execSQL("CREATE INDEX index_plan_selection_current_plan_id ON plan_selection (current_plan_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_plan_selection_current_plan_id ON plan_selection (current_plan_id)")
 
         db.execSQL(
             """
@@ -166,6 +164,8 @@ class Migration14_15Test {
                 break_ends_at INTEGER NOT NULL,
                 is_finished INTEGER NOT NULL,
                 completed_elapsed_time_ms INTEGER NOT NULL,
+                active_history_id INTEGER,
+                workout_intensity INTEGER,
                 PRIMARY KEY(id)
             )
             """
@@ -188,9 +188,9 @@ class Migration14_15Test {
             )
             """
         )
-        db.execSQL("CREATE INDEX index_metaplan_plan_id ON metaplan (plan_id)")
-        db.execSQL("CREATE INDEX index_metaplan_motion_id ON metaplan (motion_id)")
-        db.execSQL("CREATE UNIQUE INDEX index_metaplan_plan_id_day_index_order_index ON metaplan (plan_id, day_index, order_index)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_metaplan_plan_id ON metaplan (plan_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_metaplan_motion_id ON metaplan (motion_id)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_metaplan_plan_id_day_index_order_index ON metaplan (plan_id, day_index, order_index)")
 
         db.execSQL(
             """
@@ -213,8 +213,8 @@ class Migration14_15Test {
             )
             """
         )
-        db.execSQL("CREATE INDEX index_metahistory_motion_id ON metahistory (motion_id)")
-        db.execSQL("CREATE INDEX index_metahistory_history_id ON metahistory (history_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_motion_id ON metahistory (motion_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_history_id ON metahistory (history_id)")
 
         db.execSQL(
             """
@@ -227,7 +227,7 @@ class Migration14_15Test {
             )
             """
         )
-        db.execSQL("CREATE UNIQUE INDEX index_video_process_state_video_name ON video_process_state (video_name)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_video_process_state_video_name ON video_process_state (video_name)")
 
         db.execSQL(
             """
@@ -258,21 +258,19 @@ class Migration14_15Test {
                 start_time INTEGER NOT NULL,
                 end_time INTEGER NOT NULL,
                 intensity INTEGER NOT NULL DEFAULT 0,
+                day_index INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(plan_id) REFERENCES plan(id) ON UPDATE NO ACTION ON DELETE RESTRICT
             )
             """
         )
-        db.execSQL("CREATE INDEX index_history_plan_id ON history (plan_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_history_plan_id ON history (plan_id)")
 
         db.execSQL("INSERT INTO motion (name) VALUES ('Snatch')")
         db.execSQL("INSERT INTO motion (name) VALUES ('Clean')")
-        db.execSQL("INSERT INTO plan (name, cycle_period, current_index, last_applied_at) VALUES ('Test Plan', 7, 1, 0)")
-        db.execSQL("INSERT INTO history (plan_id, start_time, end_time, intensity) VALUES (1, 1000, 2000, 7)")
-        db.execSQL("INSERT INTO history (plan_id, start_time, end_time, intensity) VALUES (1, 3000, 4000, 8)")
 
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
         db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'placeholder')")
-        db.execSQL("PRAGMA user_version = 14")
+        db.execSQL("PRAGMA user_version = 17")
 
         db.close()
     }

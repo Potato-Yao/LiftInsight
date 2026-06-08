@@ -15,7 +15,8 @@ import com.potato.liftinsight.video.imported.ImportedVideoSource
 data class MotionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
-    val name: String
+    val name: String,
+    val type: String = MotionType.BARBELL.name
 )
 
 @Entity(tableName = "plan")
@@ -336,14 +337,16 @@ data class MetaHistoryBinRow(
 internal fun MotionEntity.toRecord(): MotionRecord {
     return MotionRecord(
         id = id,
-        name = name
+        name = name,
+        type = try { MotionType.valueOf(type) } catch (_: IllegalArgumentException) { MotionType.BARBELL }
     )
 }
 
 internal fun MotionRecord.toEntity(): MotionEntity {
     return MotionEntity(
         id = id,
-        name = name
+        name = name,
+        type = type.name
     )
 }
 

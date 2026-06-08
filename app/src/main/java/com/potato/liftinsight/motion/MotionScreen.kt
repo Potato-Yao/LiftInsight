@@ -25,6 +25,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +41,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +60,7 @@ import com.potato.liftinsight.motion.model.MotionEditorState
 import com.potato.liftinsight.motion.model.MotionRowState
 import com.potato.liftinsight.motion.model.MotionSectionState
 import com.potato.liftinsight.motion.model.MotionState
+import com.potato.liftinsight.training.data.MotionType
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
 
@@ -66,6 +72,7 @@ internal fun MotionScreen(
     onEditMotion: (Int) -> Unit,
     onBackFromEditor: () -> Unit,
     onMotionNameChange: (String) -> Unit,
+    onMotionTypeChange: (MotionType) -> Unit,
     onSubmitMotion: () -> Unit,
     onDeleteMotion: () -> Unit,
     modifier: Modifier = Modifier,
@@ -172,6 +179,7 @@ internal fun MotionScreen(
         MotionEditorContent(
             editor = editor,
             onMotionNameChange = onMotionNameChange,
+            onMotionTypeChange = onMotionTypeChange,
             modifier = Modifier.padding(innerPadding)
         )
     }
@@ -445,12 +453,18 @@ private fun MotionRow(
                 )
             }
 
-            Text(
-                text = motion.name,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = motion.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = motion.type.displayName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             if (isSelectionMode) {
                 Text(
@@ -474,10 +488,12 @@ private fun MotionRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MotionEditorContent(
     editor: MotionEditorState,
     onMotionNameChange: (String) -> Unit,
+    onMotionTypeChange: (MotionType) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showContent by remember { mutableStateOf(false) }
@@ -568,6 +584,69 @@ private fun MotionEditorContent(
             }
         }
 
+        item(key = "motionType") {
+            AnimatedVisibility(
+                visible = showContent,
+                enter = motionSectionEnter(delayMillis = 100),
+                exit = ExitTransition.None
+            ) {
+                var typeExpanded by remember { mutableStateOf(false) }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(32.dp),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.motion_editor_type_label),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+                        )
+
+                        ExposedDropdownMenuBox(
+                            expanded = typeExpanded,
+                            onExpandedChange = { typeExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = editor.type.displayName,
+                                onValueChange = {},
+                                readOnly = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(),
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded)
+                                },
+                                label = { Text(text = stringResource(R.string.motion_editor_type_label)) }
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = typeExpanded,
+                                onDismissRequest = { typeExpanded = false }
+                            ) {
+                                MotionType.entries.forEach { motionType ->
+                                    DropdownMenuItem(
+                                        text = { Text(text = motionType.displayName) },
+                                        onClick = {
+                                            onMotionTypeChange(motionType)
+                                            typeExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
     }
 }
 
@@ -628,29 +707,29 @@ private fun MotionLibraryPreview() {
         MotionScreen(
             state = MotionState(
                 motions = listOf(
-                    MotionRowState(id = 1, name = "Back Squat"),
-                    MotionRowState(id = 2, name = "Bench Press"),
-                    MotionRowState(id = 3, name = "Clean Pull"),
-                    MotionRowState(id = 4, name = "Snatch")
+                    MotionRowState(id = 1, name = "Back Squat", type = MotionType.BARBELL),
+                    MotionRowState(id = 2, name = "Bench Press", type = MotionType.BARBELL),
+                    MotionRowState(id = 3, name = "Clean Pull", type = MotionType.BARBELL),
+                    MotionRowState(id = 4, name = "Snatch", type = MotionType.BARBELL)
                 ),
                 sections = listOf(
                     MotionSectionState(
                         label = "B",
                         motions = listOf(
-                            MotionRowState(id = 1, name = "Back Squat"),
-                            MotionRowState(id = 2, name = "Bench Press")
+                            MotionRowState(id = 1, name = "Back Squat", type = MotionType.BARBELL),
+                            MotionRowState(id = 2, name = "Bench Press", type = MotionType.BARBELL)
                         )
                     ),
                     MotionSectionState(
                         label = "C",
                         motions = listOf(
-                            MotionRowState(id = 3, name = "Clean Pull")
+                            MotionRowState(id = 3, name = "Clean Pull", type = MotionType.BARBELL)
                         )
                     ),
                     MotionSectionState(
                         label = "S",
                         motions = listOf(
-                            MotionRowState(id = 4, name = "Snatch")
+                            MotionRowState(id = 4, name = "Snatch", type = MotionType.BARBELL)
                         )
                     )
                 )
@@ -659,6 +738,7 @@ private fun MotionLibraryPreview() {
             onEditMotion = {},
             onBackFromEditor = {},
             onMotionNameChange = {},
+            onMotionTypeChange = {},
             onSubmitMotion = {},
             onDeleteMotion = {}
         )
@@ -674,6 +754,7 @@ private fun MotionEditorPreview() {
                 editor = MotionEditorState(
                     motionId = 1,
                     name = "Snatch",
+                    type = MotionType.BARBELL,
                     message = MotionEditorMessage.DeleteBlocked
                 )
             ),
@@ -681,6 +762,7 @@ private fun MotionEditorPreview() {
             onEditMotion = {},
             onBackFromEditor = {},
             onMotionNameChange = {},
+            onMotionTypeChange = {},
             onSubmitMotion = {},
             onDeleteMotion = {}
         )

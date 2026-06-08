@@ -161,6 +161,12 @@
     <string name="motion_editor_duplicate_name_error">This motion name already exists.</string>
     <string name="motion_editor_delete_blocked_error">This motion is still used in a plan and cannot be deleted yet.</string>
     <string name="motion_editor_save_error">LiftInsight could not save this motion.</string>
+    <string name="motion_type_machine_compound">Machine Compound</string>
+    <string name="motion_type_free_weight_compound">Free-Weight Compound</string>
+    <string name="motion_type_barbell">Barbell</string>
+    <string name="motion_type_static">Static</string>
+    <string name="motion_type_self_weight">Self-Weight</string>
+    <string name="motion_editor_type_label">Motion type</string>
     <string name="motion_detail_title_label">Motion title</string>
     <string name="motion_detail_sets_label">Sets</string>
     <string name="motion_detail_reps_per_set_label">Reps per set</string>

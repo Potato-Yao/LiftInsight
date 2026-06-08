@@ -13,7 +13,8 @@ class MotionStore private constructor(
         logTrace("createMotion start: requestedName=${request.name.orEmpty().trim()}")
 
         val motion = MotionEntity(
-            name = normalizeRequiredText(request.name, "Motion name")
+            name = normalizeRequiredText(request.name, "Motion name"),
+            type = request.type.name
         )
 
         try {

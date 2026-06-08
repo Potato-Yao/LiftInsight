@@ -7,6 +7,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import com.potato.liftinsight.motion.controller.MotionController
 import com.potato.liftinsight.motion.model.MotionState
+import com.potato.liftinsight.training.data.MotionType
 import kotlinx.coroutines.launch
 
 @Composable
@@ -33,6 +34,9 @@ internal fun MotionTabHost(
         },
         onMotionNameChange = { name ->
             onMotionStateChange(motionController.updateEditorName(motionState, name))
+        },
+        onMotionTypeChange = { type ->
+            onMotionStateChange(motionController.updateEditorType(motionState, type))
         },
         onSubmitMotion = {
             coroutineScope.launch {

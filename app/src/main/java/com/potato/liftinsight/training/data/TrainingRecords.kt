@@ -3,13 +3,23 @@ package com.potato.liftinsight.training.data
 import com.potato.liftinsight.video.imported.ImportedVideoAnalysisMode
 import com.potato.liftinsight.video.imported.ImportedVideoSource
 
+enum class MotionType(val displayName: String) {
+    MACHINE_COMPOUND("Machine Compound"),
+    FREE_WEIGHT_COMPOUND("Free-Weight Compound"),
+    BARBELL("Barbell"),
+    STATIC("Static"),
+    SELF_WEIGHT("Self-Weight")
+}
+
 data class MotionRecord(
     val id: Int,
-    val name: String
+    val name: String,
+    val type: MotionType
 )
 
 data class CreateMotionRequest(
-    val name: String? = null
+    val name: String? = null,
+    val type: MotionType = MotionType.BARBELL
 )
 
 data class MetaPlanRecord(

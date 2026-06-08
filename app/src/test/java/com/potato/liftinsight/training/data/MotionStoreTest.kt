@@ -53,6 +53,16 @@ class MotionStoreTest {
         assertTrue(motionId > 0)
         assertEquals(motionId, storedMotion?.id)
         assertEquals("Snatch Session", storedMotion?.name)
+        assertEquals(MotionType.BARBELL, storedMotion?.type)
+    }
+
+    @Test
+    fun createMotion_withSpecificType() {
+        val motionId = motionStore.createMotion(
+            CreateMotionRequest(name = "Cable Fly", type = MotionType.MACHINE_COMPOUND)
+        )
+        val storedMotion = motionStore.getMotion(motionId)
+        assertEquals(MotionType.MACHINE_COMPOUND, storedMotion?.type)
     }
 
     @Test
@@ -92,7 +102,8 @@ class MotionStoreTest {
         val updated = motionStore.updateMotion(
             MotionRecord(
                 id = motionId,
-                name = "  Clean Pull Updated  "
+                name = "  Clean Pull Updated  ",
+                type = MotionType.BARBELL
             )
         )
 
@@ -163,7 +174,7 @@ class MotionStoreTest {
         val motionId = motionStore.createMotion(CreateMotionRequest(name = "Snatch"))
         motionStore.getMotion(motionId)
         motionStore.getMotions()
-        motionStore.updateMotion(MotionRecord(id = motionId, name = "Power Snatch"))
+        motionStore.updateMotion(MotionRecord(id = motionId, name = "Power Snatch", type = MotionType.BARBELL))
         motionStore.deleteMotion(motionId)
 
         val traceMessages = logger.entries()

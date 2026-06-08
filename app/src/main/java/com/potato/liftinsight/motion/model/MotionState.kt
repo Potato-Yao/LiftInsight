@@ -1,8 +1,11 @@
 package com.potato.liftinsight.motion.model
 
+import com.potato.liftinsight.training.data.MotionType
+
 data class MotionRowState(
     val id: Int,
-    val name: String
+    val name: String,
+    val type: MotionType
 )
 
 data class MotionSectionState(
@@ -20,6 +23,7 @@ enum class MotionEditorMessage {
 data class MotionEditorState(
     val motionId: Int? = null,
     val name: String = "",
+    val type: MotionType = MotionType.BARBELL,
     val message: MotionEditorMessage? = null
 ) {
     val isNewMotion: Boolean
