@@ -1,7 +1,8 @@
 ---
 description: Reviews implementation quality, architecture fit, and required fixes before approval.
 mode: subagent
-model: deepseek/deepseek-v4-pro
+# model: deepseek/deepseek-v4-pro
+model: deepseek/deepseek-v4-flash
 permission:
   read: allow
   glob: allow
