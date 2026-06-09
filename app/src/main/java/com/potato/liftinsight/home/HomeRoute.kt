@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.potato.liftinsight.R
 import com.potato.liftinsight.body.controller.BodyController
+import com.potato.liftinsight.body.data.BodyMetricStore
 import com.potato.liftinsight.body.model.BodyState
 import com.potato.liftinsight.common.BottomBarItem
 import com.potato.liftinsight.home.route.MainTab
@@ -51,7 +52,8 @@ fun HomeRoute(
             videoProcessor = videoProcessor
         )
     }
-    val bodyController = remember { BodyController() }
+    val bodyMetricStore = remember(context) { BodyMetricStore.from(context) }
+    val bodyController = remember(bodyMetricStore) { BodyController(bodyMetricStore = bodyMetricStore) }
     val motionController = remember(context) {
         MotionController(MotionStore.from(context))
     }

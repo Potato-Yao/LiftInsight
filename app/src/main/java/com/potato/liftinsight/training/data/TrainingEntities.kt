@@ -468,3 +468,12 @@ internal fun HistoryRecord.toEntity(): HistoryEntity {
     )
 }
 
+@Entity(tableName = "body_metric")
+data class BodyMetricEntity(
+    @PrimaryKey
+    val id: Int,
+    val value: String,
+    @ColumnInfo(name = "updated_at")
+    val updatedAt: Long
+)
+

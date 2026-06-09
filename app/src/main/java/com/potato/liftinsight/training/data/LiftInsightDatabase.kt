@@ -20,15 +20,17 @@ import com.potato.liftinsight.common.logging.AndroidAppLogger
         MetaHistoryEntity::class,
         VideoProcessStateEntity::class,
         MetaHistoryBinEntity::class,
-        HistoryEntity::class
+        HistoryEntity::class,
+        BodyMetricEntity::class
     ],
-    version = 18,
+    version = 19,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
     abstract fun motionDao(): MotionDao
     abstract fun planDao(): PlanDao
     abstract fun historyDao(): HistoryDao
+    abstract fun bodyMetricDao(): BodyMetricDao
 
     companion object {
         private const val TAG = "LiftInsightDatabase"
@@ -252,6 +254,13 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 18 -> 19")
+                db.execSQL("CREATE TABLE IF NOT EXISTS body_metric (id INTEGER NOT NULL, value TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(id))")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -278,25 +287,26 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                         LiftInsightDatabase::class.java,
                         databaseName
                     )
-                        .addMigrations(
-                            MIGRATION_2_3,
-                            MIGRATION_3_4,
-                            MIGRATION_4_5,
-                            MIGRATION_5_6,
-                            MIGRATION_6_7,
-                            MIGRATION_7_8,
-                            MIGRATION_8_9,
-                            MIGRATION_9_10,
-                            MIGRATION_10_11,
-                            MIGRATION_11_12,
-                            MIGRATION_12_13,
-                            MIGRATION_13_12,
-                            MIGRATION_13_14,
-                            MIGRATION_14_15,
-                            MIGRATION_15_16,
-                            MIGRATION_16_17,
-                            MIGRATION_17_18
-                        )
+                    .addMigrations(
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                        MIGRATION_6_7,
+                        MIGRATION_7_8,
+                        MIGRATION_8_9,
+                        MIGRATION_9_10,
+                        MIGRATION_10_11,
+                        MIGRATION_11_12,
+                        MIGRATION_12_13,
+                        MIGRATION_13_12,
+                        MIGRATION_13_14,
+                        MIGRATION_14_15,
+                        MIGRATION_15_16,
+                        MIGRATION_16_17,
+                        MIGRATION_17_18,
+                        MIGRATION_18_19
+                    )
                         .build()
 
                     instance = createdInstance
