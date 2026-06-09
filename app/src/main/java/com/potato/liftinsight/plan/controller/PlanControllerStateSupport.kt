@@ -23,7 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
-internal suspend fun PlanControllerEnvironment.loadState(
+internal suspend fun PlanController.loadStateImpl(
     emptyState: PlanState,
     seedCatalog: TrainingPlanSeedCatalog
 ): PlanState {
@@ -41,7 +41,7 @@ internal suspend fun PlanControllerEnvironment.loadState(
             )
         }
 
-        reloadStateInternal(
+        reloadStateInternalImpl(
             state = emptyState,
             requestedRoute = PlanRoute.Overview,
             planIdPendingDelete = null,
@@ -58,7 +58,7 @@ internal suspend fun PlanControllerEnvironment.loadState(
     }
 }
 
-internal suspend fun PlanControllerEnvironment.selectPlan(
+internal suspend fun PlanController.selectPlanImpl(
     state: PlanState,
     planId: Int
 ): PlanState {
@@ -88,10 +88,10 @@ internal suspend fun PlanControllerEnvironment.selectPlan(
 
     logDebug("Selected training plan: planId=$planId")
 
-    return reloadState(state)
+    return reloadStateImpl(state)
 }
 
-internal suspend fun PlanControllerEnvironment.updatePlanCurrentDay(
+internal suspend fun PlanController.updatePlanCurrentDayImpl(
     state: PlanState,
     planId: Int,
     dayIndex: Int
@@ -133,15 +133,15 @@ internal suspend fun PlanControllerEnvironment.updatePlanCurrentDay(
 
     logDebug("Updated current plan day: planId=$planId")
 
-    return reloadState(state)
+    return reloadStateImpl(state)
 }
 
-internal suspend fun PlanControllerEnvironment.refreshState(state: PlanState): PlanState {
+internal suspend fun PlanController.refreshStateImpl(state: PlanState): PlanState {
     logDebug("Refreshing plan state")
-    return reloadState(state)
+    return reloadStateImpl(state)
 }
 
-internal suspend fun PlanControllerEnvironment.reloadState(
+internal suspend fun PlanController.reloadStateImpl(
     state: PlanState,
     requestedRoute: PlanRoute = state.planRoute,
     planIdPendingDelete: Int? = state.planIdPendingDelete,
@@ -152,7 +152,7 @@ internal suspend fun PlanControllerEnvironment.reloadState(
     mergedTodayTargets: List<WorkoutSetTargetState> = state.mergedTodayTargets
 ): PlanState {
     return withContext(Dispatchers.IO) {
-        reloadStateInternal(
+        reloadStateInternalImpl(
             state = state,
             requestedRoute = requestedRoute,
             planIdPendingDelete = planIdPendingDelete,
@@ -165,7 +165,7 @@ internal suspend fun PlanControllerEnvironment.reloadState(
     }
 }
 
-private fun PlanControllerEnvironment.reloadStateInternal(
+private fun PlanController.reloadStateInternalImpl(
     state: PlanState,
     requestedRoute: PlanRoute,
     planIdPendingDelete: Int?,
@@ -178,16 +178,16 @@ private fun PlanControllerEnvironment.reloadStateInternal(
     val availableMotions = trainingPlanStore.getAvailableMotions()
     val now = nowProvider()
     var trainingPlans = trainingPlanStore.getTrainingPlans()
-    var currentPlanId = resolveCurrentPlanId(trainingPlans, now)
+    var currentPlanId = resolveCurrentPlanIdImpl(trainingPlans, now)
 
     trainingPlanStore.advanceCurrentPlanDayIfNeeded(now)
 
     trainingPlans = trainingPlanStore.getTrainingPlans()
-    currentPlanId = resolveCurrentPlanId(trainingPlans, now)
+    currentPlanId = resolveCurrentPlanIdImpl(trainingPlans, now)
     val workoutSession = trainingPlanStore.getWorkoutSession()
     val workoutProgress = trainingPlanStore.getWorkoutProgress()
 
-    return buildLoadedState(
+    return buildLoadedStateImpl(
         state = state,
         availableMotions = availableMotions,
         trainingPlans = trainingPlans,
@@ -204,7 +204,7 @@ private fun PlanControllerEnvironment.reloadStateInternal(
     )
 }
 
-private fun PlanControllerEnvironment.buildLoadedState(
+private fun PlanController.buildLoadedStateImpl(
     state: PlanState,
     availableMotions: List<AvailableMotionState>,
     trainingPlans: List<TrainingPlanState>,
@@ -307,7 +307,7 @@ private fun sanitizePlanRoute(
     }
 }
 
-internal fun PlanControllerEnvironment.resolveCurrentPlanId(
+internal fun PlanController.resolveCurrentPlanIdImpl(
     trainingPlans: List<TrainingPlanState>,
     now: Long
 ): Int {
@@ -332,7 +332,7 @@ internal fun PlanControllerEnvironment.resolveCurrentPlanId(
     return fallbackPlanId
 }
 
-internal fun PlanControllerEnvironment.deleteTrainingPlanAndUpdateSelection(planId: Int): Boolean {
+internal fun PlanController.deleteTrainingPlanAndUpdateSelectionImpl(planId: Int): Boolean {
     val wasCurrentPlan = trainingPlanStore.getCurrentPlanId() == planId
     val deleted = trainingPlanStore.deleteTrainingPlan(planId)
 

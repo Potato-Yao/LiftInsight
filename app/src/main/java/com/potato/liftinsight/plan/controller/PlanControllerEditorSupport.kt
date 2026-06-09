@@ -10,7 +10,7 @@ import com.potato.liftinsight.plan.route.PlanRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-internal fun PlanControllerEnvironment.createPlan(state: PlanState): PlanState {
+internal fun PlanController.createPlanImpl(state: PlanState): PlanState {
     logDebug("Opening new plan editor")
 
     return state.copy(
@@ -21,17 +21,17 @@ internal fun PlanControllerEnvironment.createPlan(state: PlanState): PlanState {
     )
 }
 
-internal fun PlanControllerEnvironment.showPlanList(state: PlanState): PlanState {
+internal fun PlanController.showPlanListImpl(state: PlanState): PlanState {
     logDebug("Showing training plan list")
     return state.copy(planRoute = PlanRoute.List)
 }
 
-internal fun PlanControllerEnvironment.showPlanOverview(state: PlanState): PlanState {
+internal fun PlanController.showPlanOverviewImpl(state: PlanState): PlanState {
     logDebug("Showing training plan overview")
     return state.copy(planRoute = PlanRoute.Overview)
 }
 
-internal fun PlanControllerEnvironment.showPlanDetail(
+internal fun PlanController.showPlanDetailImpl(
     state: PlanState,
     planId: Int
 ): PlanState {
@@ -52,7 +52,7 @@ internal fun PlanControllerEnvironment.showPlanDetail(
     )
 }
 
-internal fun PlanControllerEnvironment.showMotionDetail(
+internal fun PlanController.showMotionDetailImpl(
     state: PlanState,
     motionEntryId: Int
 ): PlanState {
@@ -72,7 +72,7 @@ internal fun PlanControllerEnvironment.showMotionDetail(
     return state.copy(planRoute = PlanRoute.Motion(motionEntryId = motionEntryId))
 }
 
-internal suspend fun PlanControllerEnvironment.handlePlanBack(state: PlanState): PlanState {
+internal suspend fun PlanController.handlePlanBackImpl(state: PlanState): PlanState {
     logDebug("Handling plan back navigation from route=${state.planRoute}")
 
     return when (state.planRoute) {
@@ -102,7 +102,7 @@ internal suspend fun PlanControllerEnvironment.handlePlanBack(state: PlanState):
     }
 }
 
-internal suspend fun PlanControllerEnvironment.updatePlanEditorTitle(
+internal suspend fun PlanController.updatePlanEditorTitleImpl(
     state: PlanState,
     newName: String
 ): PlanState {
@@ -121,7 +121,7 @@ internal suspend fun PlanControllerEnvironment.updatePlanEditorTitle(
         return state.copy(planEditor = updatedEditor)
     }
 
-    val updatedState = persistEditorPlan(state, updatedEditor)
+    val updatedState = persistEditorPlanImpl(state, updatedEditor)
 
     if (updatedState == null) {
         logWarn("Failed to persist updated plan title: planId=${editor.planId}")
@@ -131,7 +131,7 @@ internal suspend fun PlanControllerEnvironment.updatePlanEditorTitle(
     return updatedState
 }
 
-internal suspend fun PlanControllerEnvironment.updatePlanEditorCyclePeriod(
+internal suspend fun PlanController.updatePlanEditorCyclePeriodImpl(
     state: PlanState,
     cyclePeriod: Int?
 ): PlanState {
@@ -172,7 +172,7 @@ internal suspend fun PlanControllerEnvironment.updatePlanEditorCyclePeriod(
         return state.copy(planEditor = updatedEditor)
     }
 
-    val updatedState = persistEditorPlan(state, updatedEditor)
+    val updatedState = persistEditorPlanImpl(state, updatedEditor)
 
     if (updatedState == null) {
         logWarn("Failed to persist updated cycle period: planId=${editor.planId}")
@@ -182,7 +182,7 @@ internal suspend fun PlanControllerEnvironment.updatePlanEditorCyclePeriod(
     return updatedState
 }
 
-internal fun PlanControllerEnvironment.selectPlanEditorDay(
+internal fun PlanController.selectPlanEditorDayImpl(
     state: PlanState,
     dayIndex: Int
 ): PlanState {
@@ -203,7 +203,7 @@ internal fun PlanControllerEnvironment.selectPlanEditorDay(
     return state.copy(planEditor = editor.copy(selectedDayIndex = normalizedDayIndex))
 }
 
-internal suspend fun PlanControllerEnvironment.movePlanMotion(
+internal suspend fun PlanController.movePlanMotionImpl(
     state: PlanState,
     motionEntryId: Int,
     direction: Int
@@ -227,13 +227,13 @@ internal suspend fun PlanControllerEnvironment.movePlanMotion(
         return state.copy(planEditor = updatedEditor)
     }
 
-    return persistEditorPlan(state, updatedEditor) ?: run {
+    return persistEditorPlanImpl(state, updatedEditor) ?: run {
         logWarn("Failed to persist reordered plan motion: planId=${editor.planId}, motionEntryId=$motionEntryId")
         state
     }
 }
 
-internal suspend fun PlanControllerEnvironment.updateMotionSets(
+internal suspend fun PlanController.updateMotionSetsImpl(
     state: PlanState,
     motionEntryId: Int,
     sets: Int
@@ -250,7 +250,7 @@ internal suspend fun PlanControllerEnvironment.updateMotionSets(
     }
 }
 
-internal suspend fun PlanControllerEnvironment.updateMotionRepsPerSet(
+internal suspend fun PlanController.updateMotionRepsPerSetImpl(
     state: PlanState,
     motionEntryId: Int,
     repsPerSet: Int
@@ -267,7 +267,7 @@ internal suspend fun PlanControllerEnvironment.updateMotionRepsPerSet(
     }
 }
 
-internal suspend fun PlanControllerEnvironment.updateMotionWeight(
+internal suspend fun PlanController.updateMotionWeightImpl(
     state: PlanState,
     motionEntryId: Int,
     weight: Double
@@ -284,7 +284,7 @@ internal suspend fun PlanControllerEnvironment.updateMotionWeight(
     }
 }
 
-private suspend fun PlanControllerEnvironment.updateEditorMotionField(
+private suspend fun PlanController.updateEditorMotionField(
     state: PlanState,
     motionEntryId: Int,
     noEditorMessage: String,
@@ -314,13 +314,13 @@ private suspend fun PlanControllerEnvironment.updateEditorMotionField(
         return state.copy(planEditor = updatedEditor)
     }
 
-    return persistEditorPlan(state, updatedEditor) ?: run {
+    return persistEditorPlanImpl(state, updatedEditor) ?: run {
         logWarn("$persistFailureMessage, planId=${editor.planId}")
         state
     }
 }
 
-internal fun PlanControllerEnvironment.requestPlanDeletion(
+internal fun PlanController.requestPlanDeletionImpl(
     state: PlanState,
     planId: Int
 ): PlanState {
@@ -334,12 +334,12 @@ internal fun PlanControllerEnvironment.requestPlanDeletion(
     return state.copy(planIdPendingDelete = planId)
 }
 
-internal fun PlanControllerEnvironment.cancelPlanDeletion(state: PlanState): PlanState {
+internal fun PlanController.cancelPlanDeletionImpl(state: PlanState): PlanState {
     logDebug("Cancelling plan deletion request")
     return state.copy(planIdPendingDelete = null)
 }
 
-internal suspend fun PlanControllerEnvironment.confirmPlanDeletion(state: PlanState): PlanState {
+internal suspend fun PlanController.confirmPlanDeletionImpl(state: PlanState): PlanState {
     val pendingPlanId = state.planIdPendingDelete ?: run {
         logWarn("Ignoring plan deletion confirmation because no plan is pending deletion")
         return state
@@ -348,7 +348,7 @@ internal suspend fun PlanControllerEnvironment.confirmPlanDeletion(state: PlanSt
     logDebug("Confirming plan deletion: planId=$pendingPlanId")
 
     val deleteSucceeded = withContext(Dispatchers.IO) {
-        deleteTrainingPlanAndUpdateSelection(pendingPlanId)
+        deleteTrainingPlanAndUpdateSelectionImpl(pendingPlanId)
     }
 
     if (!deleteSucceeded) {
@@ -356,7 +356,7 @@ internal suspend fun PlanControllerEnvironment.confirmPlanDeletion(state: PlanSt
         return state
     }
 
-    return reloadState(
+    return reloadStateImpl(
         state = state,
         requestedRoute = PlanRoute.List,
         planIdPendingDelete = null,
@@ -365,7 +365,7 @@ internal suspend fun PlanControllerEnvironment.confirmPlanDeletion(state: PlanSt
     )
 }
 
-internal fun PlanControllerEnvironment.requestMotionDeletion(
+internal fun PlanController.requestMotionDeletionImpl(
     state: PlanState,
     motionEntryId: Int
 ): PlanState {
@@ -394,12 +394,12 @@ internal fun PlanControllerEnvironment.requestMotionDeletion(
     )
 }
 
-internal fun PlanControllerEnvironment.cancelMotionDeletion(state: PlanState): PlanState {
+internal fun PlanController.cancelMotionDeletionImpl(state: PlanState): PlanState {
     logDebug("Cancelling motion deletion request")
     return state.copy(motionPendingDelete = null)
 }
 
-internal suspend fun PlanControllerEnvironment.confirmMotionDeletion(state: PlanState): PlanState {
+internal suspend fun PlanController.confirmMotionDeletionImpl(state: PlanState): PlanState {
     val pendingTarget = state.motionPendingDelete ?: run {
         logWarn("Ignoring motion deletion confirmation because no motion is pending deletion")
         return state
@@ -422,7 +422,7 @@ internal suspend fun PlanControllerEnvironment.confirmMotionDeletion(state: Plan
         )
     )
 
-    val updatedState = persistEditorPlan(
+    val updatedState = persistEditorPlanImpl(
         state = state.copy(planEditor = updatedEditor),
         editor = updatedEditor,
         requestedRoute = PlanRoute.Editor,
@@ -439,7 +439,7 @@ internal suspend fun PlanControllerEnvironment.confirmMotionDeletion(state: Plan
     return updatedState
 }
 
-internal fun PlanControllerEnvironment.openAddMotionPicker(state: PlanState): PlanState {
+internal fun PlanController.openAddMotionPickerImpl(state: PlanState): PlanState {
     val editor = state.planEditor ?: run {
         logWarn("Ignoring add motion picker request because no plan editor is open")
         return state
@@ -455,12 +455,12 @@ internal fun PlanControllerEnvironment.openAddMotionPicker(state: PlanState): Pl
     return state.copy(planRoute = PlanRoute.MotionPicker)
 }
 
-internal fun PlanControllerEnvironment.closeAddMotionPicker(state: PlanState): PlanState {
+internal fun PlanController.closeAddMotionPickerImpl(state: PlanState): PlanState {
     logDebug("Closing add motion picker")
     return state.copy(planRoute = PlanRoute.Editor)
 }
 
-internal suspend fun PlanControllerEnvironment.addMotionToPlan(
+internal suspend fun PlanController.addMotionToPlanImpl(
     state: PlanState,
     motion: AvailableMotionState
 ): PlanState {
@@ -507,7 +507,7 @@ internal suspend fun PlanControllerEnvironment.addMotionToPlan(
         )
     }
 
-    return persistEditorPlan(
+    return persistEditorPlanImpl(
         state = state,
         editor = updatedEditor,
         requestedRoute = PlanRoute.Motion(motionEntryId = addedMotionEntryId)
@@ -517,7 +517,7 @@ internal suspend fun PlanControllerEnvironment.addMotionToPlan(
     }
 }
 
-internal suspend fun PlanControllerEnvironment.submitPlanEditor(state: PlanState): PlanState {
+internal suspend fun PlanController.submitPlanEditorImpl(state: PlanState): PlanState {
     val editor = state.planEditor ?: run {
         logWarn("Ignoring plan submission because no plan editor is open")
         return state
@@ -542,7 +542,7 @@ internal suspend fun PlanControllerEnvironment.submitPlanEditor(state: PlanState
     }
 
     if (!editor.isNewPlan) {
-        return persistEditorPlan(state, editor) ?: run {
+        return persistEditorPlanImpl(state, editor) ?: run {
             logWarn("Failed to persist existing plan submission: planId=${editor.planId}")
             state
         }
@@ -563,14 +563,14 @@ internal suspend fun PlanControllerEnvironment.submitPlanEditor(state: PlanState
 
     logDebug("Created new training plan: planId=$createdPlanId")
 
-    return reloadState(
+    return reloadStateImpl(
         state = state,
         requestedRoute = PlanRoute.Editor,
         planEditor = storedPlan.toEditorState()
     )
 }
 
-internal suspend fun PlanControllerEnvironment.persistEditorPlan(
+internal suspend fun PlanController.persistEditorPlanImpl(
     state: PlanState,
     editor: PlanEditorState,
     requestedRoute: PlanRoute = state.planRoute,
@@ -626,7 +626,7 @@ internal suspend fun PlanControllerEnvironment.persistEditorPlan(
 
     logDebug("Persisted plan editor changes: planId=$planId")
 
-    return reloadState(
+    return reloadStateImpl(
         state = state,
         requestedRoute = resolvePersistedPlanRoute(
             requestedRoute = requestedRoute,
