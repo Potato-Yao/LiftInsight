@@ -46,11 +46,12 @@ import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.RestoreFromTrash
 import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.material.icons.rounded.Analytics
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.VideocamOff
 import androidx.compose.material3.AlertDialog
@@ -85,6 +86,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -122,6 +124,7 @@ internal fun TrainingHistoryScreen(
     var videoPlayerUri by remember { mutableStateOf<Uri?>(null) }
     var videoEditorRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var videoEditorHasProcessedCopy by remember { mutableStateOf(false) }
+    var analysisVideoRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var exportDialogRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var exportDialogHasProcessedCopy by remember { mutableStateOf(false) }
     var importTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
@@ -524,7 +527,6 @@ internal fun TrainingHistoryScreen(
             ),
             analysisState = analysisModeLabel(record),
             analysisSupportingText = analysisModeSupportingText(record),
-            canProcessVideo = !record.videoName.isNullOrBlank() && state.selectedVideoStatus?.hasProcessedCopy != true && state.selectedVideoStatus?.isProcessing != true,
             canCalibrateVideo = !record.videoName.isNullOrBlank() && record.videoSource == ImportedVideoSource.LOCAL_FILE,
             onDismiss = { state = controller.dismissSelectedRecord(state) },
             onSaveDetails = { weight, rep, rpe ->
@@ -566,6 +568,10 @@ internal fun TrainingHistoryScreen(
                 videoEditorRecord = record
                 state = controller.dismissSelectedRecord(state)
             },
+            onAnalysisVideo = {
+                analysisVideoRecord = record
+                state = controller.dismissSelectedRecord(state)
+            },
             onExportVideo = {
                 val videoName = record.videoName
 
@@ -597,14 +603,6 @@ internal fun TrainingHistoryScreen(
                         }
                     }
                 }
-            },
-            onProcessVideo = {
-                record.videoName
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { videoName ->
-                        controller.submitVideoProcessing(videoName)
-                        state = controller.requestVideoStatusRefresh(state)
-                    }
             }
         )
     }
@@ -854,6 +852,23 @@ internal fun TrainingHistoryScreen(
         }
     }
 
+    analysisVideoRecord?.let { record ->
+        val videoName = record.videoName
+
+        if (!videoName.isNullOrBlank()) {
+            AnalysisVideoOverlay(
+                videoFileName = videoName,
+                videoProcessor = videoProcessor,
+                onDismiss = {
+                    analysisVideoRecord = null
+                },
+                onConfirm = {
+                    analysisVideoRecord = null
+                }
+            )
+        }
+    }
+
     calibrationTargetRecord?.let { record ->
         CalibrationOverlay(
             record = record,
@@ -994,7 +1009,6 @@ private fun TrainingHistoryDetailSheet(
     processState: String,
     analysisState: String,
     analysisSupportingText: String?,
-    canProcessVideo: Boolean,
     canCalibrateVideo: Boolean,
     onDismiss: () -> Unit,
     onSaveDetails: (weight: Double, rep: Int, rpe: Int) -> Unit,
@@ -1003,8 +1017,8 @@ private fun TrainingHistoryDetailSheet(
     onImportVideo: () -> Unit,
     onCalibrateVideo: () -> Unit,
     onEditVideo: () -> Unit,
-    onExportVideo: () -> Unit,
-    onProcessVideo: () -> Unit
+    onAnalysisVideo: () -> Unit,
+    onExportVideo: () -> Unit
 ) {
     val hasVideo = !record.videoName.isNullOrBlank()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1063,6 +1077,18 @@ private fun TrainingHistoryDetailSheet(
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        IconButton(
+                            onClick = onExportVideo,
+                            enabled = hasVideo
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Share,
+                                contentDescription = stringResource(
+                                    R.string.training_share_video_content_description
+                                )
+                            )
+                        }
+
                         IconButton(onClick = onDeleteRecord) {
                             Icon(
                                 imageVector = Icons.Rounded.Delete,
@@ -1125,13 +1151,7 @@ private fun TrainingHistoryDetailSheet(
                 DetailChip(
                     label = stringResource(R.string.training_detail_video_status),
                     value = processState,
-                    highlighted = hasVideo,
-                    supportingText = if (canProcessVideo) {
-                        stringResource(R.string.training_video_status_action)
-                    } else {
-                        null
-                    },
-                    onClick = if (canProcessVideo) onProcessVideo else null
+                    highlighted = hasVideo
                 )
                 DetailChip(
                     label = stringResource(R.string.training_detail_video_analysis),
@@ -1224,36 +1244,48 @@ private fun TrainingHistoryDetailSheet(
                     enabled = hasVideo,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = if (hasVideo) {
-                            Icons.Rounded.PlayArrow
-                        } else {
-                            Icons.Rounded.VideocamOff
-                        },
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.training_play_video),
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (hasVideo) {
+                                Icons.Rounded.PlayArrow
+                            } else {
+                                Icons.Rounded.VideocamOff
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.training_play_video),
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 Button(
                     onClick = onImportVideo,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Videocam,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.training_import_video),
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Videocam,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.training_import_video),
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 
@@ -1262,20 +1294,26 @@ private fun TrainingHistoryDetailSheet(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Button(
-                    onClick = onExportVideo,
+                    onClick = onAnalysisVideo,
                     enabled = hasVideo,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.FileDownload,
-                        contentDescription = stringResource(R.string.training_export_video_content_description),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.training_export_video),
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Analytics,
+                            contentDescription = stringResource(R.string.training_analysis_video_content_description),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.training_analysis_video),
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 Button(
@@ -1283,16 +1321,22 @@ private fun TrainingHistoryDetailSheet(
                     enabled = hasVideo,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ContentCut,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.training_edit_video),
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ContentCut,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.training_edit_video),
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 

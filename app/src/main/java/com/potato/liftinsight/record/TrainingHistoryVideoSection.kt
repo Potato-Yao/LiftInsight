@@ -103,3 +103,24 @@ internal fun CalibrationOverlay(
         onSave = onSave
     )
 }
+
+@Composable
+internal fun AnalysisVideoOverlay(
+    videoFileName: String,
+    videoProcessor: VideoProcessor,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        AnalysisVideoScreen(
+            videoFileName = videoFileName,
+            videoProcessor = videoProcessor,
+            onDismiss = onDismiss,
+            onConfirm = onConfirm,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}

@@ -9,33 +9,41 @@ import com.potato.liftinsight.body.route.BodyRoute
 import com.potato.liftinsight.common.logging.AndroidAppLogger
 import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.training.data.BodyMetricEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class BodyController(
     private val bodyMetricStore: BodyMetricStore,
     private val logger: AppLogger = AndroidAppLogger
 ) {
     fun emptyState(): BodyState {
-        val defaults = defaultBodyMetrics()
-        val stored = bodyMetricStore.loadMetrics()
+        return BodyState(bodyMetrics = defaultBodyMetrics())
+    }
 
-        if (stored.isEmpty()) {
-            return BodyState(bodyMetrics = defaults)
-        }
+    suspend fun loadState(): BodyState {
+        return withContext(Dispatchers.IO) {
+            val defaults = defaultBodyMetrics()
+            val stored = bodyMetricStore.loadMetrics()
 
-        val storedMap = stored.associateBy { it.id }
-        val merged = defaults.map { default ->
-            val storedMetric = storedMap[default.id]
-            if (storedMetric != null) {
-                default.copy(
-                    value = storedMetric.value,
-                    updatedAt = formatTimestamp(storedMetric.updatedAt)
-                )
-            } else {
-                default
+            if (stored.isEmpty()) {
+                return@withContext BodyState(bodyMetrics = defaults)
             }
-        }
 
-        return BodyState(bodyMetrics = merged)
+            val storedMap = stored.associateBy { it.id }
+            val merged = defaults.map { default ->
+                val storedMetric = storedMap[default.id]
+                if (storedMetric != null) {
+                    default.copy(
+                        value = storedMetric.value,
+                        updatedAt = formatTimestamp(storedMetric.updatedAt)
+                    )
+                } else {
+                    default
+                }
+            }
+
+            BodyState(bodyMetrics = merged)
+        }
     }
 
     fun saveBodyMetrics(state: BodyState): BodyState {

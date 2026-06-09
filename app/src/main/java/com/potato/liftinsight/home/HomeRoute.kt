@@ -76,9 +76,10 @@ fun HomeRoute(
     }
     var selectedTab by remember { mutableStateOf(MainTab.Home) }
 
-    LaunchedEffect(planController, motionController, context) {
+    LaunchedEffect(planController, motionController, bodyController, context) {
         planState = planController.loadState(defaultTrainingPlanSeedCatalog(context))
         motionState = motionController.loadState()
+        bodyState = bodyController.loadState()
     }
 
     val bottomBarItems = listOf(

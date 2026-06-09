@@ -6,15 +6,19 @@ import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.training.data.BodyMetricDao
 import com.potato.liftinsight.training.data.BodyMetricEntity
 import com.potato.liftinsight.training.data.LiftInsightDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class BodyMetricStore private constructor(
     private val bodyMetricDao: BodyMetricDao,
     private val logger: AppLogger
 ) {
-    fun loadMetrics(): List<BodyMetricEntity> {
-        val metrics = bodyMetricDao.getAll()
-        logDebug("loadMetrics result: count=${metrics.size}")
-        return metrics
+    suspend fun loadMetrics(): List<BodyMetricEntity> {
+        return withContext(Dispatchers.IO) {
+            val metrics = bodyMetricDao.getAll()
+            logDebug("loadMetrics result: count=${metrics.size}")
+            metrics
+        }
     }
 
     fun saveMetrics(metrics: List<BodyMetricEntity>) {
