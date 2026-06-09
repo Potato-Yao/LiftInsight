@@ -31,6 +31,7 @@ import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.route.isPlanRouteFullScreen
 import com.potato.liftinsight.record.RecordTabHost
+import com.potato.liftinsight.record.controller.TrainingHistoryController
 import com.potato.liftinsight.settings.SettingsScreen
 import com.potato.liftinsight.ui.theme.AppThemeMode
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
@@ -47,6 +48,7 @@ internal fun HomeShell(
     bodyController: BodyController,
     trainingPlanStore: TrainingPlanStore,
     videoProcessor: VideoProcessor,
+    trainingHistoryController: TrainingHistoryController,
     motionState: MotionState,
     onMotionStateChange: (MotionState) -> Unit,
     motionController: MotionController,
@@ -148,6 +150,7 @@ internal fun HomeShell(
                         bodyController = bodyController,
                         trainingPlanStore = trainingPlanStore,
                         videoProcessor = videoProcessor,
+                        trainingHistoryController = trainingHistoryController,
                         contentPadding = innerPadding
                     )
                 }

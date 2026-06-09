@@ -31,6 +31,7 @@ import com.potato.liftinsight.plan.controller.PlanController
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.data.defaultTrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.model.PlanState
+import com.potato.liftinsight.record.controller.TrainingHistoryController
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.ui.theme.AppThemeMode
 import com.potato.liftinsight.video.VideoProcessor
@@ -56,6 +57,12 @@ fun HomeRoute(
     val bodyController = remember(bodyMetricStore) { BodyController(bodyMetricStore = bodyMetricStore) }
     val motionController = remember(context) {
         MotionController(MotionStore.from(context))
+    }
+    val trainingHistoryController = remember(trainingPlanStore, videoProcessor) {
+        TrainingHistoryController(
+            trainingPlanStore = trainingPlanStore,
+            videoProcessor = videoProcessor
+        )
     }
 
     var planState by remember(planController) {
@@ -111,6 +118,7 @@ fun HomeRoute(
         bodyController = bodyController,
         trainingPlanStore = trainingPlanStore,
         videoProcessor = videoProcessor,
+        trainingHistoryController = trainingHistoryController,
         motionState = motionState,
         onMotionStateChange = { motionState = it },
         motionController = motionController,

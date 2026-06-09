@@ -20,6 +20,7 @@ import com.potato.liftinsight.body.model.BodyState
 import com.potato.liftinsight.body.route.BodyRoute
 import com.potato.liftinsight.body.route.bodyRouteDepth
 import com.potato.liftinsight.plan.data.TrainingPlanStore
+import com.potato.liftinsight.record.controller.TrainingHistoryController
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
 import com.potato.liftinsight.video.VideoProcessor
 
@@ -30,6 +31,7 @@ internal fun RecordTabHost(
     bodyController: BodyController,
     trainingPlanStore: TrainingPlanStore,
     videoProcessor: VideoProcessor,
+    trainingHistoryController: TrainingHistoryController,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier
 ) {
@@ -115,6 +117,7 @@ internal fun RecordTabHost(
 
             BodyRoute.Training -> {
                 TrainingHistoryScreen(
+                    controller = trainingHistoryController,
                     trainingPlanStore = trainingPlanStore,
                     videoProcessor = videoProcessor,
                     onBack = {

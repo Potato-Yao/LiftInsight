@@ -91,7 +91,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.potato.liftinsight.R
 import com.potato.liftinsight.camera.CameraScreen
-import com.potato.liftinsight.motion.MotionVideoPlayer
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.controller.TrainingHistoryController
 import com.potato.liftinsight.record.model.DisplayMode
@@ -112,18 +111,13 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 internal fun TrainingHistoryScreen(
+    controller: TrainingHistoryController,
     trainingPlanStore: TrainingPlanStore,
     videoProcessor: VideoProcessor,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val controller = remember(trainingPlanStore, videoProcessor) {
-        TrainingHistoryController(
-            trainingPlanStore = trainingPlanStore,
-            videoProcessor = videoProcessor
-        )
-    }
     var state by remember(controller) { mutableStateOf<TrainingHistoryState>(controller.emptyState()) }
     var videoPlayerUri by remember { mutableStateOf<Uri?>(null) }
     var videoEditorRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
@@ -616,267 +610,132 @@ internal fun TrainingHistoryScreen(
     }
 
     if (showDeleteConfirmDialog && recordToDelete != null) {
-        AlertDialog(
-            onDismissRequest = {
+        DeleteConfirmDialog(
+            onConfirm = {
+                val record = recordToDelete
                 showDeleteConfirmDialog = false
                 recordToDelete = null
-            },
-            title = { Text(text = stringResource(R.string.training_delete_confirm_title)) },
-            text = { Text(text = stringResource(R.string.training_delete_confirm_message)) },
-            confirmButton = {
-                Button(onClick = {
-                    val record = recordToDelete
-                    showDeleteConfirmDialog = false
-                    recordToDelete = null
-                    if (record != null) {
-                        state = controller.dismissSelectedRecord(state)
-                        coroutineScope.launch {
-                            state = controller.softDeleteRecord(state, record)
-                        }
+                if (record != null) {
+                    state = controller.dismissSelectedRecord(state)
+                    coroutineScope.launch {
+                        state = controller.softDeleteRecord(state, record)
                     }
-                }) {
-                    Text(text = stringResource(R.string.training_delete_action))
                 }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    showDeleteConfirmDialog = false
-                    recordToDelete = null
-                }) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
+            onDismiss = {
+                showDeleteConfirmDialog = false
+                recordToDelete = null
             }
         )
     }
 
     if (showBatchDeleteConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showBatchDeleteConfirmDialog = false },
-            title = { Text(text = stringResource(R.string.training_batch_delete_confirm_title)) },
-            text = {
-                Text(
-                    text = stringResource(
-                        R.string.training_batch_delete_confirm_message,
-                        state.selectedRecordIds.size
-                    )
-                )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    showBatchDeleteConfirmDialog = false
-                    coroutineScope.launch {
-                        state = controller.deleteSelectedRecords(state)
-                    }
-                }) {
-                    Text(text = stringResource(R.string.training_delete_action))
+        BatchDeleteConfirmDialog(
+            selectedCount = state.selectedRecordIds.size,
+            onConfirm = {
+                showBatchDeleteConfirmDialog = false
+                coroutineScope.launch {
+                    state = controller.deleteSelectedRecords(state)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showBatchDeleteConfirmDialog = false }) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-            }
+            onDismiss = { showBatchDeleteConfirmDialog = false }
         )
     }
 
     if (showDayDeleteConfirmDialog && dayToDelete != null) {
-        AlertDialog(
-            onDismissRequest = {
+        DayDeleteConfirmDialog(
+            dateLabel = formatDateLabel(dayToDelete!!),
+            onConfirm = {
+                val dateKey = dayToDelete
                 showDayDeleteConfirmDialog = false
                 dayToDelete = null
-            },
-            title = { Text(text = stringResource(R.string.training_batch_delete_day_confirm_title)) },
-            text = {
-                Text(
-                    text = stringResource(
-                        R.string.training_batch_delete_day_confirm_message,
-                        formatDateLabel(dayToDelete!!)
-                    )
-                )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    val dateKey = dayToDelete
-                    showDayDeleteConfirmDialog = false
-                    dayToDelete = null
-                    if (dateKey != null) {
-                        coroutineScope.launch {
-                            state = controller.deleteDayRecords(state, dateKey)
-                        }
+                if (dateKey != null) {
+                    coroutineScope.launch {
+                        state = controller.deleteDayRecords(state, dateKey)
                     }
-                }) {
-                    Text(text = stringResource(R.string.training_delete_action))
                 }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    showDayDeleteConfirmDialog = false
-                    dayToDelete = null
-                }) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
+            onDismiss = {
+                showDayDeleteConfirmDialog = false
+                dayToDelete = null
             }
         )
     }
 
     if (showBinPermanentDeleteConfirmDialog && binRecordToDelete != null) {
-        AlertDialog(
-            onDismissRequest = {
+        BinPermanentDeleteConfirmDialog(
+            onConfirm = {
+                val binRecord = binRecordToDelete
                 showBinPermanentDeleteConfirmDialog = false
                 binRecordToDelete = null
-            },
-            title = { Text(text = stringResource(R.string.training_bin_permanent_delete_confirm_title)) },
-            text = { Text(text = stringResource(R.string.training_bin_permanent_delete_confirm_message)) },
-            confirmButton = {
-                Button(onClick = {
-                    val binRecord = binRecordToDelete
-                    showBinPermanentDeleteConfirmDialog = false
-                    binRecordToDelete = null
-                    if (binRecord != null) {
-                        state = controller.dismissBinRecord(state)
-                        coroutineScope.launch {
-                            state = controller.permanentlyDeleteBinRecord(state, binRecord.id)
-                        }
+                if (binRecord != null) {
+                    state = controller.dismissBinRecord(state)
+                    coroutineScope.launch {
+                        state = controller.permanentlyDeleteBinRecord(state, binRecord.id)
                     }
-                }) {
-                    Text(text = stringResource(R.string.training_bin_permanent_delete))
                 }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    showBinPermanentDeleteConfirmDialog = false
-                    binRecordToDelete = null
-                }) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
+            onDismiss = {
+                showBinPermanentDeleteConfirmDialog = false
+                binRecordToDelete = null
             }
         )
     }
 
     if (showBinRevertConfirmDialog && binRecordToRevert != null) {
-        AlertDialog(
-            onDismissRequest = {
+        BinRevertConfirmDialog(
+            onConfirm = {
+                val binRecord = binRecordToRevert
                 showBinRevertConfirmDialog = false
                 binRecordToRevert = null
-            },
-            title = { Text(text = stringResource(R.string.training_bin_revert_confirm_title)) },
-            text = { Text(text = stringResource(R.string.training_bin_revert_confirm_message)) },
-            confirmButton = {
-                Button(onClick = {
-                    val binRecord = binRecordToRevert
-                    showBinRevertConfirmDialog = false
-                    binRecordToRevert = null
-                    if (binRecord != null) {
-                        state = controller.dismissBinRecord(state)
-                        coroutineScope.launch {
-                            state = controller.revertBinRecord(state, binRecord.id)
-                        }
+                if (binRecord != null) {
+                    state = controller.dismissBinRecord(state)
+                    coroutineScope.launch {
+                        state = controller.revertBinRecord(state, binRecord.id)
                     }
-                }) {
-                    Text(text = stringResource(R.string.training_bin_revert))
                 }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    showBinRevertConfirmDialog = false
-                    binRecordToRevert = null
-                }) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
+            onDismiss = {
+                showBinRevertConfirmDialog = false
+                binRecordToRevert = null
             }
         )
     }
 
     if (showBinBatchDeleteConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showBinBatchDeleteConfirmDialog = false },
-            title = { Text(text = stringResource(R.string.training_bin_permanent_delete_batch_confirm_title)) },
-            text = {
-                Text(
-                    text = stringResource(
-                        R.string.training_bin_permanent_delete_batch_confirm_message,
-                        state.selectedRecordIds.size
-                    )
-                )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    showBinBatchDeleteConfirmDialog = false
-                    coroutineScope.launch {
-                        state = controller.permanentlyDeleteSelectedBinRecords(state)
-                    }
-                }) {
-                    Text(text = stringResource(R.string.training_bin_permanent_delete))
+        BinBatchDeleteConfirmDialog(
+            selectedCount = state.selectedRecordIds.size,
+            onConfirm = {
+                showBinBatchDeleteConfirmDialog = false
+                coroutineScope.launch {
+                    state = controller.permanentlyDeleteSelectedBinRecords(state)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showBinBatchDeleteConfirmDialog = false }) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-            }
+            onDismiss = { showBinBatchDeleteConfirmDialog = false }
         )
     }
 
     if (showBinBatchRevertConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showBinBatchRevertConfirmDialog = false },
-            title = { Text(text = stringResource(R.string.training_bin_revert_batch_confirm_title)) },
-            text = {
-                Text(
-                    text = stringResource(
-                        R.string.training_bin_revert_batch_confirm_message,
-                        state.selectedRecordIds.size
-                    )
-                )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    showBinBatchRevertConfirmDialog = false
-                    coroutineScope.launch {
-                        state = controller.revertSelectedBinRecords(state)
-                    }
-                }) {
-                    Text(text = stringResource(R.string.training_bin_revert))
+        BinBatchRevertConfirmDialog(
+            selectedCount = state.selectedRecordIds.size,
+            onConfirm = {
+                showBinBatchRevertConfirmDialog = false
+                coroutineScope.launch {
+                    state = controller.revertSelectedBinRecords(state)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showBinBatchRevertConfirmDialog = false }) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-            }
+            onDismiss = { showBinBatchRevertConfirmDialog = false }
         )
     }
 
     importTargetRecord?.let {
-        AlertDialog(
-            onDismissRequest = { importTargetRecord = null },
-            title = { Text(text = stringResource(R.string.training_import_video_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(
-                        onClick = { localVideoPicker.launch("video/*") },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = stringResource(R.string.training_import_video_local))
-                    }
-
-                    Button(
-                        onClick = {
-                            cameraTargetRecord = importTargetRecord
-                            importTargetRecord = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = stringResource(R.string.training_import_video_camera))
-                    }
-                }
+        ImportVideoDialog(
+            onImportLocal = { localVideoPicker.launch("video/*") },
+            onImportCamera = {
+                cameraTargetRecord = importTargetRecord
+                importTargetRecord = null
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { importTargetRecord = null }) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-            }
+            onDismiss = { importTargetRecord = null }
         )
     }
 
@@ -913,88 +772,60 @@ internal fun TrainingHistoryScreen(
         val videoName = record.videoName
 
         if (!videoName.isNullOrBlank()) {
-            AlertDialog(
-                onDismissRequest = {
+            ExportVideoDialog(
+                hasProcessedCopy = exportDialogHasProcessedCopy,
+                onExportProcessed = {
+                    val name = videoName
                     exportDialogRecord = null
                     exportDialogHasProcessedCopy = false
-                },
-                title = { Text(text = stringResource(R.string.training_export_dialog_title)) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (exportDialogHasProcessedCopy) {
-                            Button(
-                                onClick = {
-                                    val name = videoName
-                                    exportDialogRecord = null
-                                    exportDialogHasProcessedCopy = false
-                                    coroutineScope.launch {
-                                        val exportedUri = controller.exportProcessedVideo(context, name)
-
-                                        if (exportedUri != null) {
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.training_export_video_success),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        } else {
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.training_export_video_failure),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(text = stringResource(R.string.training_export_processed_video))
-                            }
-                        }
-
-                        Button(
-                            onClick = {
-                                val name = videoName
-                                exportDialogRecord = null
-                                exportDialogHasProcessedCopy = false
-                                coroutineScope.launch {
-                                    val exportedUri = controller.exportOriginalVideo(context, name)
-
-                                    if (exportedUri != null) {
-                                        Toast.makeText(
-                                            context,
-                                            context.getString(R.string.training_export_video_success),
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    } else {
-                                        Toast.makeText(
-                                            context,
-                                            context.getString(R.string.training_export_video_failure),
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(text = stringResource(R.string.training_export_original_video))
+                    coroutineScope.launch {
+                        val exportedUri = controller.exportProcessedVideo(context, name)
+                        if (exportedUri != null) {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.training_export_video_success),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.training_export_video_failure),
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     }
                 },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = {
-                        exportDialogRecord = null
-                        exportDialogHasProcessedCopy = false
-                    }) {
-                        Text(text = stringResource(R.string.common_cancel))
+                onExportOriginal = {
+                    val name = videoName
+                    exportDialogRecord = null
+                    exportDialogHasProcessedCopy = false
+                    coroutineScope.launch {
+                        val exportedUri = controller.exportOriginalVideo(context, name)
+                        if (exportedUri != null) {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.training_export_video_success),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.training_export_video_failure),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
+                },
+                onDismiss = {
+                    exportDialogRecord = null
+                    exportDialogHasProcessedCopy = false
                 }
             )
         }
     }
 
     videoPlayerUri?.let { videoUri ->
-        MotionVideoPlayer(
+        VideoPlayerOverlay(
             videoUri = videoUri,
             onDismiss = { videoPlayerUri = null }
         )
@@ -1004,33 +835,27 @@ internal fun TrainingHistoryScreen(
         val videoName = record.videoName
 
         if (!videoName.isNullOrBlank()) {
-            Dialog(
-                onDismissRequest = { videoEditorRecord = null },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
-            ) {
-                TrainingVideoEditorDialog(
-                    videoFileName = videoName,
-                    videoProcessor = videoProcessor,
-                    hasProcessedCopy = videoEditorHasProcessedCopy,
-                    onDismiss = {
-                        videoEditorRecord = null
-                        videoEditorHasProcessedCopy = false
-                    },
-                    onSaved = {
-                        videoEditorRecord = null
-                        videoEditorHasProcessedCopy = false
-                        state = controller.requestVideoStatusRefresh(
-                            controller.selectRecord(state, record)
-                        )
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            VideoEditorOverlay(
+                videoFileName = videoName,
+                videoProcessor = videoProcessor,
+                hasProcessedCopy = videoEditorHasProcessedCopy,
+                onDismiss = {
+                    videoEditorRecord = null
+                    videoEditorHasProcessedCopy = false
+                },
+                onSaved = {
+                    videoEditorRecord = null
+                    videoEditorHasProcessedCopy = false
+                    state = controller.requestVideoStatusRefresh(
+                        controller.selectRecord(state, record)
+                    )
+                }
+            )
         }
     }
 
     calibrationTargetRecord?.let { record ->
-        ReferenceCalibrationDialog(
+        CalibrationOverlay(
             record = record,
             onDismiss = { calibrationTargetRecord = null },
             onSave = { referenceLabel, pixelDistance, distanceMeters ->
@@ -1809,7 +1634,7 @@ private fun BinDetailSheet(
 }
 
 @Composable
-private fun ReferenceCalibrationDialog(
+internal fun ReferenceCalibrationDialog(
     record: MetaHistoryRecord,
     onDismiss: () -> Unit,
     onSave: (referenceLabel: String, pixelDistance: Double, distanceMeters: Double) -> Unit
