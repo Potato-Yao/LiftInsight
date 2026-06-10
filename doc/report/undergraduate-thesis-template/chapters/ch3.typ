@@ -1,6 +1,4 @@
-#let image_scale = 50%
-#let small_image_scale = 30%
-#let big_image_scale = 80%
+#import "../image_scale.typ": big_image_scale, image_scale, small_image_scale
 
 = 程序需求分析
 

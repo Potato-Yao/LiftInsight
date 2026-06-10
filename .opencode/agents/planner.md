@@ -66,7 +66,7 @@ Rules:
 * Prefer minimal viable architecture
 * If requirements are unclear, ask questions instead of guessing
 * Tasks must be actionable and ordered
-* Ask at most 3 clarification questions
+* Ask at most 10 clarification questions
 * Do not ask questions when the answer can be inferred from the repository or user context
 * If the request is simple and clear, return `questions: []`
 * Keep `constraints` limited to user-stated limits, repository rules, and platform constraints

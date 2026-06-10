@@ -1,3 +1,5 @@
+#import "../image_scale.typ": big_image_scale, image_scale, small_image_scale
+
 = 程序架构设计与技术实现方案
 
 == 总体技术方案的确定
@@ -62,6 +64,17 @@
 借助sRPE就可以计算一次训练的训练强度：
 
 $ "work load" = "sRPE" times "Duration time(in minute)" $
+
+在项目中，每个单次训练和每一次完整训练都持久化记录了上述的各类数据。
+
+=== 人体和杠铃建模
+
+为了对动作进行分析，首先需要将视频中的人物转化为模型。我采用了Google的Pose Landmark模型用来识别人体。
+
+#figure(
+  image("../assets/poselandmark.jpg", width: small_image_scale),
+  caption: "Pose Landmark识别实例",
+)
 
 == 数据存储和处理
 

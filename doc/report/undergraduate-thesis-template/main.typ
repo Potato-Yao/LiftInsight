@@ -19,6 +19,8 @@
   // 若 abstract-content 为空，或参数缺省，则不显示中文摘要
 )
 
+#import "image_scale.typ": big_image_scale, image_scale, small_image_scale
+
 #include "chapters/ch1.typ"
 #include "chapters/ch2.typ"
 #include "chapters/ch3.typ"
