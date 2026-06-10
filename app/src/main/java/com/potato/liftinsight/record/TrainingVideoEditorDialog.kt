@@ -35,6 +35,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -65,6 +66,7 @@ import androidx.media3.exoplayer.source.ClippingMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.potato.liftinsight.R
+import com.potato.liftinsight.record.model.AnalysisVideoState
 import com.potato.liftinsight.ui.component.VideoPreviewCard
 import com.potato.liftinsight.video.VideoEditSelection
 import com.potato.liftinsight.video.VideoEditSelections
@@ -86,6 +88,8 @@ internal fun TrainingVideoEditorDialog(
     hasProcessedCopy: Boolean,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
+    onAnalysisSaved: (AnalysisVideoState) -> Unit = {},
+    initialAnalysisState: AnalysisVideoState = AnalysisVideoState(),
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -103,6 +107,7 @@ internal fun TrainingVideoEditorDialog(
     var isLoadingFiles by remember(videoFileName, hasProcessedCopy) { mutableStateOf(hasProcessedCopy) }
     var processedFile by remember(videoFileName, hasProcessedCopy) { mutableStateOf<File?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var analysisState by remember { mutableStateOf(initialAnalysisState) }
 
     val sourceFile = remember(videoFileName, context) {
         resolveSourceVideoFile(
@@ -227,7 +232,7 @@ internal fun TrainingVideoEditorDialog(
                             isSaving = true
                             errorMessage = null
                         },
-                        enabled = hasEdit && !isSaving && durationMs > 0L
+                        enabled = (hasEdit || analysisState != initialAnalysisState) && !isSaving && durationMs > 0L
                     ) {
                         Text(text = stringResource(R.string.common_save))
                     }
@@ -343,6 +348,25 @@ internal fun TrainingVideoEditorDialog(
                 }
             )
 
+            AnalysisOptionsCard(
+                analysisState = analysisState,
+                onTogglePoseDetection = {
+                    analysisState = analysisState.togglePoseDetection()
+                },
+                onToggleAngleDisplay = {
+                    analysisState = analysisState.toggleAngleDisplay()
+                },
+                onToggleAnglePlot = {
+                    analysisState = analysisState.toggleAnglePlot()
+                },
+                onToggleBarbellDetection = {
+                    analysisState = analysisState.toggleBarbellDetection()
+                },
+                onTogglePowerCalculation = {
+                    analysisState = analysisState.togglePowerCalculation()
+                }
+            )
+
             errorMessage?.let { message ->
                 Text(
                     text = message,
@@ -364,17 +388,23 @@ internal fun TrainingVideoEditorDialog(
 
         player.pause()
 
-        val didSave = VideoEditor.applyEditInPlace(
-            sourceFile = sourceFile,
-            processedFile = processedFile,
-            selection = selection
-        )
+        if (hasEdit) {
+            val didSave = VideoEditor.applyEditInPlace(
+                sourceFile = sourceFile,
+                processedFile = processedFile,
+                selection = selection
+            )
 
-        if (didSave) {
-            onSaved()
+            if (didSave) {
+                onAnalysisSaved(analysisState)
+                onSaved()
+            } else {
+                isSaving = false
+                errorMessage = context.getString(R.string.training_video_editor_save_error)
+            }
         } else {
-            isSaving = false
-            errorMessage = context.getString(R.string.training_video_editor_save_error)
+            onAnalysisSaved(analysisState)
+            onSaved()
         }
     }
 }
@@ -646,6 +676,123 @@ private fun TimelineEditor(
                     ) {}
                 }
             }
+        }
+    }
+}
+
+
+@Composable
+private fun AnalysisOptionsCard(
+    analysisState: AnalysisVideoState,
+    onTogglePoseDetection: () -> Unit,
+    onToggleAngleDisplay: () -> Unit,
+    onToggleAnglePlot: () -> Unit,
+    onToggleBarbellDetection: () -> Unit,
+    onTogglePowerCalculation: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.training_analysis_selectors_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            AnalysisToggleRow(
+                label = stringResource(R.string.training_analysis_pose_detection),
+                checked = analysisState.poseDetection,
+                onCheckedChange = { onTogglePoseDetection() }
+            )
+
+            AnalysisToggleRow(
+                label = stringResource(R.string.training_analysis_angle_display),
+                checked = analysisState.angleDisplay,
+                onCheckedChange = { onToggleAngleDisplay() }
+            )
+
+            AnalysisToggleRow(
+                label = stringResource(R.string.training_analysis_angle_plot),
+                checked = analysisState.anglePlot,
+                onCheckedChange = { onToggleAnglePlot() }
+            )
+
+            AnalysisToggleRow(
+                label = stringResource(R.string.training_analysis_barbell_detection),
+                checked = analysisState.barbellDetection,
+                enabled = analysisState.isBarbellDetectionEnabled,
+                supportingText = if (!analysisState.isBarbellDetectionEnabled) {
+                    stringResource(R.string.training_analysis_requires_pose_detection)
+                } else {
+                    null
+                },
+                onCheckedChange = { onToggleBarbellDetection() }
+            )
+
+            AnalysisToggleRow(
+                label = stringResource(R.string.training_analysis_power_calculation),
+                checked = analysisState.powerCalculation,
+                enabled = analysisState.isPowerCalculationEnabled,
+                supportingText = if (!analysisState.isPowerCalculationEnabled) {
+                    stringResource(R.string.training_analysis_requires_barbell_detection)
+                } else {
+                    null
+                },
+                onCheckedChange = { onTogglePowerCalculation() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnalysisToggleRow(
+    label: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    supportingText: String? = null,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                },
+                modifier = Modifier.weight(1f)
+            )
+
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                enabled = enabled
+            )
+        }
+
+        supportingText?.let { text ->
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(start = 4.dp)
+            )
         }
     }
 }

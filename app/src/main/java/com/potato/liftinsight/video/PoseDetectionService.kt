@@ -26,6 +26,11 @@ internal data class PoseOverlaySpinePoints(
     val midHip: Pair<Float, Float>
 )
 
+internal data class PoseDetectionResult(
+    val bitmap: Bitmap,
+    val angles: PoseOverlayAngles
+)
+
 internal data class PoseOverlayAngles(
     val spineAngle: Double?,
     val leftLegSpineAngle: Double?,
@@ -112,22 +117,30 @@ internal class PoseDetectionService(
         textSize = 34f
     }
 
-    fun detectAndDrawPose(bitmap: Bitmap, options: DrawingOptions = DrawingOptions()): Bitmap {
+    fun detectAndDrawPose(bitmap: Bitmap, options: DrawingOptions = DrawingOptions()): PoseDetectionResult {
+        val pose = runCatching {
+            Tasks.await(
+                poseDetector.process(InputImage.fromBitmap(bitmap, 0))
+            )
+        }.getOrNull()
+
+        val positions = if (pose != null) extractLandmarkPositions(pose) else emptyMap()
+        val spinePoints = calculateSpinePoints(positions)
+        val angles = calculateOverlayAngles(
+            landmarks = positions,
+            spinePoints = spinePoints,
+            frameWidth = bitmap.width.toFloat(),
+            frameHeight = bitmap.height.toFloat()
+        )
+
         if (!options.drawLandmarks && !options.drawAngles) {
-            return bitmap
+            return PoseDetectionResult(bitmap, angles)
         }
 
         val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(mutableBitmap)
-        val pose = runCatching {
-            Tasks.await(
-                poseDetector.process(InputImage.fromBitmap(mutableBitmap, 0))
-            )
-        }.getOrNull()
 
         if (pose != null) {
-            val positions = extractLandmarkPositions(pose)
-
             if (options.drawLandmarks) {
                 drawPoseLandmarks(
                     canvas = canvas,
@@ -136,20 +149,14 @@ internal class PoseDetectionService(
             }
 
             if (options.drawAngles) {
-                val spinePoints = calculateSpinePoints(positions)
                 drawAngleOverlay(
                     canvas = canvas,
-                    angles = calculateOverlayAngles(
-                        landmarks = positions,
-                        spinePoints = spinePoints,
-                        frameWidth = canvas.width.toFloat(),
-                        frameHeight = canvas.height.toFloat()
-                    )
+                    angles = angles
                 )
             }
         }
 
-        return mutableBitmap
+        return PoseDetectionResult(mutableBitmap, angles)
     }
 
     private fun extractLandmarkPositions(pose: Pose): Map<Int, PoseOverlayLandmark> {

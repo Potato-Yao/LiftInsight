@@ -70,12 +70,34 @@ internal fun VideoPlayerOverlay(
 }
 
 @Composable
+internal fun AnalysisVideoOverlay(
+    videoFileName: String,
+    videoProcessor: VideoProcessor,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        AnalysisVideoScreen(
+            videoFileName = videoFileName,
+            videoProcessor = videoProcessor,
+            onDismiss = onDismiss,
+            modifier = modifier.fillMaxSize()
+        )
+    }
+}
+
+@Composable
 internal fun VideoEditorOverlay(
     videoFileName: String,
     videoProcessor: VideoProcessor,
     hasProcessedCopy: Boolean,
     onDismiss: () -> Unit,
-    onSaved: () -> Unit
+    onSaved: () -> Unit,
+    onAnalysisSaved: (AnalysisVideoState) -> Unit = {},
+    initialAnalysisState: AnalysisVideoState = AnalysisVideoState()
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -87,6 +109,8 @@ internal fun VideoEditorOverlay(
             hasProcessedCopy = hasProcessedCopy,
             onDismiss = onDismiss,
             onSaved = onSaved,
+            onAnalysisSaved = onAnalysisSaved,
+            initialAnalysisState = initialAnalysisState,
             modifier = Modifier.fillMaxSize()
         )
     }
@@ -105,25 +129,3 @@ internal fun CalibrationOverlay(
     )
 }
 
-@Composable
-internal fun AnalysisVideoOverlay(
-    videoFileName: String,
-    videoProcessor: VideoProcessor,
-    onDismiss: () -> Unit,
-    onConfirm: (AnalysisVideoState) -> Unit,
-    initialState: AnalysisVideoState = AnalysisVideoState()
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        AnalysisVideoScreen(
-            videoFileName = videoFileName,
-            videoProcessor = videoProcessor,
-            onDismiss = onDismiss,
-            onConfirm = onConfirm,
-            initialState = initialState,
-            modifier = Modifier.fillMaxSize()
-        )
-    }
-}

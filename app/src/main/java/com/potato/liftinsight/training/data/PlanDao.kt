@@ -88,6 +88,9 @@ abstract class PlanDao {
     @Query("UPDATE metahistory SET video_name = :videoName WHERE id = :historyId")
     abstract fun updateMetaHistoryVideoName(historyId: Int, videoName: String?): Int
 
+    @Query("SELECT id FROM metahistory WHERE video_name = :videoName LIMIT 1")
+    abstract fun getMetaHistoryIdByVideoName(videoName: String): Int?
+
     @Query(
         """
         UPDATE metahistory SET 

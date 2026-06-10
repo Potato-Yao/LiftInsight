@@ -6,6 +6,8 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.os.Build
 import com.potato.liftinsight.common.logging.AppLogger
+import com.potato.liftinsight.training.data.MetahistoryTimeseriesEntity
+import com.potato.liftinsight.training.data.TimeseriesMetric
 import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.training.data.VideoProcessStateEntity
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +39,7 @@ internal class VideoProcessingWorker(
 
         val processedVideoName = videoFileManager.processedVideoName(videoName)
         val outputFile = videoFileManager.resolveVideoFile(processedVideoName)
+        val metahistoryId = videoProcessStore.getMetaHistoryIdByVideoName(videoName)
 
         logger.debug(TAG, "Starting pose landmark processing: videoName=$videoName, output=${outputFile.name}")
 
@@ -52,12 +55,21 @@ internal class VideoProcessingWorker(
         outputFile.delete()
 
         try {
-            processFrames(
+            val timeseriesEntries = processFrames(
                 inputFile = inputFile,
                 outputFile = outputFile,
                 videoName = videoName,
-                options = options
+                options = options,
+                metahistoryId = metahistoryId
             )
+
+            // Persist timeseries data if we have a metahistory record
+            if (metahistoryId != null && timeseriesEntries.isNotEmpty()) {
+                videoProcessStore.replaceTimeseries(metahistoryId, timeseriesEntries)
+                logger.info(TAG, "Persisted ${timeseriesEntries.size} timeseries data points: videoName=$videoName, metahistoryId=$metahistoryId")
+            } else if (metahistoryId == null) {
+                logger.warn(TAG, "No metahistory record found for videoName=$videoName, skipping timeseries persistence")
+            }
 
             videoProcessStore.upsertVideoProcessState(
                 VideoProcessStateEntity(
@@ -88,8 +100,9 @@ internal class VideoProcessingWorker(
         inputFile: java.io.File,
         outputFile: java.io.File,
         videoName: String,
-        options: DrawingOptions
-    ) {
+        options: DrawingOptions,
+        metahistoryId: Int?
+    ): List<MetahistoryTimeseriesEntity> {
         val timestampsUs = readFrameTimestamps(inputFile)
         val retriever = MediaMetadataRetriever()
         retriever.setDataSource(inputFile.absolutePath)
@@ -112,6 +125,7 @@ internal class VideoProcessingWorker(
 
         var lastQueuedPresentationTimeUs = 0L
         var encodedFrameCount = 0
+        val timeseriesEntries = mutableListOf<MetahistoryTimeseriesEntity>()
 
         try {
             timestampsUs.forEachIndexed { index, timestampUs ->
@@ -131,8 +145,21 @@ internal class VideoProcessingWorker(
                     width = frameSize.first,
                     height = frameSize.second
                 )
-                val processedFrame = poseDetectionService.detectAndDrawPose(preparedFrame, options)
+                val detectionResult = poseDetectionService.detectAndDrawPose(preparedFrame, options)
+                val processedFrame = detectionResult.bitmap
                 val normalizedPresentationTimeUs = (timestampUs - firstFrameTimestampUs).coerceAtLeast(0L)
+
+                // Collect timeseries entries for this frame
+                if (metahistoryId != null) {
+                    val normalizedPresentationTimeMs = normalizedPresentationTimeUs / 1000L
+                    timeseriesEntries.addAll(
+                        buildTimeseriesEntries(
+                            metahistoryId = metahistoryId,
+                            timestampMs = normalizedPresentationTimeMs,
+                            angles = detectionResult.angles
+                        )
+                    )
+                }
 
                 encoderSession.writeFrame(
                     bitmap = processedFrame,
@@ -183,6 +210,59 @@ internal class VideoProcessingWorker(
             retriever.release()
             encoderSession.release()
         }
+
+        return timeseriesEntries
+    }
+
+    private fun buildTimeseriesEntries(
+        metahistoryId: Int,
+        timestampMs: Long,
+        angles: PoseOverlayAngles
+    ): List<MetahistoryTimeseriesEntity> {
+        val entries = mutableListOf<MetahistoryTimeseriesEntity>()
+
+        angles.spineAngle?.let { angle ->
+            entries += MetahistoryTimeseriesEntity(
+                metahistoryId = metahistoryId,
+                timestampMs = timestampMs,
+                metricName = TimeseriesMetric.SPINE_ANGLE,
+                value = angle
+            )
+        }
+        angles.leftLegSpineAngle?.let { angle ->
+            entries += MetahistoryTimeseriesEntity(
+                metahistoryId = metahistoryId,
+                timestampMs = timestampMs,
+                metricName = TimeseriesMetric.LEFT_LEG_SPINE_ANGLE,
+                value = angle
+            )
+        }
+        angles.rightLegSpineAngle?.let { angle ->
+            entries += MetahistoryTimeseriesEntity(
+                metahistoryId = metahistoryId,
+                timestampMs = timestampMs,
+                metricName = TimeseriesMetric.RIGHT_LEG_SPINE_ANGLE,
+                value = angle
+            )
+        }
+        angles.leftKneeAngle?.let { angle ->
+            entries += MetahistoryTimeseriesEntity(
+                metahistoryId = metahistoryId,
+                timestampMs = timestampMs,
+                metricName = TimeseriesMetric.LEFT_KNEE_ANGLE,
+                value = angle
+            )
+        }
+        angles.rightKneeAngle?.let { angle ->
+            entries += MetahistoryTimeseriesEntity(
+                metahistoryId = metahistoryId,
+                timestampMs = timestampMs,
+                metricName = TimeseriesMetric.RIGHT_KNEE_ANGLE,
+                value = angle
+            )
+        }
+
+        return entries
     }
 
     private fun readFrameTimestamps(inputFile: java.io.File): List<Long> {

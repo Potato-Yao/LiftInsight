@@ -125,12 +125,12 @@ internal fun TrainingHistoryScreen(
     var videoPlayerUri by remember { mutableStateOf<Uri?>(null) }
     var videoEditorRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var videoEditorHasProcessedCopy by remember { mutableStateOf(false) }
-    var analysisVideoRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var exportDialogRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var exportDialogHasProcessedCopy by remember { mutableStateOf(false) }
     var importTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var cameraTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var calibrationTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
+    var analysisVideoRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var showContent by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var recordToDelete by remember { mutableStateOf<MetaHistoryRecord?>(null) }
@@ -848,38 +848,21 @@ internal fun TrainingHistoryScreen(
                     state = controller.requestVideoStatusRefresh(
                         controller.selectRecord(state, record)
                     )
-                }
-            )
-        }
-    }
-
-    analysisVideoRecord?.let { record ->
-        val videoName = record.videoName
-
-        if (!videoName.isNullOrBlank()) {
-            AnalysisVideoOverlay(
-                videoFileName = videoName,
-                videoProcessor = videoProcessor,
-                initialState = AnalysisVideoState(
+                },
+                initialAnalysisState = AnalysisVideoState(
                     poseDetection = record.poseDetection,
                     angleDisplay = record.angleDisplay,
                     anglePlot = record.anglePlot,
                     barbellDetection = record.barbellDetection,
                     powerCalculation = record.powerCalculation
                 ),
-                onDismiss = {
-                    analysisVideoRecord = null
-                },
-                onConfirm = { analysisState ->
-                    val capturedVideoName = videoName
-                    val capturedRecord = record
-                    analysisVideoRecord = null
+                onAnalysisSaved = { analysisState ->
                     coroutineScope.launch {
                         state = controller.submitAnalysisProcessing(
                             state = state,
-                            videoName = capturedVideoName,
+                            videoName = videoName,
                             analysisState = analysisState,
-                            record = capturedRecord
+                            record = record
                         )
                     }
                 }
@@ -904,6 +887,18 @@ internal fun TrainingHistoryScreen(
                 }
             }
         )
+    }
+
+    analysisVideoRecord?.let { record ->
+        val videoName = record.videoName
+
+        if (!videoName.isNullOrBlank()) {
+            AnalysisVideoOverlay(
+                videoFileName = videoName,
+                videoProcessor = videoProcessor,
+                onDismiss = { analysisVideoRecord = null }
+            )
+        }
     }
 }
 
