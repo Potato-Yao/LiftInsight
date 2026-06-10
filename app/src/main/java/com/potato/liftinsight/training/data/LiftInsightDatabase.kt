@@ -23,9 +23,10 @@ import com.potato.liftinsight.common.logging.AndroidAppLogger
         HistoryEntity::class,
         BodyMetricEntity::class,
         MetahistoryTimeseriesEntity::class,
-        MetahistoryTimeseriesBinEntity::class
+        MetahistoryTimeseriesBinEntity::class,
+        PoseFrameEntity::class
     ],
-    version = 21,
+    version = 22,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -34,6 +35,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
     abstract fun bodyMetricDao(): BodyMetricDao
     abstract fun timeseriesDao(): TimeseriesDao
+    abstract fun poseFrameDao(): PoseFrameDao
 
     companion object {
         private const val TAG = "LiftInsightDatabase"
@@ -313,6 +315,22 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 21 -> 22")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS metahistory_pose_frame (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        metahistory_id INTEGER NOT NULL,
+                        timestamp_ms INTEGER NOT NULL,
+                        landmarks_json TEXT NOT NULL,
+                        FOREIGN KEY(metahistory_id) REFERENCES metahistory(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_pose_frame_metahistory_id_timestamp_ms ON metahistory_pose_frame (metahistory_id, timestamp_ms)")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -359,7 +377,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                         MIGRATION_17_18,
                         MIGRATION_18_19,
                         MIGRATION_19_20,
-                        MIGRATION_20_21
+                        MIGRATION_20_21,
+                        MIGRATION_21_22
                     )
                         .build()
 

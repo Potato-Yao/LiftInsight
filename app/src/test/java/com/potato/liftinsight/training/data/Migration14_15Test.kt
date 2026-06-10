@@ -35,7 +35,7 @@ class Migration14_15Test {
         createV14DatabaseWithData()
 
         val database = Room.databaseBuilder(context, LiftInsightDatabase::class.java, dbName)
-            .addMigrations(LiftInsightDatabase.MIGRATION_14_15, LiftInsightDatabase.MIGRATION_15_16, LiftInsightDatabase.MIGRATION_16_17, LiftInsightDatabase.MIGRATION_17_18)
+            .addMigrations(LiftInsightDatabase.MIGRATION_14_15, LiftInsightDatabase.MIGRATION_15_16, LiftInsightDatabase.MIGRATION_16_17, LiftInsightDatabase.MIGRATION_17_18, LiftInsightDatabase.MIGRATION_18_19, LiftInsightDatabase.MIGRATION_19_20, LiftInsightDatabase.MIGRATION_20_21, LiftInsightDatabase.MIGRATION_21_22)
             .allowMainThreadQueries()
             .build()
 
@@ -61,7 +61,7 @@ class Migration14_15Test {
         createV14DatabaseWithData()
 
         val database = Room.databaseBuilder(context, LiftInsightDatabase::class.java, dbName)
-            .addMigrations(LiftInsightDatabase.MIGRATION_14_15, LiftInsightDatabase.MIGRATION_15_16, LiftInsightDatabase.MIGRATION_16_17, LiftInsightDatabase.MIGRATION_17_18)
+            .addMigrations(LiftInsightDatabase.MIGRATION_14_15, LiftInsightDatabase.MIGRATION_15_16, LiftInsightDatabase.MIGRATION_16_17, LiftInsightDatabase.MIGRATION_17_18, LiftInsightDatabase.MIGRATION_18_19, LiftInsightDatabase.MIGRATION_19_20, LiftInsightDatabase.MIGRATION_20_21, LiftInsightDatabase.MIGRATION_21_22)
             .allowMainThreadQueries()
             .build()
 
@@ -79,7 +79,7 @@ class Migration14_15Test {
         createV14DatabaseWithData()
 
         val database = Room.databaseBuilder(context, LiftInsightDatabase::class.java, dbName)
-            .addMigrations(LiftInsightDatabase.MIGRATION_14_15, LiftInsightDatabase.MIGRATION_15_16, LiftInsightDatabase.MIGRATION_16_17, LiftInsightDatabase.MIGRATION_17_18)
+            .addMigrations(LiftInsightDatabase.MIGRATION_14_15, LiftInsightDatabase.MIGRATION_15_16, LiftInsightDatabase.MIGRATION_16_17, LiftInsightDatabase.MIGRATION_17_18, LiftInsightDatabase.MIGRATION_18_19, LiftInsightDatabase.MIGRATION_19_20, LiftInsightDatabase.MIGRATION_20_21, LiftInsightDatabase.MIGRATION_21_22)
             .allowMainThreadQueries()
             .build()
 

@@ -413,6 +413,31 @@ data class MetahistoryTimeseriesBinEntity(
     val value: Double
 )
 
+@Entity(
+    tableName = "metahistory_pose_frame",
+    foreignKeys = [
+        ForeignKey(
+            entity = MetaHistoryEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["metahistory_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["metahistory_id", "timestamp_ms"])
+    ]
+)
+data class PoseFrameEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+    @ColumnInfo(name = "metahistory_id")
+    val metahistoryId: Int,
+    @ColumnInfo(name = "timestamp_ms")
+    val timestampMs: Long,
+    @ColumnInfo(name = "landmarks_json")
+    val landmarksJson: String
+)
+
 internal fun MotionEntity.toRecord(): MotionRecord {
     return MotionRecord(
         id = id,

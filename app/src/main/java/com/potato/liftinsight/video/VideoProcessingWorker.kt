@@ -7,6 +7,7 @@ import android.media.MediaMetadataRetriever
 import android.os.Build
 import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.training.data.MetahistoryTimeseriesEntity
+import com.potato.liftinsight.training.data.PoseFrameEntity
 import com.potato.liftinsight.training.data.TimeseriesMetric
 import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.training.data.VideoProcessStateEntity
@@ -55,7 +56,7 @@ internal class VideoProcessingWorker(
         outputFile.delete()
 
         try {
-            val timeseriesEntries = processFrames(
+            val result = processFrames(
                 inputFile = inputFile,
                 outputFile = outputFile,
                 videoName = videoName,
@@ -64,11 +65,19 @@ internal class VideoProcessingWorker(
             )
 
             // Persist timeseries data if we have a metahistory record
-            if (metahistoryId != null && timeseriesEntries.isNotEmpty()) {
-                videoProcessStore.replaceTimeseries(metahistoryId, timeseriesEntries)
-                logger.info(TAG, "Persisted ${timeseriesEntries.size} timeseries data points: videoName=$videoName, metahistoryId=$metahistoryId")
+            if (metahistoryId != null && result.timeseriesEntries.isNotEmpty()) {
+                videoProcessStore.replaceTimeseries(metahistoryId, result.timeseriesEntries)
+                logger.info(TAG, "Persisted ${result.timeseriesEntries.size} timeseries data points: videoName=$videoName, metahistoryId=$metahistoryId")
             } else if (metahistoryId == null) {
                 logger.warn(TAG, "No metahistory record found for videoName=$videoName, skipping timeseries persistence")
+            }
+
+            // Persist pose frames if we have a metahistory record
+            if (metahistoryId != null && result.poseFrameEntries.isNotEmpty()) {
+                videoProcessStore.replacePoseFrames(metahistoryId, result.poseFrameEntries)
+                logger.info(TAG, "Persisted ${result.poseFrameEntries.size} pose frame entries: videoName=$videoName, metahistoryId=$metahistoryId")
+            } else if (metahistoryId == null) {
+                logger.warn(TAG, "No metahistory record found for videoName=$videoName, skipping pose frame persistence")
             }
 
             videoProcessStore.upsertVideoProcessState(
@@ -102,7 +111,7 @@ internal class VideoProcessingWorker(
         videoName: String,
         options: DrawingOptions,
         metahistoryId: Int?
-    ): List<MetahistoryTimeseriesEntity> {
+    ): ProcessFrameResult {
         val timestampsUs = readFrameTimestamps(inputFile)
         val retriever = MediaMetadataRetriever()
         retriever.setDataSource(inputFile.absolutePath)
@@ -126,6 +135,7 @@ internal class VideoProcessingWorker(
         var lastQueuedPresentationTimeUs = 0L
         var encodedFrameCount = 0
         val timeseriesEntries = mutableListOf<MetahistoryTimeseriesEntity>()
+        val poseFrameEntries = mutableListOf<PoseFrameEntity>()
 
         try {
             timestampsUs.forEachIndexed { index, timestampUs ->
@@ -159,6 +169,18 @@ internal class VideoProcessingWorker(
                             angles = detectionResult.angles
                         )
                     )
+                    // Collect pose frames
+                    if (detectionResult.landmarkPositions.isNotEmpty()) {
+                        poseFrameEntries += PoseFrameEntity(
+                            metahistoryId = metahistoryId,
+                            timestampMs = normalizedPresentationTimeMs,
+                            landmarksJson = buildLandmarksJson(
+                                positions = detectionResult.landmarkPositions,
+                                frameWidth = preparedFrame.width,
+                                frameHeight = preparedFrame.height
+                            )
+                        )
+                    }
                 }
 
                 encoderSession.writeFrame(
@@ -211,7 +233,7 @@ internal class VideoProcessingWorker(
             encoderSession.release()
         }
 
-        return timeseriesEntries
+        return ProcessFrameResult(timeseriesEntries, poseFrameEntries)
     }
 
     private fun buildTimeseriesEntries(
@@ -263,6 +285,10 @@ internal class VideoProcessingWorker(
         }
 
         return entries
+    }
+
+    private fun buildLandmarksJson(positions: Map<Int, PoseOverlayLandmark>, frameWidth: Int, frameHeight: Int): String {
+        return buildLandmarksJsonInternal(positions, frameWidth, frameHeight)
     }
 
     private fun readFrameTimestamps(inputFile: java.io.File): List<Long> {
@@ -474,7 +500,29 @@ internal class VideoProcessingWorker(
     }
 }
 
+private data class ProcessFrameResult(
+    val timeseriesEntries: List<MetahistoryTimeseriesEntity>,
+    val poseFrameEntries: List<PoseFrameEntity>
+)
+
 private data class DecodedFrame(
     val bitmap: Bitmap,
     val timestampUs: Long
 )
+
+internal fun buildLandmarksJsonInternal(
+    positions: Map<Int, PoseOverlayLandmark>,
+    frameWidth: Int,
+    frameHeight: Int
+): String {
+    val jsonArray = org.json.JSONArray()
+    positions.forEach { (type, landmark) ->
+        val obj = org.json.JSONObject()
+        obj.put("t", type)
+        obj.put("x", (landmark.x / frameWidth).toDouble())
+        obj.put("y", (landmark.y / frameHeight).toDouble())
+        obj.put("v", landmark.visibility.toDouble())
+        jsonArray.put(obj)
+    }
+    return jsonArray.toString()
+}

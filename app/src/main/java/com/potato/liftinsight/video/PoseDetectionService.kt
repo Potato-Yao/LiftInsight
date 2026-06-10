@@ -28,7 +28,8 @@ internal data class PoseOverlaySpinePoints(
 
 internal data class PoseDetectionResult(
     val bitmap: Bitmap,
-    val angles: PoseOverlayAngles
+    val angles: PoseOverlayAngles,
+    val landmarkPositions: Map<Int, PoseOverlayLandmark>
 )
 
 internal data class PoseOverlayAngles(
@@ -134,7 +135,7 @@ internal class PoseDetectionService(
         )
 
         if (!options.drawLandmarks && !options.drawAngles) {
-            return PoseDetectionResult(bitmap, angles)
+            return PoseDetectionResult(bitmap, angles, positions)
         }
 
         val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
@@ -156,7 +157,7 @@ internal class PoseDetectionService(
             }
         }
 
-        return PoseDetectionResult(mutableBitmap, angles)
+        return PoseDetectionResult(mutableBitmap, angles, positions)
     }
 
     private fun extractLandmarkPositions(pose: Pose): Map<Int, PoseOverlayLandmark> {

@@ -36,7 +36,7 @@ class Migration17_18Test {
         createV17DatabaseWithData()
 
         val database = Room.databaseBuilder(context, LiftInsightDatabase::class.java, dbName)
-            .addMigrations(LiftInsightDatabase.MIGRATION_17_18)
+            .addMigrations(LiftInsightDatabase.MIGRATION_17_18, LiftInsightDatabase.MIGRATION_18_19, LiftInsightDatabase.MIGRATION_19_20, LiftInsightDatabase.MIGRATION_20_21, LiftInsightDatabase.MIGRATION_21_22)
             .allowMainThreadQueries()
             .build()
 
@@ -62,7 +62,7 @@ class Migration17_18Test {
         createV17DatabaseWithData()
 
         val database = Room.databaseBuilder(context, LiftInsightDatabase::class.java, dbName)
-            .addMigrations(LiftInsightDatabase.MIGRATION_17_18)
+            .addMigrations(LiftInsightDatabase.MIGRATION_17_18, LiftInsightDatabase.MIGRATION_18_19, LiftInsightDatabase.MIGRATION_19_20, LiftInsightDatabase.MIGRATION_20_21, LiftInsightDatabase.MIGRATION_21_22)
             .allowMainThreadQueries()
             .build()
 
@@ -81,7 +81,7 @@ class Migration17_18Test {
         createV17DatabaseWithData()
 
         val database = Room.databaseBuilder(context, LiftInsightDatabase::class.java, dbName)
-            .addMigrations(LiftInsightDatabase.MIGRATION_17_18)
+            .addMigrations(LiftInsightDatabase.MIGRATION_17_18, LiftInsightDatabase.MIGRATION_18_19, LiftInsightDatabase.MIGRATION_19_20, LiftInsightDatabase.MIGRATION_20_21, LiftInsightDatabase.MIGRATION_21_22)
             .allowMainThreadQueries()
             .build()
 

@@ -6,6 +6,8 @@ import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.MetahistoryTimeseriesEntity
 import com.potato.liftinsight.training.data.PlanDao
+import com.potato.liftinsight.training.data.PoseFrameDao
+import com.potato.liftinsight.training.data.PoseFrameEntity
 import com.potato.liftinsight.training.data.TimeseriesDao
 import com.potato.liftinsight.training.data.VideoProcessStateEntity
 
@@ -13,6 +15,7 @@ class VideoProcessStore private constructor(
     private val database: LiftInsightDatabase,
     private val planDao: PlanDao,
     private val timeseriesDao: TimeseriesDao,
+    private val poseFrameDao: PoseFrameDao,
     private val logger: AppLogger
 ) {
     fun getVideoProcessState(videoName: String): VideoProcessStateEntity? {
@@ -62,6 +65,25 @@ class VideoProcessStore private constructor(
         }
     }
 
+    fun deletePoseFrames(metahistoryId: Int) {
+        poseFrameDao.deleteByMetaHistoryId(metahistoryId)
+    }
+
+    fun insertPoseFrames(entities: List<PoseFrameEntity>) {
+        if (entities.isNotEmpty()) {
+            poseFrameDao.insertAll(entities)
+        }
+    }
+
+    fun replacePoseFrames(metahistoryId: Int, entities: List<PoseFrameEntity>) {
+        database.runInTransaction {
+            poseFrameDao.deleteByMetaHistoryId(metahistoryId)
+            if (entities.isNotEmpty()) {
+                poseFrameDao.insertAll(entities)
+            }
+        }
+    }
+
     companion object {
         fun from(context: Context): VideoProcessStore {
             val database = LiftInsightDatabase.from(context)
@@ -69,6 +91,7 @@ class VideoProcessStore private constructor(
                 database = database,
                 planDao = database.planDao(),
                 timeseriesDao = database.timeseriesDao(),
+                poseFrameDao = database.poseFrameDao(),
                 logger = AndroidAppLogger
             )
         }
@@ -77,7 +100,7 @@ class VideoProcessStore private constructor(
             database: LiftInsightDatabase,
             logger: AppLogger = AndroidAppLogger
         ): VideoProcessStore {
-            return VideoProcessStore(database, database.planDao(), database.timeseriesDao(), logger)
+            return VideoProcessStore(database, database.planDao(), database.timeseriesDao(), database.poseFrameDao(), logger)
         }
     }
 }
