@@ -305,6 +305,11 @@
     <string name="training_analysis_power_calculation">Power calculation</string>
     <string name="training_analysis_requires_pose_detection">Requires pose detection</string>
     <string name="training_analysis_requires_barbell_detection">Requires barbell detection</string>
+    <string name="training_analysis_overlay_title">Overlays</string>
+    <string name="training_analysis_overlay_skeleton">Body skeleton</string>
+    <string name="training_analysis_overlay_angle_display">Angle display</string>
+    <string name="training_analysis_overlay_angle_plot">Angle plot</string>
+    <string name="training_analysis_overlay_barbell_trace">Barbell trace</string>
     <string name="training_video_editor_title">Edit video</string>
     <string name="training_video_editor_preview_title">Preview</string>
     <string name="training_video_editor_preview_subtitle">Play the edited video and place the split where you want the cut to land.</string>
@@ -327,6 +332,13 @@
     <string name="training_video_editor_processed_copy_note">Processed review video will be cut too, so the current process state stays usable.</string>
     <string name="training_video_editor_loading">Loading video editor…</string>
     <string name="training_video_editor_save_error">LiftInsight could not save this video edit.</string>
+
+    <!-- Training history - marked records -->
+    <string name="training_mark_record">Mark</string>
+    <string name="training_unmark_record">Unmark</string>
+    <string name="training_card_video_status_processed">processed</string>
+    <string name="training_card_video_status_raw">raw video</string>
+    <string name="training_card_video_status_none">no video</string>
 
     <!-- Training history - delete -->
     <string name="training_delete_record">Delete record</string>

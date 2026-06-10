@@ -102,6 +102,7 @@ data class MetaHistoryRecord(
     val anglePlot: Boolean = false,
     val barbellDetection: Boolean = false,
     val powerCalculation: Boolean = false,
+    val marked: Boolean = false,
     val historyId: Int? = null
 )
 

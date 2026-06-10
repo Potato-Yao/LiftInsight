@@ -85,6 +85,9 @@ abstract class PlanDao {
     )
     abstract fun updateMetaHistoryDetails(historyId: Int, weight: Double, rep: Int, rpe: Int): Int
 
+    @Query("UPDATE metahistory SET marked = :marked WHERE id = :id")
+    abstract fun updateMetaHistoryMarked(id: Int, marked: Boolean): Int
+
     @Query("UPDATE metahistory SET video_name = :videoName WHERE id = :historyId")
     abstract fun updateMetaHistoryVideoName(historyId: Int, videoName: String?): Int
 
@@ -152,7 +155,8 @@ abstract class PlanDao {
             metahistory.angle_display,
             metahistory.angle_plot,
             metahistory.barbell_detection,
-            metahistory.power_calculation
+            metahistory.power_calculation,
+            metahistory.marked
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         ORDER BY metahistory.date DESC, metahistory.id DESC
@@ -181,7 +185,8 @@ abstract class PlanDao {
             metahistory.angle_display,
             metahistory.angle_plot,
             metahistory.barbell_detection,
-            metahistory.power_calculation
+            metahistory.power_calculation,
+            metahistory.marked
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.history_id = :historyId
@@ -342,7 +347,8 @@ abstract class PlanDao {
             angle_display,
             angle_plot,
             barbell_detection,
-            power_calculation
+            power_calculation,
+            marked
         FROM metahistory_bin
         ORDER BY date DESC, id DESC
         """
@@ -376,7 +382,8 @@ abstract class PlanDao {
             metahistory.angle_display,
             metahistory.angle_plot,
             metahistory.barbell_detection,
-            metahistory.power_calculation
+            metahistory.power_calculation,
+            metahistory.marked
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.id = :id
@@ -405,7 +412,8 @@ abstract class PlanDao {
             angle_display,
             angle_plot,
             barbell_detection,
-            power_calculation
+            power_calculation,
+            marked
         FROM metahistory_bin
         WHERE id = :id
         """
@@ -429,6 +437,12 @@ abstract class PlanDao {
             importedReferenceLabel = row.importedReferenceLabel,
             importedReferencePixelDistance = row.importedReferencePixelDistance,
             importedReferenceDistanceMeters = row.importedReferenceDistanceMeters,
+            poseDetection = row.poseDetection,
+            angleDisplay = row.angleDisplay,
+            anglePlot = row.anglePlot,
+            barbellDetection = row.barbellDetection,
+            powerCalculation = row.powerCalculation,
+            marked = row.marked,
             historyId = row.historyId
         )
 
@@ -482,6 +496,12 @@ abstract class PlanDao {
             importedReferenceLabel = row.importedReferenceLabel,
             importedReferencePixelDistance = row.importedReferencePixelDistance,
             importedReferenceDistanceMeters = row.importedReferenceDistanceMeters,
+            poseDetection = row.poseDetection,
+            angleDisplay = row.angleDisplay,
+            anglePlot = row.anglePlot,
+            barbellDetection = row.barbellDetection,
+            powerCalculation = row.powerCalculation,
+            marked = row.marked,
             historyId = row.historyId
         )
 

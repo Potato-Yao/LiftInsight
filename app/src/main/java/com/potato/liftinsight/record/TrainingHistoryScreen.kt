@@ -51,6 +51,8 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.RestoreFromTrash
 import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material.icons.rounded.Analytics
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.VideocamOff
@@ -604,6 +606,11 @@ internal fun TrainingHistoryScreen(
                         }
                     }
                 }
+            },
+            onToggleMark = {
+                coroutineScope.launch {
+                    state = controller.toggleRecordMarked(state, record)
+                }
             }
         )
     }
@@ -895,6 +902,7 @@ internal fun TrainingHistoryScreen(
         if (!videoName.isNullOrBlank()) {
             AnalysisVideoOverlay(
                 videoFileName = videoName,
+                metahistoryId = record.id,
                 videoProcessor = videoProcessor,
                 onDismiss = { analysisVideoRecord = null }
             )
@@ -914,10 +922,10 @@ private fun TrainingHistoryCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        color = if (isSelected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainer
+        color = when {
+            isSelected -> MaterialTheme.colorScheme.primaryContainer
+            record.marked && !isBatchMode -> MaterialTheme.colorScheme.surfaceContainerHighest
+            else -> MaterialTheme.colorScheme.surfaceContainer
         },
         shape = RoundedCornerShape(28.dp),
         border = BorderStroke(
@@ -1009,9 +1017,28 @@ private fun TrainingHistoryCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    Text(
+                        text = videoStatusLabel(record),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun videoStatusLabel(record: MetaHistoryRecord): String {
+    if (record.videoName.isNullOrBlank()) {
+        return stringResource(R.string.training_card_video_status_none)
+    }
+    val hasAnalysis = record.poseDetection || record.angleDisplay || record.anglePlot || record.barbellDetection || record.powerCalculation
+    return if (hasAnalysis) {
+        stringResource(R.string.training_card_video_status_processed)
+    } else {
+        stringResource(R.string.training_card_video_status_raw)
     }
 }
 
@@ -1031,7 +1058,8 @@ private fun TrainingHistoryDetailSheet(
     onCalibrateVideo: () -> Unit,
     onEditVideo: () -> Unit,
     onAnalysisVideo: () -> Unit,
-    onExportVideo: () -> Unit
+    onExportVideo: () -> Unit,
+    onToggleMark: () -> Unit = {}
 ) {
     val hasVideo = !record.videoName.isNullOrBlank()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1090,6 +1118,26 @@ private fun TrainingHistoryDetailSheet(
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        IconButton(
+                            onClick = onToggleMark
+                        ) {
+                            Icon(
+                                imageVector = if (record.marked) {
+                                    Icons.Rounded.Bookmark
+                                } else {
+                                    Icons.Rounded.BookmarkBorder
+                                },
+                                contentDescription = stringResource(
+                                    if (record.marked) R.string.training_unmark_record else R.string.training_mark_record
+                                ),
+                                tint = if (record.marked) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+
                         IconButton(
                             onClick = onExportVideo,
                             enabled = hasVideo

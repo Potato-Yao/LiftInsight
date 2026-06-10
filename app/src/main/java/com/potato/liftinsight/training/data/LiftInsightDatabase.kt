@@ -26,7 +26,7 @@ import com.potato.liftinsight.common.logging.AndroidAppLogger
         MetahistoryTimeseriesBinEntity::class,
         PoseFrameEntity::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -331,6 +331,14 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 22 -> 23")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN marked INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE metahistory_bin ADD COLUMN marked INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -378,7 +386,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                         MIGRATION_18_19,
                         MIGRATION_19_20,
                         MIGRATION_20_21,
-                        MIGRATION_21_22
+                        MIGRATION_21_22,
+                        MIGRATION_22_23
                     )
                         .build()
 

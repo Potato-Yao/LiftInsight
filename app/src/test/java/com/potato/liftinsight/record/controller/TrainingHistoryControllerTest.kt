@@ -877,4 +877,52 @@ class TrainingHistoryControllerTest {
 
         assertEquals(records, updatedState.records)
     }
+
+    // --- toggleRecordMarked ---
+
+    @Test
+    fun toggleRecordMarked_marksUnmarkedRecord() = runBlocking {
+        insertTestMotion()
+        val recordId = insertTestHistoryRecord().toInt()
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+        assertFalse(record.marked)
+
+        val updatedState = controller.toggleRecordMarked(state, record)
+        val updatedRecord = updatedState.records.first { it.id == recordId }
+
+        assertTrue(updatedRecord.marked)
+    }
+
+    @Test
+    fun toggleRecordMarked_unmarksMarkedRecord() = runBlocking {
+        insertTestMotion()
+        val recordId = insertTestHistoryRecord().toInt()
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+
+        val stateAfterFirstToggle = controller.toggleRecordMarked(state, record)
+        val markedRecord = stateAfterFirstToggle.records.first { it.id == recordId }
+        assertTrue(markedRecord.marked)
+
+        val stateAfterSecondToggle = controller.toggleRecordMarked(stateAfterFirstToggle, markedRecord)
+        val unmarkedRecord = stateAfterSecondToggle.records.first { it.id == recordId }
+
+        assertFalse(unmarkedRecord.marked)
+    }
+
+    @Test
+    fun toggleRecordMarked_updatesSelectedRecord() = runBlocking {
+        insertTestMotion()
+        val recordId = insertTestHistoryRecord().toInt()
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+        val stateWithSelected = state.copy(selectedRecord = record)
+
+        val updatedState = controller.toggleRecordMarked(stateWithSelected, record)
+        val updatedSelected = updatedState.selectedRecord
+
+        assertNotNull(updatedSelected)
+        assertTrue(updatedSelected!!.marked)
+    }
 }

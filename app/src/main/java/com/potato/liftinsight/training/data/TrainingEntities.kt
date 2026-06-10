@@ -212,6 +212,8 @@ data class MetaHistoryEntity(
     val barbellDetection: Boolean = false,
     @ColumnInfo(name = "power_calculation", defaultValue = "0")
     val powerCalculation: Boolean = false,
+    @ColumnInfo(name = "marked", defaultValue = "0")
+    val marked: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -281,6 +283,8 @@ data class MetaHistoryRow(
     val barbellDetection: Boolean = false,
     @ColumnInfo(name = "power_calculation")
     val powerCalculation: Boolean = false,
+    @ColumnInfo(name = "marked")
+    val marked: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -334,6 +338,8 @@ data class MetaHistoryBinEntity(
     val barbellDetection: Boolean = false,
     @ColumnInfo(name = "power_calculation", defaultValue = "0")
     val powerCalculation: Boolean = false,
+    @ColumnInfo(name = "marked", defaultValue = "0")
+    val marked: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -370,6 +376,8 @@ data class MetaHistoryBinRow(
     val barbellDetection: Boolean = false,
     @ColumnInfo(name = "power_calculation")
     val powerCalculation: Boolean = false,
+    @ColumnInfo(name = "marked")
+    val marked: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -520,6 +528,7 @@ internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
         anglePlot = anglePlot,
         barbellDetection = barbellDetection,
         powerCalculation = powerCalculation,
+        marked = marked,
         historyId = historyId
     )
 }
@@ -555,6 +564,7 @@ internal fun MetaHistoryBinRow.toRecord(): MetaHistoryRecord {
         anglePlot = anglePlot,
         barbellDetection = barbellDetection,
         powerCalculation = powerCalculation,
+        marked = marked,
         historyId = historyId
     )
 }

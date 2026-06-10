@@ -471,6 +471,13 @@ class TrainingPlanStore private constructor(
         return updatedRows > 0
     }
 
+    fun toggleMetaHistoryMarked(id: Int, marked: Boolean): Boolean {
+        logTrace("toggleMetaHistoryMarked start: id=$id, marked=$marked")
+        val updatedRows = database.planDao().updateMetaHistoryMarked(id, marked)
+        logTrace("toggleMetaHistoryMarked result: updatedRows=$updatedRows")
+        return updatedRows > 0
+    }
+
     fun createTrainingPlan(
         plan: TrainingPlanState
     ): Int {

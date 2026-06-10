@@ -133,6 +133,23 @@ class TrainingHistoryController(
         return state.withUpdatedRecord(updatedRecord)
     }
 
+    suspend fun toggleRecordMarked(
+        state: TrainingHistoryState,
+        record: MetaHistoryRecord
+    ): TrainingHistoryState {
+        logDebug("toggleRecordMarked start: recordId=${record.id}, currentMarked=${record.marked}")
+        val newMarked = !record.marked
+        val didUpdate = withContext(Dispatchers.IO) {
+            trainingPlanStore.toggleMetaHistoryMarked(record.id, newMarked)
+        }
+        if (!didUpdate) {
+            logWarn("toggleRecordMarked: update failed for recordId=${record.id}")
+            return state
+        }
+        val updatedRecord = record.copy(marked = newMarked)
+        return state.withUpdatedRecord(updatedRecord)
+    }
+
     suspend fun attachLocalVideo(
         state: TrainingHistoryState,
         context: Context,
