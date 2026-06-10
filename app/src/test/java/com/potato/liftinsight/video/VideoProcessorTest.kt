@@ -58,7 +58,7 @@ class VideoProcessorTest {
             true,
             logger.entries().any { entry ->
                 entry.level == "warn" &&
-                    entry.tag == "VideoProcessor" &&
+                    entry.tag == "VideoProcessingWorker" &&
                     entry.message == "Cannot process video because the finalized source file was not ready: videoName=missing-lift.mp4"
             }
         )

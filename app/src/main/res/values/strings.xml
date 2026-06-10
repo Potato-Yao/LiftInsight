@@ -369,4 +369,9 @@
     <string name="training_bin_permanent_delete_batch_confirm_message">%1$d record(s) will be permanently deleted and cannot be restored.</string>
     <string name="training_bin_revert_batch_confirm_title">Restore selected records?</string>
     <string name="training_bin_revert_batch_confirm_message">%1$d record(s) will be moved back to your training history.</string>
+
+    <!-- Video processing foreground service -->
+    <string name="video_processing_notification_channel_name">Video processing</string>
+    <string name="video_processing_notification_title">Processing video</string>
+    <string name="video_processing_notification_text">LiftInsight is analyzing your lift video in the background</string>
 </resources>
