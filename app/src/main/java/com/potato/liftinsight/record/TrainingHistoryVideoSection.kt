@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.potato.liftinsight.R
+import com.potato.liftinsight.record.model.AnalysisVideoState
 import com.potato.liftinsight.training.data.MetaHistoryRecord
 import com.potato.liftinsight.video.VideoProcessor
 
@@ -109,7 +110,8 @@ internal fun AnalysisVideoOverlay(
     videoFileName: String,
     videoProcessor: VideoProcessor,
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: (AnalysisVideoState) -> Unit,
+    initialState: AnalysisVideoState = AnalysisVideoState()
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -120,6 +122,7 @@ internal fun AnalysisVideoOverlay(
             videoProcessor = videoProcessor,
             onDismiss = onDismiss,
             onConfirm = onConfirm,
+            initialState = initialState,
             modifier = Modifier.fillMaxSize()
         )
     }

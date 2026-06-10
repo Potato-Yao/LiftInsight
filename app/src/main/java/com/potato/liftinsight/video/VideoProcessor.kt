@@ -35,6 +35,9 @@ data class VideoProcessingStatus(
 
 interface VideoProcessor {
     fun submitForProcessing(videoName: String)
+    fun submitForProcessing(videoName: String, options: DrawingOptions)
+
+    fun resetProcessingState(videoName: String)
 
     fun hasProcessedCopy(videoName: String): Boolean
 
@@ -71,6 +74,9 @@ interface VideoProcessor {
 
 object NoOpVideoProcessor : VideoProcessor {
     override fun submitForProcessing(videoName: String) = Unit
+    override fun submitForProcessing(videoName: String, options: DrawingOptions) = Unit
+
+    override fun resetProcessingState(videoName: String) = Unit
 
     override fun hasProcessedCopy(videoName: String): Boolean = false
 
@@ -104,8 +110,18 @@ private class PoseLandmarkVideoProcessor(
 ) : VideoProcessor {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val queuedVideoNames = ConcurrentHashMap.newKeySet<String>()
+    private val pendingOptions = ConcurrentHashMap<String, DrawingOptions>()
 
     override fun submitForProcessing(videoName: String) {
+        submitForProcessing(videoName, DrawingOptions(drawLandmarks = true, drawAngles = true))
+    }
+
+    override fun submitForProcessing(videoName: String, options: DrawingOptions) {
+        pendingOptions[videoName.trim()] = options
+        submitForProcessingInternal(videoName)
+    }
+
+    private fun submitForProcessingInternal(videoName: String) {
         val normalizedVideoName = videoName.trim()
 
         if (normalizedVideoName.isBlank()) {
@@ -242,6 +258,17 @@ private class PoseLandmarkVideoProcessor(
         return originalFile.takeIf { file -> file.exists() }
     }
 
+    override fun resetProcessingState(videoName: String) {
+        val normalizedVideoName = videoName.trim()
+        val status = loadStatus(normalizedVideoName, includeQueuedState = false)
+        status.processedVideoName?.let { processedName ->
+            videoFileManager.resolveVideoFile(processedName).delete()
+        }
+        videoProcessStore.deleteVideoProcessState(normalizedVideoName)
+        queuedVideoNames.remove(normalizedVideoName)
+        pendingOptions.remove(normalizedVideoName)
+    }
+
     private suspend fun processVideo(videoName: String) = withContext(Dispatchers.IO) {
         val inputFile = awaitInputVideoFile(videoName)
 
@@ -274,11 +301,14 @@ private class PoseLandmarkVideoProcessor(
 
         outputFile.delete()
 
+        val options = pendingOptions.remove(videoName) ?: DrawingOptions()
+
         try {
             processFrames(
                 inputFile = inputFile,
                 outputFile = outputFile,
-                videoName = videoName
+                videoName = videoName,
+                options = options
             )
 
             videoProcessStore.upsertVideoProcessState(
@@ -309,7 +339,8 @@ private class PoseLandmarkVideoProcessor(
     private fun processFrames(
         inputFile: File,
         outputFile: File,
-        videoName: String
+        videoName: String,
+        options: DrawingOptions
     ) {
         val timestampsUs = readFrameTimestamps(inputFile)
         val retriever = MediaMetadataRetriever()
@@ -352,7 +383,7 @@ private class PoseLandmarkVideoProcessor(
                     width = frameSize.first,
                     height = frameSize.second
                 )
-                val processedFrame = poseDetectionService.detectAndDrawPose(preparedFrame)
+                val processedFrame = poseDetectionService.detectAndDrawPose(preparedFrame, options)
                 val normalizedPresentationTimeUs = (timestampUs - firstFrameTimestampUs).coerceAtLeast(0L)
 
                 encoderSession.writeFrame(

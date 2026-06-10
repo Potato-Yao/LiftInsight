@@ -202,6 +202,16 @@ data class MetaHistoryEntity(
     val importedReferencePixelDistance: Double? = null,
     @ColumnInfo(name = "imported_reference_distance_meters")
     val importedReferenceDistanceMeters: Double? = null,
+    @ColumnInfo(name = "pose_detection", defaultValue = "0")
+    val poseDetection: Boolean = false,
+    @ColumnInfo(name = "angle_display", defaultValue = "0")
+    val angleDisplay: Boolean = false,
+    @ColumnInfo(name = "angle_plot", defaultValue = "0")
+    val anglePlot: Boolean = false,
+    @ColumnInfo(name = "barbell_detection", defaultValue = "0")
+    val barbellDetection: Boolean = false,
+    @ColumnInfo(name = "power_calculation", defaultValue = "0")
+    val powerCalculation: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -261,6 +271,16 @@ data class MetaHistoryRow(
     val importedReferencePixelDistance: Double?,
     @ColumnInfo(name = "imported_reference_distance_meters")
     val importedReferenceDistanceMeters: Double?,
+    @ColumnInfo(name = "pose_detection")
+    val poseDetection: Boolean = false,
+    @ColumnInfo(name = "angle_display")
+    val angleDisplay: Boolean = false,
+    @ColumnInfo(name = "angle_plot")
+    val anglePlot: Boolean = false,
+    @ColumnInfo(name = "barbell_detection")
+    val barbellDetection: Boolean = false,
+    @ColumnInfo(name = "power_calculation")
+    val powerCalculation: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -304,6 +324,16 @@ data class MetaHistoryBinEntity(
     val importedReferencePixelDistance: Double? = null,
     @ColumnInfo(name = "imported_reference_distance_meters")
     val importedReferenceDistanceMeters: Double? = null,
+    @ColumnInfo(name = "pose_detection", defaultValue = "0")
+    val poseDetection: Boolean = false,
+    @ColumnInfo(name = "angle_display", defaultValue = "0")
+    val angleDisplay: Boolean = false,
+    @ColumnInfo(name = "angle_plot", defaultValue = "0")
+    val anglePlot: Boolean = false,
+    @ColumnInfo(name = "barbell_detection", defaultValue = "0")
+    val barbellDetection: Boolean = false,
+    @ColumnInfo(name = "power_calculation", defaultValue = "0")
+    val powerCalculation: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -330,8 +360,57 @@ data class MetaHistoryBinRow(
     val importedReferencePixelDistance: Double?,
     @ColumnInfo(name = "imported_reference_distance_meters")
     val importedReferenceDistanceMeters: Double?,
+    @ColumnInfo(name = "pose_detection")
+    val poseDetection: Boolean = false,
+    @ColumnInfo(name = "angle_display")
+    val angleDisplay: Boolean = false,
+    @ColumnInfo(name = "angle_plot")
+    val anglePlot: Boolean = false,
+    @ColumnInfo(name = "barbell_detection")
+    val barbellDetection: Boolean = false,
+    @ColumnInfo(name = "power_calculation")
+    val powerCalculation: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
+)
+
+@Entity(
+    tableName = "metahistory_timeseries",
+    foreignKeys = [
+        ForeignKey(
+            entity = MetaHistoryEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["metahistory_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["metahistory_id", "metric_name", "timestamp_ms"])
+    ]
+)
+data class MetahistoryTimeseriesEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+    @ColumnInfo(name = "metahistory_id")
+    val metahistoryId: Int,
+    @ColumnInfo(name = "timestamp_ms")
+    val timestampMs: Long,
+    @ColumnInfo(name = "metric_name")
+    val metricName: String,
+    val value: Double
+)
+
+@Entity(tableName = "metahistory_timeseries_bin")
+data class MetahistoryTimeseriesBinEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+    @ColumnInfo(name = "original_metahistory_id")
+    val originalMetahistoryId: Int,
+    @ColumnInfo(name = "timestamp_ms")
+    val timestampMs: Long,
+    @ColumnInfo(name = "metric_name")
+    val metricName: String,
+    val value: Double
 )
 
 internal fun MotionEntity.toRecord(): MotionRecord {
@@ -411,6 +490,11 @@ internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
         importedReferenceLabel = importedReferenceLabel,
         importedReferencePixelDistance = importedReferencePixelDistance,
         importedReferenceDistanceMeters = importedReferenceDistanceMeters,
+        poseDetection = poseDetection,
+        angleDisplay = angleDisplay,
+        anglePlot = anglePlot,
+        barbellDetection = barbellDetection,
+        powerCalculation = powerCalculation,
         historyId = historyId
     )
 }
@@ -441,6 +525,11 @@ internal fun MetaHistoryBinRow.toRecord(): MetaHistoryRecord {
         importedReferenceLabel = importedReferenceLabel,
         importedReferencePixelDistance = importedReferencePixelDistance,
         importedReferenceDistanceMeters = importedReferenceDistanceMeters,
+        poseDetection = poseDetection,
+        angleDisplay = angleDisplay,
+        anglePlot = anglePlot,
+        barbellDetection = barbellDetection,
+        powerCalculation = powerCalculation,
         historyId = historyId
     )
 }

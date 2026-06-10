@@ -65,6 +65,9 @@ abstract class PlanDao {
     )
     abstract fun getVideoProcessState(videoName: String): VideoProcessStateEntity?
 
+    @Query("DELETE FROM video_process_state WHERE video_name = :videoName")
+    abstract fun deleteVideoProcessState(videoName: String)
+
     @Query(
         "UPDATE video_process_state SET state = :state, progress = :progress WHERE video_name = :videoName"
     )
@@ -84,6 +87,26 @@ abstract class PlanDao {
 
     @Query("UPDATE metahistory SET video_name = :videoName WHERE id = :historyId")
     abstract fun updateMetaHistoryVideoName(historyId: Int, videoName: String?): Int
+
+    @Query(
+        """
+        UPDATE metahistory SET 
+            pose_detection = :poseDetection,
+            angle_display = :angleDisplay,
+            angle_plot = :anglePlot,
+            barbell_detection = :barbellDetection,
+            power_calculation = :powerCalculation
+        WHERE id = :recordId
+        """
+    )
+    abstract fun updateAnalysisVideoState(
+        recordId: Int,
+        poseDetection: Boolean,
+        angleDisplay: Boolean,
+        anglePlot: Boolean,
+        barbellDetection: Boolean,
+        powerCalculation: Boolean
+    )
 
     @Query(
         """
@@ -121,7 +144,12 @@ abstract class PlanDao {
             metahistory.imported_reference_label,
             metahistory.imported_reference_pixel_distance,
             metahistory.imported_reference_distance_meters,
-            metahistory.history_id
+            metahistory.history_id,
+            metahistory.pose_detection,
+            metahistory.angle_display,
+            metahistory.angle_plot,
+            metahistory.barbell_detection,
+            metahistory.power_calculation
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         ORDER BY metahistory.date DESC, metahistory.id DESC
@@ -145,7 +173,12 @@ abstract class PlanDao {
             metahistory.imported_reference_label,
             metahistory.imported_reference_pixel_distance,
             metahistory.imported_reference_distance_meters,
-            metahistory.history_id
+            metahistory.history_id,
+            metahistory.pose_detection,
+            metahistory.angle_display,
+            metahistory.angle_plot,
+            metahistory.barbell_detection,
+            metahistory.power_calculation
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.history_id = :historyId
@@ -264,6 +297,27 @@ abstract class PlanDao {
     @Query("DELETE FROM metahistory WHERE id = :id")
     abstract fun deleteMetaHistoryById(id: Int): Int
 
+    @Insert
+    protected abstract fun insertTimeseriesBin(entities: List<MetahistoryTimeseriesBinEntity>)
+
+    @Query(
+        """
+        SELECT timestamp_ms, metric_name, value
+        FROM metahistory_timeseries_bin
+        WHERE original_metahistory_id = :originalMetahistoryId
+        """
+    )
+    protected abstract fun getTimeseriesBinEntries(originalMetahistoryId: Int): List<BinTimeseriesEntry>
+
+    @Query("DELETE FROM metahistory_timeseries_bin WHERE original_metahistory_id = :originalMetahistoryId")
+    protected abstract fun deleteTimeseriesBinByOriginalMetaHistoryId(originalMetahistoryId: Int): Int
+
+    @Query("SELECT * FROM metahistory_timeseries WHERE metahistory_id = :metahistoryId")
+    protected abstract fun getTimeseriesEntities(metahistoryId: Int): List<MetahistoryTimeseriesEntity>
+
+    @Insert
+    protected abstract fun insertTimeseriesEntities(entities: List<MetahistoryTimeseriesEntity>)
+
     @Query(
         """
         SELECT
@@ -280,7 +334,12 @@ abstract class PlanDao {
             imported_reference_label,
             imported_reference_pixel_distance,
             imported_reference_distance_meters,
-            history_id
+            history_id,
+            pose_detection,
+            angle_display,
+            angle_plot,
+            barbell_detection,
+            power_calculation
         FROM metahistory_bin
         ORDER BY date DESC, id DESC
         """
@@ -309,7 +368,12 @@ abstract class PlanDao {
             metahistory.imported_reference_label,
             metahistory.imported_reference_pixel_distance,
             metahistory.imported_reference_distance_meters,
-            metahistory.history_id
+            metahistory.history_id,
+            metahistory.pose_detection,
+            metahistory.angle_display,
+            metahistory.angle_plot,
+            metahistory.barbell_detection,
+            metahistory.power_calculation
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.id = :id
@@ -333,7 +397,12 @@ abstract class PlanDao {
             imported_reference_label,
             imported_reference_pixel_distance,
             imported_reference_distance_meters,
-            history_id
+            history_id,
+            pose_detection,
+            angle_display,
+            angle_plot,
+            barbell_detection,
+            power_calculation
         FROM metahistory_bin
         WHERE id = :id
         """
@@ -360,7 +429,22 @@ abstract class PlanDao {
             historyId = row.historyId
         )
 
-        insertMetaHistoryBin(binEntity)
+        val binId = insertMetaHistoryBin(binEntity).toInt()
+
+        // Preserve timeseries data before CASCADE delete removes it
+        val timeseriesRows = getTimeseriesEntities(historyId)
+        if (timeseriesRows.isNotEmpty()) {
+            val binTimeseries = timeseriesRows.map { entity ->
+                MetahistoryTimeseriesBinEntity(
+                    originalMetahistoryId = binId,
+                    timestampMs = entity.timestampMs,
+                    metricName = entity.metricName,
+                    value = entity.value
+                )
+            }
+            insertTimeseriesBin(binTimeseries)
+        }
+
         deleteMetaHistoryById(historyId)
 
         return true
@@ -398,7 +482,23 @@ abstract class PlanDao {
             historyId = row.historyId
         )
 
-        insertMetaHistory(historyEntity)
+        val newMetaHistoryId = insertMetaHistory(historyEntity).toInt()
+
+        // Restore timeseries data from bin
+        val binTimeseries = getTimeseriesBinEntries(binId)
+        if (binTimeseries.isNotEmpty()) {
+            val restoredTimeseries = binTimeseries.map { entry ->
+                MetahistoryTimeseriesEntity(
+                    metahistoryId = newMetaHistoryId,
+                    timestampMs = entry.timestampMs,
+                    metricName = entry.metricName,
+                    value = entry.value
+                )
+            }
+            insertTimeseriesEntities(restoredTimeseries)
+            deleteTimeseriesBinByOriginalMetaHistoryId(binId)
+        }
+
         deleteMetaHistoryBinById(binId)
 
         return true

@@ -112,7 +112,11 @@ internal class PoseDetectionService(
         textSize = 34f
     }
 
-    fun detectAndDrawPose(bitmap: Bitmap): Bitmap {
+    fun detectAndDrawPose(bitmap: Bitmap, options: DrawingOptions = DrawingOptions()): Bitmap {
+        if (!options.drawLandmarks && !options.drawAngles) {
+            return bitmap
+        }
+
         val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(mutableBitmap)
         val pose = runCatching {
@@ -122,25 +126,33 @@ internal class PoseDetectionService(
         }.getOrNull()
 
         if (pose != null) {
-            drawPoseLandmarks(
-                canvas = canvas,
-                pose = pose,
-                linePaint = linePaint,
-                pointPaint = pointPaint,
-                pointRadius = 6f
-            )
+            val positions = extractLandmarkPositions(pose)
+
+            if (options.drawLandmarks) {
+                drawPoseLandmarks(
+                    canvas = canvas,
+                    positions = positions
+                )
+            }
+
+            if (options.drawAngles) {
+                val spinePoints = calculateSpinePoints(positions)
+                drawAngleOverlay(
+                    canvas = canvas,
+                    angles = calculateOverlayAngles(
+                        landmarks = positions,
+                        spinePoints = spinePoints,
+                        frameWidth = canvas.width.toFloat(),
+                        frameHeight = canvas.height.toFloat()
+                    )
+                )
+            }
         }
 
         return mutableBitmap
     }
 
-    private fun drawPoseLandmarks(
-        canvas: Canvas,
-        pose: Pose,
-        linePaint: Paint,
-        pointPaint: Paint,
-        pointRadius: Float
-    ) {
+    private fun extractLandmarkPositions(pose: Pose): Map<Int, PoseOverlayLandmark> {
         val positions = mutableMapOf<Int, PoseOverlayLandmark>()
 
         for (type in OVERLAY_LANDMARK_TYPES) {
@@ -155,9 +167,21 @@ internal class PoseDetectionService(
                 y = landmark.position.y,
                 visibility = landmark.inFrameLikelihood
             )
+        }
+
+        return positions
+    }
+
+    private fun drawPoseLandmarks(
+        canvas: Canvas,
+        positions: Map<Int, PoseOverlayLandmark>
+    ) {
+        val pointRadius = 6f
+
+        positions.forEach { (_, landmark) ->
             canvas.drawCircle(
-                landmark.position.x,
-                landmark.position.y,
+                landmark.x,
+                landmark.y,
                 pointRadius,
                 pointPaint
             )
@@ -204,16 +228,6 @@ internal class PoseDetectionService(
                 spinePointPaint
             )
         }
-
-        drawAngleOverlay(
-            canvas = canvas,
-            angles = calculateOverlayAngles(
-                landmarks = positions,
-                spinePoints = spinePoints,
-                frameWidth = canvas.width.toFloat(),
-                frameHeight = canvas.height.toFloat()
-            )
-        )
     }
 
     private fun drawAngleOverlay(

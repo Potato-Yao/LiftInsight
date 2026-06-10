@@ -18,6 +18,7 @@ import com.potato.liftinsight.plan.route.PlanRoute
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.VideoProcessState
+import com.potato.liftinsight.video.DrawingOptions
 import com.potato.liftinsight.video.VideoProcessingStatus
 import com.potato.liftinsight.video.VideoProcessor
 import kotlinx.coroutines.runBlocking
@@ -554,6 +555,12 @@ private class FakeVideoProcessor : VideoProcessor {
     override fun submitForProcessing(videoName: String) {
         submittedVideoNames += videoName
     }
+
+    override fun submitForProcessing(videoName: String, options: DrawingOptions) {
+        submitForProcessing(videoName)
+    }
+
+    override fun resetProcessingState(videoName: String) = Unit
 
     override fun hasProcessedCopy(videoName: String): Boolean = false
 

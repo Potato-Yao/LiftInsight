@@ -15,6 +15,10 @@ class VideoProcessStore private constructor(
         return planDao.getVideoProcessState(videoName)
     }
 
+    fun deleteVideoProcessState(videoName: String) {
+        planDao.deleteVideoProcessState(videoName)
+    }
+
     fun upsertVideoProcessState(state: VideoProcessStateEntity) {
         planDao.upsertVideoProcessState(state)
     }

@@ -404,6 +404,24 @@ class TrainingPlanStore private constructor(
         return updatedRows > 0
     }
 
+    fun updateAnalysisVideoState(
+        recordId: Int,
+        poseDetection: Boolean,
+        angleDisplay: Boolean,
+        anglePlot: Boolean,
+        barbellDetection: Boolean,
+        powerCalculation: Boolean
+    ) {
+        database.planDao().updateAnalysisVideoState(
+            recordId = recordId,
+            poseDetection = poseDetection,
+            angleDisplay = angleDisplay,
+            anglePlot = anglePlot,
+            barbellDetection = barbellDetection,
+            powerCalculation = powerCalculation
+        )
+    }
+
     fun updateImportedVideoMetadata(request: UpdateImportedVideoMetadataRequest): Boolean {
         logTrace(
             "updateImportedVideoMetadata start: historyId=${request.historyId}, source=${request.videoSource}, mode=${request.analysisMode}"

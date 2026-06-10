@@ -54,11 +54,12 @@ internal fun AnalysisVideoScreen(
     videoFileName: String,
     videoProcessor: VideoProcessor,
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
+    onConfirm: (AnalysisVideoState) -> Unit,
+    initialState: AnalysisVideoState = AnalysisVideoState(),
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var analysisState by remember { mutableStateOf(AnalysisVideoState()) }
+    var analysisState by remember { mutableStateOf(initialState) }
     var isPlaying by remember { mutableStateOf(false) }
     var durationMs by remember { mutableStateOf(0L) }
     var isLoading by remember { mutableStateOf(true) }
@@ -127,7 +128,7 @@ internal fun AnalysisVideoScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = onConfirm) {
+                    TextButton(onClick = { onConfirm(analysisState) }) {
                         Text(text = stringResource(R.string.common_save))
                     }
                 }

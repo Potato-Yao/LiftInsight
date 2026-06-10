@@ -97,6 +97,11 @@ data class MetaHistoryRecord(
     val importedReferenceLabel: String = "",
     val importedReferencePixelDistance: Double? = null,
     val importedReferenceDistanceMeters: Double? = null,
+    val poseDetection: Boolean = false,
+    val angleDisplay: Boolean = false,
+    val anglePlot: Boolean = false,
+    val barbellDetection: Boolean = false,
+    val powerCalculation: Boolean = false,
     val historyId: Int? = null
 )
 

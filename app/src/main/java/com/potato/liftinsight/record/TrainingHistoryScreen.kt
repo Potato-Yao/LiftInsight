@@ -95,6 +95,7 @@ import com.potato.liftinsight.R
 import com.potato.liftinsight.camera.CameraScreen
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.controller.TrainingHistoryController
+import com.potato.liftinsight.record.model.AnalysisVideoState
 import com.potato.liftinsight.record.model.DisplayMode
 import com.potato.liftinsight.record.model.TrainingHistoryState
 import com.potato.liftinsight.training.data.HistoryRecord
@@ -859,11 +860,28 @@ internal fun TrainingHistoryScreen(
             AnalysisVideoOverlay(
                 videoFileName = videoName,
                 videoProcessor = videoProcessor,
+                initialState = AnalysisVideoState(
+                    poseDetection = record.poseDetection,
+                    angleDisplay = record.angleDisplay,
+                    anglePlot = record.anglePlot,
+                    barbellDetection = record.barbellDetection,
+                    powerCalculation = record.powerCalculation
+                ),
                 onDismiss = {
                     analysisVideoRecord = null
                 },
-                onConfirm = {
+                onConfirm = { analysisState ->
+                    val capturedVideoName = videoName
+                    val capturedRecord = record
                     analysisVideoRecord = null
+                    coroutineScope.launch {
+                        state = controller.submitAnalysisProcessing(
+                            state = state,
+                            videoName = capturedVideoName,
+                            analysisState = analysisState,
+                            record = capturedRecord
+                        )
+                    }
                 }
             )
         }

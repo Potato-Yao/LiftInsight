@@ -21,9 +21,11 @@ import com.potato.liftinsight.common.logging.AndroidAppLogger
         VideoProcessStateEntity::class,
         MetaHistoryBinEntity::class,
         HistoryEntity::class,
-        BodyMetricEntity::class
+        BodyMetricEntity::class,
+        MetahistoryTimeseriesEntity::class,
+        MetahistoryTimeseriesBinEntity::class
     ],
-    version = 19,
+    version = 21,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -31,6 +33,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
     abstract fun planDao(): PlanDao
     abstract fun historyDao(): HistoryDao
     abstract fun bodyMetricDao(): BodyMetricDao
+    abstract fun timeseriesDao(): TimeseriesDao
 
     companion object {
         private const val TAG = "LiftInsightDatabase"
@@ -261,6 +264,55 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 19 -> 20")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS metahistory_timeseries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        metahistory_id INTEGER NOT NULL,
+                        timestamp_ms INTEGER NOT NULL,
+                        metric_name TEXT NOT NULL,
+                        value REAL NOT NULL,
+                        FOREIGN KEY(metahistory_id) REFERENCES metahistory(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_timeseries_metahistory_id_metric_name_timestamp_ms ON metahistory_timeseries (`metahistory_id`, `metric_name`, `timestamp_ms`)")
+            }
+        }
+
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 20 -> 21")
+                // Add detection columns to metahistory
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN pose_detection INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN angle_display INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN angle_plot INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN barbell_detection INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN power_calculation INTEGER NOT NULL DEFAULT 0")
+                // Add detection columns to metahistory_bin
+                db.execSQL("ALTER TABLE metahistory_bin ADD COLUMN pose_detection INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE metahistory_bin ADD COLUMN angle_display INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE metahistory_bin ADD COLUMN angle_plot INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE metahistory_bin ADD COLUMN barbell_detection INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE metahistory_bin ADD COLUMN power_calculation INTEGER NOT NULL DEFAULT 0")
+                // Create metahistory_timeseries_bin table
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS metahistory_timeseries_bin (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        original_metahistory_id INTEGER NOT NULL,
+                        timestamp_ms INTEGER NOT NULL,
+                        metric_name TEXT NOT NULL,
+                        value REAL NOT NULL
+                    )
+                    """
+                )
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -305,7 +357,9 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                         MIGRATION_15_16,
                         MIGRATION_16_17,
                         MIGRATION_17_18,
-                        MIGRATION_18_19
+                        MIGRATION_18_19,
+                        MIGRATION_19_20,
+                        MIGRATION_20_21
                     )
                         .build()
 

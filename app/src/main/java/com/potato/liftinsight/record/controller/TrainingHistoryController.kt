@@ -6,11 +6,13 @@ import android.os.Environment
 import com.potato.liftinsight.common.logging.AndroidAppLogger
 import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.plan.data.TrainingPlanStore
+import com.potato.liftinsight.record.model.AnalysisVideoState
 import com.potato.liftinsight.record.model.DisplayMode
 import com.potato.liftinsight.record.model.TrainingHistoryState
 import com.potato.liftinsight.training.data.HistoryRecord
 import com.potato.liftinsight.training.data.MetaHistoryRecord
 import com.potato.liftinsight.training.data.UpdateImportedVideoMetadataRequest
+import com.potato.liftinsight.video.DrawingOptions
 import com.potato.liftinsight.video.VideoExportHelper
 import com.potato.liftinsight.video.VideoProcessor
 import com.potato.liftinsight.video.imported.ImportedVideoAnalysisMode
@@ -281,6 +283,44 @@ class TrainingHistoryController(
         }
 
         videoProcessor.submitForProcessing(videoName)
+    }
+
+    suspend fun submitAnalysisProcessing(
+        state: TrainingHistoryState,
+        videoName: String,
+        analysisState: AnalysisVideoState,
+        record: MetaHistoryRecord
+    ): TrainingHistoryState {
+        logDebug("submitAnalysisProcessing start: videoName=$videoName, analysisState=$analysisState")
+
+        val drawingOptions = DrawingOptions(
+            drawLandmarks = analysisState.poseDetection,
+            drawAngles = analysisState.angleDisplay
+        )
+
+        withContext(Dispatchers.IO) {
+            trainingPlanStore.updateAnalysisVideoState(
+                recordId = record.id,
+                poseDetection = analysisState.poseDetection,
+                angleDisplay = analysisState.angleDisplay,
+                anglePlot = analysisState.anglePlot,
+                barbellDetection = analysisState.barbellDetection,
+                powerCalculation = analysisState.powerCalculation
+            )
+            videoProcessor.resetProcessingState(videoName)
+            videoProcessor.submitForProcessing(videoName, drawingOptions)
+        }
+
+        // Update the record in state with the new analysis values
+        val updatedRecord = record.copy(
+            poseDetection = analysisState.poseDetection,
+            angleDisplay = analysisState.angleDisplay,
+            anglePlot = analysisState.anglePlot,
+            barbellDetection = analysisState.barbellDetection,
+            powerCalculation = analysisState.powerCalculation
+        )
+
+        return requestVideoStatusRefresh(selectRecord(state, updatedRecord))
     }
 
     suspend fun softDeleteRecord(
