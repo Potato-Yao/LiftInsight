@@ -40,6 +40,7 @@ import com.potato.liftinsight.R
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.TimeseriesMetric
 import com.potato.liftinsight.training.data.TimeseriesPoint
+import com.potato.liftinsight.motion.MotionVideoPlayer
 import com.potato.liftinsight.ui.component.VideoPreviewCard
 import com.potato.liftinsight.video.VideoProcessor
 import java.io.File
@@ -70,6 +71,9 @@ internal fun AnalysisVideoScreen(
     var showAngleDisplay by remember { mutableStateOf(false) }
     var showAnglePlot by remember { mutableStateOf(false) }
     var showBarbellTrace by remember { mutableStateOf(false) }
+
+    // Fullscreen state
+    var isFullscreen by remember { mutableStateOf(false) }
 
     // Pose data loaded from DB
     var poseFrames by remember { mutableStateOf<List<PoseFrameSnapshot>>(emptyList()) }
@@ -198,6 +202,13 @@ internal fun AnalysisVideoScreen(
         player.playWhenReady = true
     }
 
+    // Pause the original player when entering fullscreen to prevent dual audio playback
+    LaunchedEffect(isFullscreen) {
+        if (isFullscreen) {
+            player.pause()
+        }
+    }
+
     // Find nearest pose frame
     val nearestFrame = remember(currentPositionMs, poseFrames) {
         if (poseFrames.isEmpty()) return@remember null
@@ -224,26 +235,27 @@ internal fun AnalysisVideoScreen(
         }
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(text = stringResource(R.string.training_analysis_video_title))
-                },
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.common_back)
-                        )
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(text = stringResource(R.string.training_analysis_video_title))
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.common_back)
+                            )
+                        }
                     }
-                }
-            )
-        }
-    ) { innerPadding ->
-        if (isLoading) {
+                )
+            }
+        ) { innerPadding ->
+            if (isLoading) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -276,6 +288,7 @@ internal fun AnalysisVideoScreen(
                 },
                 title = stringResource(R.string.training_analysis_preview_title),
                 modifier = Modifier.fillMaxWidth(),
+                onFullscreen = { isFullscreen = true },
                     videoOverlay = {
                         PoseOverlayCanvas(
                             poseFrame = nearestFrame,
@@ -303,6 +316,55 @@ internal fun AnalysisVideoScreen(
                 onToggleAngleDisplay = { showAngleDisplay = !showAngleDisplay },
                 onToggleAnglePlot = { showAnglePlot = !showAnglePlot },
                 onToggleBarbellTrace = { showBarbellTrace = !showBarbellTrace }
+            )
+        }
+    }
+
+        // Fullscreen overlay
+        if (isFullscreen && videoFile != null) {
+            MotionVideoPlayer(
+                videoUri = Uri.fromFile(videoFile!!),
+                onDismiss = { isFullscreen = false },
+                overlayContent = { fsCurrentPositionMs, fsDurationMs ->
+                    // Find nearest pose frame for fullscreen player position
+                    val fsNearestFrame = if (poseFrames.isEmpty()) {
+                        null
+                    } else {
+                        val idx = poseFrames.binarySearchBy(fsCurrentPositionMs) { it.timestampMs }
+                        val insertionPoint = if (idx >= 0) idx else -(idx + 1)
+                        val candidates = listOfNotNull(
+                            poseFrames.getOrNull(insertionPoint - 1),
+                            poseFrames.getOrNull(insertionPoint)
+                        )
+                        candidates.minByOrNull { kotlin.math.abs(it.timestampMs - fsCurrentPositionMs) }
+                    }
+
+                    // Find nearest angle values for fullscreen player position
+                    val fsCurrentAngles = angleData.mapValues { (_, points) ->
+                        if (points.isEmpty()) return@mapValues null
+                        val idx = points.binarySearchBy(fsCurrentPositionMs) { it.timestampMs }
+                        val insertionPoint = if (idx >= 0) idx else -(idx + 1)
+                        val candidates = listOfNotNull(
+                            points.getOrNull(insertionPoint - 1),
+                            points.getOrNull(insertionPoint)
+                        )
+                        candidates.minByOrNull { kotlin.math.abs(it.timestampMs - fsCurrentPositionMs) }?.value
+                    }
+
+                    PoseOverlayCanvas(
+                        poseFrame = fsNearestFrame,
+                        currentAngles = fsCurrentAngles,
+                        angleTimeSeries = angleData,
+                        currentPositionMs = fsCurrentPositionMs,
+                        totalDurationMs = fsDurationMs,
+                        videoWidth = videoWidth,
+                        videoHeight = videoHeight,
+                        showSkeleton = showSkeleton,
+                        showAngleDisplay = showAngleDisplay,
+                        showAnglePlot = showAnglePlot,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             )
         }
     }

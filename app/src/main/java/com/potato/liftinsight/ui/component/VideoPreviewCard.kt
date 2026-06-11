@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
@@ -41,8 +42,24 @@ fun VideoPreviewCard(
     showPositionOverlay: Boolean = false,
     isSaving: Boolean = false,
     trailingHeaderContent: @Composable (() -> Unit)? = null,
-    videoOverlay: @Composable (BoxScope.() -> Unit)? = null
+    videoOverlay: @Composable (BoxScope.() -> Unit)? = null,
+    onFullscreen: (() -> Unit)? = null
 ) {
+    // When video ends, seek back to start so replay button works from beginning
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    player.seekTo(0L)
+                }
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+        }
+    }
+
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(32.dp),
@@ -126,6 +143,25 @@ fun VideoPreviewCard(
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+                        }
+                    }
+
+                    // Fullscreen button
+                    if (onFullscreen != null) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(12.dp)
+                        ) {
+                            IconButton(onClick = onFullscreen) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Fullscreen,
+                                    contentDescription = stringResource(R.string.video_preview_fullscreen),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
 

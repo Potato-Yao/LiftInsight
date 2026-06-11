@@ -274,6 +274,7 @@
     <string name="motion_video_speed_btn_125">Playback speed 1.25x</string>
     <string name="motion_video_speed_btn_15">Playback speed 1.5x</string>
     <string name="motion_video_seek_default_time">00:00</string>
+    <string name="video_preview_fullscreen">Full screen</string>
     <string name="camera_permission_required">Camera permission is required to record lifts.</string>
     <string name="camera_grant_permission">Grant permission</string>
     <string name="camera_opening_native">Opening your system camera in video mode...</string>

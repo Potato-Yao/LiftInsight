@@ -38,7 +38,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.Player
 import androidx.media3.ui.PlayerView
 import com.potato.liftinsight.R
 import com.potato.liftinsight.motion.controller.MotionVideoPlayerController
@@ -69,7 +72,6 @@ private const val SWIPE_SEEK_FACTOR = 2.0f
 private const val LONG_PRESS_THRESHOLD_MS = 400L
 private const val PLAY_PAUSE_ICON_DURATION_MS = 500L
 private const val CONTROLS_HIDE_DELAY_MS = 2000L
-private const val POLLING_INTERVAL_MS = 100L
 private val PROGRESS_BAR_HEIGHT = 3.dp
 private val PROGRESS_BAR_TOUCH_HEIGHT = 40.dp
 private val THUMB_RADIUS = 6.dp
@@ -84,12 +86,15 @@ fun MotionVideoPlayer(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     onNextVideo: (() -> Unit)? = null,
-    onPreviousVideo: (() -> Unit)? = null
+    onPreviousVideo: (() -> Unit)? = null,
+    overlayContent: (@Composable (currentPositionMs: Long, durationMs: Long) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val controller = remember(videoUri) { MotionVideoPlayerController(context, videoUri) }
     val state = controller.state
+
+    var pollingIntervalMs by remember { mutableLongStateOf(16L) }
 
     LaunchedEffect(state.isPlaying, state.effectiveSpeed) {
         controller.syncPlayerState()
@@ -98,8 +103,25 @@ fun MotionVideoPlayer(
     LaunchedEffect(Unit) {
         while (true) {
             controller.updateFromPlayer()
-            delay(POLLING_INTERVAL_MS)
+            delay(pollingIntervalMs)
         }
+    }
+
+    // Detect video frame rate once player is ready, then set polling interval
+    DisposableEffect(controller.player) {
+        val player = controller.player
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY && pollingIntervalMs == 16L) {
+                    val fps = player.videoFormat?.frameRate ?: 0f
+                    if (fps > 0f) {
+                        pollingIntervalMs = (1000f / fps).toLong().coerceIn(16L, 100L)
+                    }
+                }
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
     }
 
     LaunchedEffect(state.gestureState.showControls, state.isDraggingThumb) {
@@ -134,6 +156,9 @@ fun MotionVideoPlayer(
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Caller-provided overlay (e.g., pose skeleton)
+        overlayContent?.invoke(state.currentPosition, state.duration)
 
         Box(
             modifier = Modifier
