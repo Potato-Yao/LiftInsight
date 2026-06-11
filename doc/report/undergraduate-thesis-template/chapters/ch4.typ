@@ -67,9 +67,75 @@ $ "work load" = "sRPE" times "Duration time(in minute)" $
 
 在项目中，每个单次训练和每一次完整训练都持久化记录了上述的各类数据。
 
-=== 人体和杠铃建模
+=== 人体、杠铃与动作建模
 
-为了对动作进行分析，首先需要将视频中的人物转化为模型。我采用了Google的Pose Landmark模型用来识别人体。
+为了对动作进行分析，首先需要将视频中的人物转化为数学模型。一个很自然的方法是记录下若干重要部位、关节的坐标。通过这些数据即可计算各个关节的夹角等数据。对于举重来说，比较重要的有躯干角（脊椎-地面夹角）、臀位角（脊椎-股骨夹角）、膝角（股骨-胫骨夹角）和踝角（胫骨-足弓夹角）。
+
+只要记录下各个坐标和时间的函数关系，就对动作做出了建模。但是在实际情况中，由于模型的识别精度和准确度偏差，这样得到的数据是带有噪声的，不便于后续的数据分析。
+
+因此，我引入了Ramer–Douglas–Peucker算法来减少曲线上偏移的数据点，从而避免出现过多特征以干扰数据分析算法的正常工作。
+
+```c
+int DouglasPeucker(Point points[], int start, int end, double epsilon, Point result[]) {
+    // Find point with maximum distance
+    double dmax = 0;
+    int index = start;
+
+    for (int i = start + 1; i < end; i++) {
+        double d = PerpendicularDistance(points[i], points[start], points[end]);
+        if (d > dmax) {
+            index = i;
+            dmax = d;
+        }
+    }
+
+    int resultCount = 0;
+
+    // If max distance exceeds epsilon, recursively simplify
+    if (dmax > epsilon) {
+        int leftCount = DouglasPeucker(points, start, index, epsilon, result);
+        int rightCount = DouglasPeucker(points, index, end, epsilon, result + leftCount);
+        resultCount = leftCount + rightCount - 1;  // Remove duplicate point
+    } else {
+        result[resultCount++] = points[start];
+        result[resultCount++] = points[end];
+    }
+
+    return resultCount;
+}
+```
+
+其效果如图（背景浅色的是带噪声的原始数据）。
+
+#figure(
+  image("../assets/pcode.png", width: big_image_scale),
+)
+
+在实际代码中，我采用了Google的Pose Landmark模型#footnote[https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker]来识别人体。Pose Landmark有Lite、Heavy和Full三个模型。经过实际测试，我采用Full模型作为默认分析的模型，它同时保证了足够的精度和处理速度。
+
+Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z$坐标（$z$是推算得到的，手机相机本身不具备深度感知能力），以及每个节点的confidence。
+
+```text
+0 - nose
+...
+11 - left shoulder
+12 - right shoulder
+13 - left elbow
+14 - right elbow
+15 - left wrist
+16 - right wrist
+...
+23 - left hip
+24 - right hip
+25 - left knee
+26 - right knee
+27 - left ankle
+28 - right ankle
+29 - left heel
+30 - right heel
+31 - left foot index
+32 - right foot index
+```
 
 #figure(
   image("../assets/poselandmark.jpg", width: small_image_scale),
@@ -223,7 +289,3 @@ CREATE TABLE metahistory_bin (
 │       ├── TrainingEntities.kt
 │       └── TrainingRecords.kt
 ```
-
-== 架构设计、数据结构和算法的面向对象实现技术方案
-
-
