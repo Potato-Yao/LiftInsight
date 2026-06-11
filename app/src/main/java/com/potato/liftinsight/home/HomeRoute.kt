@@ -34,6 +34,7 @@ import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.record.controller.TrainingHistoryController
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.ui.theme.AppThemeMode
+import com.potato.liftinsight.video.VideoExporter
 import com.potato.liftinsight.video.VideoProcessor
 
 @Composable
@@ -58,10 +59,12 @@ fun HomeRoute(
     val motionController = remember(context) {
         MotionController(MotionStore.from(context))
     }
-    val trainingHistoryController = remember(trainingPlanStore, videoProcessor) {
+    val videoExporter = remember(context) { VideoExporter.from(context) }
+    val trainingHistoryController = remember(trainingPlanStore, videoProcessor, videoExporter) {
         TrainingHistoryController(
             trainingPlanStore = trainingPlanStore,
-            videoProcessor = videoProcessor
+            videoProcessor = videoProcessor,
+            videoExporter = videoExporter
         )
     }
 

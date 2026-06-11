@@ -582,5 +582,7 @@ private class FakeVideoProcessor : VideoProcessor {
     override fun getProcessedVideoFile(videoName: String) = null
 
     override fun getPlaybackVideoFile(videoName: String) = null
+
+    override fun clearAnalysisData(metahistoryId: Int) = Unit
 }
 

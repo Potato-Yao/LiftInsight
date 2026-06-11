@@ -45,6 +45,8 @@ interface VideoProcessor {
 
     fun getPlaybackVideoFile(videoName: String): File?
 
+    fun clearAnalysisData(metahistoryId: Int)
+
     companion object {
         fun from(
             context: Context,
@@ -98,6 +100,8 @@ object NoOpVideoProcessor : VideoProcessor {
     override fun getProcessedVideoFile(videoName: String): File? = null
 
     override fun getPlaybackVideoFile(videoName: String): File? = null
+
+    override fun clearAnalysisData(metahistoryId: Int) = Unit
 }
 
 private class PoseLandmarkVideoProcessor(
@@ -259,6 +263,11 @@ private class PoseLandmarkVideoProcessor(
         }
         videoProcessStore.deleteVideoProcessState(normalizedVideoName)
         queuedVideoNames.remove(normalizedVideoName)
+    }
+
+    override fun clearAnalysisData(metahistoryId: Int) {
+        videoProcessStore.deleteTimeseries(metahistoryId)
+        videoProcessStore.deletePoseFrames(metahistoryId)
     }
 
     companion object {

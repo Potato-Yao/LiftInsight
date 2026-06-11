@@ -9,6 +9,7 @@ import com.potato.liftinsight.training.data.PlanDao
 import com.potato.liftinsight.training.data.PoseFrameDao
 import com.potato.liftinsight.training.data.PoseFrameEntity
 import com.potato.liftinsight.training.data.TimeseriesDao
+import com.potato.liftinsight.training.data.VideoExportStateEntity
 import com.potato.liftinsight.training.data.VideoProcessStateEntity
 
 class VideoProcessStore private constructor(
@@ -83,6 +84,15 @@ class VideoProcessStore private constructor(
             }
         }
     }
+
+    fun getVideoExportState(videoName: String): VideoExportStateEntity? = planDao.getVideoExportState(videoName)
+
+    fun upsertVideoExportState(state: VideoExportStateEntity) = planDao.upsertVideoExportState(state)
+
+    fun deleteVideoExportState(videoName: String) = planDao.deleteVideoExportState(videoName)
+
+    fun updateVideoExportProgress(videoName: String, state: String, progress: Int) =
+        planDao.updateVideoExportProgress(videoName, state, progress)
 
     companion object {
         fun from(context: Context): VideoProcessStore {

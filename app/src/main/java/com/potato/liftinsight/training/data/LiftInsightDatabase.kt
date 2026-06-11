@@ -24,9 +24,10 @@ import com.potato.liftinsight.common.logging.AndroidAppLogger
         BodyMetricEntity::class,
         MetahistoryTimeseriesEntity::class,
         MetahistoryTimeseriesBinEntity::class,
-        PoseFrameEntity::class
+        PoseFrameEntity::class,
+        VideoExportStateEntity::class
     ],
-    version = 23,
+    version = 25,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -339,6 +340,39 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 23 -> 24")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `video_export_state` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `video_name` TEXT NOT NULL,
+                        `rendered_items` TEXT NOT NULL,
+                        `state` TEXT NOT NULL,
+                        `progress` INTEGER NOT NULL,
+                        `exported_file_name` TEXT
+                    )
+                """)
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_video_export_state_video_name` ON `video_export_state` (`video_name`)")
+            }
+        }
+
+        val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 24 -> 25")
+                // Drop old non-unique index and recreate as unique
+                db.execSQL("DROP INDEX IF EXISTS `index_video_export_state_video_name`")
+                // Deduplicate: keep only the latest row per video_name
+                db.execSQL("""
+                    DELETE FROM video_export_state 
+                    WHERE id NOT IN (
+                        SELECT MAX(id) FROM video_export_state GROUP BY video_name
+                    )
+                """)
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_video_export_state_video_name` ON `video_export_state` (`video_name`)")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -387,7 +421,9 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                         MIGRATION_19_20,
                         MIGRATION_20_21,
                         MIGRATION_21_22,
-                        MIGRATION_22_23
+                        MIGRATION_22_23,
+                        MIGRATION_23_24,
+                        MIGRATION_24_25
                     )
                         .build()
 

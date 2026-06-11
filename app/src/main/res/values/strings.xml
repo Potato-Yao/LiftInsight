@@ -387,4 +387,17 @@
     <string name="video_processing_notification_channel_name">Video processing</string>
     <string name="video_processing_notification_title">Processing video</string>
     <string name="video_processing_notification_text">LiftInsight is analyzing your lift video in the background</string>
+
+    <!-- Training export overlay dialog -->
+    <string name="training_export_render_with_overlays">Render with overlays</string>
+    <string name="training_export_render_and_export">Render &amp; Export</string>
+    <string name="training_export_original">Export Original</string>
+    <string name="training_export_rendering_progress">Exporting (%1$d%%)</string>
+    <string name="training_export_overlay_skeleton">Body skeleton</string>
+    <string name="training_export_overlay_angle_display">Angle display</string>
+    <string name="training_export_overlay_angle_plot">Angle plot</string>
+    <string name="training_export_overlay_barbell_trace">Barbell trace</string>
+    <string name="training_export_barbell_coming_soon">Coming soon</string>
+    <string name="training_process_state_exporting">Exporting (%1$d%%)</string>
+    <string name="training_export_started">Export started</string>
 </resources>

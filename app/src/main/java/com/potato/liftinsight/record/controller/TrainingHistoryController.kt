@@ -12,8 +12,13 @@ import com.potato.liftinsight.record.model.TrainingHistoryState
 import com.potato.liftinsight.training.data.HistoryRecord
 import com.potato.liftinsight.training.data.MetaHistoryRecord
 import com.potato.liftinsight.training.data.UpdateImportedVideoMetadataRequest
+import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.video.DrawingOptions
+import com.potato.liftinsight.video.ExportOverlayOptions
+import com.potato.liftinsight.video.NoOpVideoExporter
 import com.potato.liftinsight.video.VideoExportHelper
+import com.potato.liftinsight.video.VideoExportStatus
+import com.potato.liftinsight.video.VideoExporter
 import com.potato.liftinsight.video.VideoProcessor
 import com.potato.liftinsight.video.imported.ImportedVideoAnalysisMode
 import com.potato.liftinsight.video.imported.ImportedVideoSource
@@ -24,11 +29,13 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 class TrainingHistoryController(
     private val trainingPlanStore: TrainingPlanStore,
     private val videoProcessor: VideoProcessor,
+    private val videoExporter: VideoExporter = NoOpVideoExporter,
     private val logger: AppLogger = AndroidAppLogger
 ) {
     fun emptyState(): TrainingHistoryState {
@@ -302,6 +309,60 @@ class TrainingHistoryController(
         videoProcessor.submitForProcessing(videoName)
     }
 
+    suspend fun submitExportAndWait(
+        state: TrainingHistoryState,
+        options: ExportOverlayOptions,
+        onExportStatusUpdate: (VideoExportStatus?) -> Unit
+    ): TrainingHistoryState {
+        logDebug("submitExportAndWait start")
+        val record = state.selectedRecord ?: return state
+        val videoName = record.videoName
+        if (videoName.isNullOrBlank()) {
+            logWarn("submitExportAndWait: videoName is null or blank")
+            return state
+        }
+
+        logDebug("submitExportAndWait: videoName=$videoName, metahistoryId=${record.id}, options=$options")
+        logDebug("submitExportAndWait: calling videoExporter.submitExport for videoName=$videoName")
+
+        withContext(Dispatchers.IO) {
+            videoExporter.submitExport(
+                videoName = videoName,
+                metahistoryId = record.id,
+                motionName = record.motionName,
+                date = record.date,
+                options = options
+            )
+        }
+        logDebug("submitExportAndWait: videoExporter.submitExport returned")
+
+        onExportStatusUpdate(VideoExportStatus(
+            videoName = videoName,
+            state = VideoProcessState.PROCESSING,
+            progress = 0,
+            exportedFileName = null
+        ))
+
+        var finalStatus: VideoExportStatus? = null
+
+        while (true) {
+            delay(500L)
+            val status = withContext(Dispatchers.IO) {
+                videoExporter.getExportStatus(videoName)
+            }
+            logDebug("submitExportAndWait poll: status=${status?.state}, progress=${status?.progress}")
+            finalStatus = status
+            onExportStatusUpdate(status)
+
+            if (status == null || status.state != VideoProcessState.PROCESSING) {
+                logDebug("submitExportAndWait complete: finalStatus=${status?.state}, progress=${status?.progress}")
+                break
+            }
+        }
+
+        return state.copy(exportVideoStatus = finalStatus)
+    }
+
     suspend fun submitAnalysisProcessing(
         state: TrainingHistoryState,
         videoName: String,
@@ -316,6 +377,12 @@ class TrainingHistoryController(
         )
 
         withContext(Dispatchers.IO) {
+            // If pose detection was enabled and is now being disabled, clear analysis data
+            if (record.poseDetection && !analysisState.poseDetection) {
+                logDebug("Pose detection disabled, clearing analysis data for metahistoryId=${record.id}")
+                videoProcessor.clearAnalysisData(record.id)
+            }
+
             trainingPlanStore.updateAnalysisVideoState(
                 recordId = record.id,
                 poseDetection = analysisState.poseDetection,

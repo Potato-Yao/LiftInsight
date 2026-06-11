@@ -104,6 +104,10 @@ import com.potato.liftinsight.training.data.HistoryRecord
 import com.potato.liftinsight.training.data.MetaHistoryRecord
 import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
+import com.potato.liftinsight.video.ExportOverlayOptions
+import com.potato.liftinsight.video.NoOpVideoExporter
+import com.potato.liftinsight.video.VideoExportStatus
+import com.potato.liftinsight.video.VideoExporter
 import com.potato.liftinsight.video.VideoProcessingStatus
 import com.potato.liftinsight.video.VideoProcessor
 import com.potato.liftinsight.video.imported.ImportedVideoAnalysisMode
@@ -119,6 +123,7 @@ internal fun TrainingHistoryScreen(
     controller: TrainingHistoryController,
     trainingPlanStore: TrainingPlanStore,
     videoProcessor: VideoProcessor,
+    videoExporter: VideoExporter = NoOpVideoExporter,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -128,7 +133,6 @@ internal fun TrainingHistoryScreen(
     var videoEditorRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var videoEditorHasProcessedCopy by remember { mutableStateOf(false) }
     var exportDialogRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
-    var exportDialogHasProcessedCopy by remember { mutableStateOf(false) }
     var importTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var cameraTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
     var calibrationTargetRecord by remember { mutableStateOf<MetaHistoryRecord?>(null) }
@@ -526,7 +530,8 @@ internal fun TrainingHistoryScreen(
             record = record,
             processState = processStateLabel(
                 status = state.selectedVideoStatus,
-                hasVideo = !record.videoName.isNullOrBlank()
+                hasVideo = !record.videoName.isNullOrBlank(),
+                exportStatus = state.exportVideoStatus
             ),
             analysisState = analysisModeLabel(record),
             analysisSupportingText = analysisModeSupportingText(record),
@@ -582,30 +587,7 @@ internal fun TrainingHistoryScreen(
                     return@TrainingHistoryDetailSheet
                 }
 
-                val hasProcessed = state.selectedVideoStatus?.hasProcessedCopy == true
-
-                if (hasProcessed) {
-                    exportDialogRecord = record
-                    exportDialogHasProcessedCopy = true
-                } else {
-                    coroutineScope.launch {
-                        val exportedUri = controller.exportOriginalVideo(context, videoName)
-
-                        if (exportedUri != null) {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.training_export_video_success),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.training_export_video_failure),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                }
+                exportDialogRecord = record
             },
             onToggleMark = {
                 coroutineScope.launch {
@@ -779,32 +761,26 @@ internal fun TrainingHistoryScreen(
 
         if (!videoName.isNullOrBlank()) {
             ExportVideoDialog(
-                hasProcessedCopy = exportDialogHasProcessedCopy,
-                onExportProcessed = {
-                    val name = videoName
+                onConfirm = { options ->
+                    android.util.Log.i("TrainingHistoryScreen", "Export onConfirm called: videoName=${record.videoName}, options=$options")
                     exportDialogRecord = null
-                    exportDialogHasProcessedCopy = false
                     coroutineScope.launch {
-                        val exportedUri = controller.exportProcessedVideo(context, name)
-                        if (exportedUri != null) {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.training_export_video_success),
-                                Toast.LENGTH_SHORT
-                            ).show()
+                        android.util.Log.i("TrainingHistoryScreen", "Export coroutine started")
+                        state = controller.submitExportAndWait(state, options) { exportStatus ->
+                            state = state.copy(exportVideoStatus = exportStatus)
+                        }
+                        android.util.Log.i("TrainingHistoryScreen", "Export coroutine completed: status=${state.exportVideoStatus?.state}")
+                        val exportStatus = state.exportVideoStatus
+                        if (exportStatus?.state == VideoProcessState.DONE) {
+                            Toast.makeText(context, context.getString(R.string.training_export_video_success), Toast.LENGTH_SHORT).show()
                         } else {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.training_export_video_failure),
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            Toast.makeText(context, context.getString(R.string.training_export_video_failure), Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
                 onExportOriginal = {
                     val name = videoName
                     exportDialogRecord = null
-                    exportDialogHasProcessedCopy = false
                     coroutineScope.launch {
                         val exportedUri = controller.exportOriginalVideo(context, name)
                         if (exportedUri != null) {
@@ -824,7 +800,6 @@ internal fun TrainingHistoryScreen(
                 },
                 onDismiss = {
                     exportDialogRecord = null
-                    exportDialogHasProcessedCopy = false
                 }
             )
         }
@@ -2125,10 +2100,18 @@ private fun trainingSectionEnter(delayMillis: Int): EnterTransition {
 @Composable
 private fun processStateLabel(
     status: VideoProcessingStatus?,
-    hasVideo: Boolean
+    hasVideo: Boolean,
+    exportStatus: VideoExportStatus? = null
 ): String {
     if (!hasVideo) {
         return stringResource(R.string.training_process_state_no)
+    }
+
+    if (exportStatus?.state == VideoProcessState.PROCESSING) {
+        return stringResource(
+            R.string.training_process_state_exporting,
+            exportStatus.progress.coerceIn(0, 99)
+        )
     }
 
     if (status?.hasProcessedCopy == true) {

@@ -114,6 +114,24 @@ abstract class PlanDao {
         powerCalculation: Boolean
     )
 
+    @Transaction
+    open fun upsertVideoExportState(state: VideoExportStateEntity) {
+        deleteVideoExportState(state.videoName)
+        insertVideoExportState(state)
+    }
+
+    @Insert
+    protected abstract fun insertVideoExportState(state: VideoExportStateEntity)
+
+    @Query("SELECT * FROM video_export_state WHERE video_name = :videoName ORDER BY id DESC LIMIT 1")
+    abstract fun getVideoExportState(videoName: String): VideoExportStateEntity?
+
+    @Query("DELETE FROM video_export_state WHERE video_name = :videoName")
+    abstract fun deleteVideoExportState(videoName: String)
+
+    @Query("UPDATE video_export_state SET state = :state, progress = :progress WHERE video_name = :videoName")
+    abstract fun updateVideoExportProgress(videoName: String, state: String, progress: Int)
+
     @Query(
         """
         UPDATE metahistory

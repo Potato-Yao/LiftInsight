@@ -592,6 +592,19 @@ internal fun HistoryRecord.toEntity(): HistoryEntity {
     )
 }
 
+@Entity(
+    tableName = "video_export_state",
+    indices = [Index(value = ["video_name"], unique = true)]
+)
+data class VideoExportStateEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @ColumnInfo(name = "video_name") val videoName: String,
+    @ColumnInfo(name = "rendered_items") val renderedItems: String,
+    val state: String,
+    val progress: Int,
+    @ColumnInfo(name = "exported_file_name") val exportedFileName: String? = null
+)
+
 @Entity(tableName = "body_metric")
 data class BodyMetricEntity(
     @PrimaryKey
