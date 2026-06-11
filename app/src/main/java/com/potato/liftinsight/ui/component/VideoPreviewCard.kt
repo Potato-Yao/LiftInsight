@@ -1,7 +1,15 @@
 package com.potato.liftinsight.ui.component
 
 import android.net.Uri
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Pause
@@ -32,7 +40,8 @@ fun VideoPreviewCard(
     currentPositionMs: Long? = null,
     showPositionOverlay: Boolean = false,
     isSaving: Boolean = false,
-    trailingHeaderContent: @Composable (() -> Unit)? = null
+    trailingHeaderContent: @Composable (() -> Unit)? = null,
+    videoOverlay: @Composable (BoxScope.() -> Unit)? = null
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -77,6 +86,7 @@ fun VideoPreviewCard(
                             PlayerView(viewContext).apply {
                                 this.player = player
                                 useController = false
+                                // resizeMode defaults to RESIZE_MODE_FIT — shows full video
                             }
                         },
                         modifier = Modifier.fillMaxSize()
@@ -118,6 +128,9 @@ fun VideoPreviewCard(
                             )
                         }
                     }
+
+                    // Overlay slot for caller-provided Canvas content (e.g., pose skeleton)
+                    videoOverlay?.invoke(this)
                 }
             }
         }

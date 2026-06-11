@@ -55,11 +55,9 @@ interface VideoProcessor {
             val videoProcessStore = VideoProcessStore.fromDatabase(database, logger)
             val videoFileManager = VideoFileManager(appContext)
             val poseDetectionService = PoseDetectionService(appContext)
-            val videoEncoderService = VideoEncoderService()
             val worker = VideoProcessingWorker(
                 videoFileManager = videoFileManager,
                 poseDetectionService = poseDetectionService,
-                videoEncoderService = videoEncoderService,
                 logger = logger,
                 videoProcessStore = videoProcessStore
             )
@@ -111,14 +109,12 @@ private class PoseLandmarkVideoProcessor(
 ) : VideoProcessor {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val queuedVideoNames = ConcurrentHashMap.newKeySet<String>()
-    private val pendingOptions = ConcurrentHashMap<String, DrawingOptions>()
 
     override fun submitForProcessing(videoName: String) {
-        submitForProcessing(videoName, DrawingOptions(drawLandmarks = true, drawAngles = true))
+        submitForProcessingInternal(videoName)
     }
 
     override fun submitForProcessing(videoName: String, options: DrawingOptions) {
-        pendingOptions[videoName.trim()] = options
         submitForProcessingInternal(videoName)
     }
 
@@ -151,8 +147,7 @@ private class PoseLandmarkVideoProcessor(
                     return@launch
                 }
 
-                val options = pendingOptions.remove(normalizedVideoName) ?: DrawingOptions()
-                worker.processVideo(normalizedVideoName, options)
+                worker.processVideo(normalizedVideoName)
             } finally {
                 queuedVideoNames.remove(normalizedVideoName)
                 if (queuedVideoNames.isEmpty()) {
@@ -211,16 +206,7 @@ private class PoseLandmarkVideoProcessor(
             videoFileManager.resolveVideoFile(processedName).exists()
         }
         val resolvedState = when {
-            state == VideoProcessState.DONE && processedVideoName == null -> {
-                if (isQueued) {
-                    VideoProcessState.PROCESSING
-                } else {
-                    VideoProcessState.NOT_STARTED
-                }
-            }
-
             isQueued && state != VideoProcessState.DONE -> VideoProcessState.PROCESSING
-
             else -> state
         }
 
@@ -273,7 +259,6 @@ private class PoseLandmarkVideoProcessor(
         }
         videoProcessStore.deleteVideoProcessState(normalizedVideoName)
         queuedVideoNames.remove(normalizedVideoName)
-        pendingOptions.remove(normalizedVideoName)
     }
 
     companion object {

@@ -1,9 +1,14 @@
 package com.potato.liftinsight.record
 
 import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -11,6 +16,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -24,21 +31,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.potato.liftinsight.R
+import com.potato.liftinsight.training.data.LiftInsightDatabase
+import com.potato.liftinsight.training.data.TimeseriesMetric
+import com.potato.liftinsight.training.data.TimeseriesPoint
 import com.potato.liftinsight.ui.component.VideoPreviewCard
 import com.potato.liftinsight.video.VideoProcessor
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AnalysisVideoScreen(
     videoFileName: String,
+    metahistoryId: Int?,
     videoProcessor: VideoProcessor,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -48,6 +61,19 @@ internal fun AnalysisVideoScreen(
     var durationMs by remember { mutableStateOf(0L) }
     var isLoading by remember { mutableStateOf(true) }
     var videoFile by remember { mutableStateOf<File?>(null) }
+    var currentPositionMs by remember { mutableStateOf(0L) }
+    var videoWidth by remember { mutableStateOf(0) }
+    var videoHeight by remember { mutableStateOf(0) }
+
+    // Overlay toggle state (local, not persisted)
+    var showSkeleton by remember { mutableStateOf(true) }
+    var showAngleDisplay by remember { mutableStateOf(false) }
+    var showAnglePlot by remember { mutableStateOf(false) }
+    var showBarbellTrace by remember { mutableStateOf(false) }
+
+    // Pose data loaded from DB
+    var poseFrames by remember { mutableStateOf<List<PoseFrameSnapshot>>(emptyList()) }
+    var angleData by remember { mutableStateOf<Map<String, List<TimeseriesPoint>>>(emptyMap()) }
 
     val player = remember(videoFileName, context) {
         ExoPlayer.Builder(context).build()
@@ -57,10 +83,21 @@ internal fun AnalysisVideoScreen(
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                currentPositionMs = player.currentPosition.coerceAtLeast(0L)
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
                     durationMs = player.duration.coerceAtLeast(0L)
+                    currentPositionMs = player.currentPosition.coerceAtLeast(0L)
+
+                    // Fallback if file-based detection failed
+                    if (videoWidth <= 0 || videoHeight <= 0) {
+                        val format = player.videoFormat
+                        if (format != null && format.width > 0 && format.height > 0) {
+                            videoWidth = format.width
+                            videoHeight = format.height
+                        }
+                    }
                 }
             }
         }
@@ -71,14 +108,81 @@ internal fun AnalysisVideoScreen(
         }
     }
 
+    // Sync current position - higher frequency
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            currentPositionMs = player.currentPosition.coerceAtLeast(0L)
+            delay(16)  // ~60fps instead of ~20fps
+        }
+    }
+
     LaunchedEffect(videoFileName) {
         isLoading = true
 
-        videoFile = withContext(Dispatchers.IO) {
+        val file = withContext(Dispatchers.IO) {
             videoProcessor.getPlaybackVideoFile(videoFileName)
+        }
+        videoFile = file
+
+        // Get video dimensions from file (same method as processing pipeline)
+        if (file != null) {
+            withContext(Dispatchers.IO) {
+                val retriever = android.media.MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(file.absolutePath)
+                    val width = retriever.extractMetadata(
+                        android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH
+                    )?.toIntOrNull() ?: 0
+                    val height = retriever.extractMetadata(
+                        android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT
+                    )?.toIntOrNull() ?: 0
+                    val rotation = retriever.extractMetadata(
+                        android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION
+                    )?.toIntOrNull() ?: 0
+
+                    // Account for rotation — swap width/height if rotated 90 or 270
+                    if (rotation == 90 || rotation == 270) {
+                        videoWidth = height
+                        videoHeight = width
+                    } else {
+                        videoWidth = width
+                        videoHeight = height
+                    }
+                } catch (_: Exception) {
+                    // fallback: use player dimensions later
+                } finally {
+                    retriever.release()
+                }
+            }
         }
 
         isLoading = false
+    }
+
+    // Load pose data from DB
+    LaunchedEffect(metahistoryId) {
+        if (metahistoryId == null) return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            val database = LiftInsightDatabase.from(context)
+            val frames = database.poseFrameDao().getPoseFrames(metahistoryId)
+            poseFrames = frames.map { entity ->
+                PoseFrameSnapshot(
+                    timestampMs = entity.timestampMs,
+                    landmarks = parseLandmarksJson(entity.landmarksJson)
+                )
+            }
+            val metrics = listOf(
+                TimeseriesMetric.SPINE_ANGLE,
+                TimeseriesMetric.LEFT_KNEE_ANGLE,
+                TimeseriesMetric.RIGHT_KNEE_ANGLE,
+                TimeseriesMetric.LEFT_LEG_SPINE_ANGLE,
+                TimeseriesMetric.RIGHT_LEG_SPINE_ANGLE
+            )
+            val tsDao = database.timeseriesDao()
+            angleData = metrics.associateWith { metric ->
+                tsDao.getTimeSeries(metahistoryId, metric)
+            }
+        }
     }
 
     LaunchedEffect(videoFile) {
@@ -92,6 +196,32 @@ internal fun AnalysisVideoScreen(
         player.setMediaItem(mediaItem)
         player.prepare()
         player.playWhenReady = true
+    }
+
+    // Find nearest pose frame
+    val nearestFrame = remember(currentPositionMs, poseFrames) {
+        if (poseFrames.isEmpty()) return@remember null
+        val idx = poseFrames.binarySearchBy(currentPositionMs) { it.timestampMs }
+        val insertionPoint = if (idx >= 0) idx else -(idx + 1)
+        val candidates = listOfNotNull(
+            poseFrames.getOrNull(insertionPoint - 1),
+            poseFrames.getOrNull(insertionPoint)
+        )
+        candidates.minByOrNull { kotlin.math.abs(it.timestampMs - currentPositionMs) }
+    }
+
+    // Find nearest angle values
+    val currentAngles = remember(currentPositionMs, angleData) {
+        angleData.mapValues { (_, points) ->
+            if (points.isEmpty()) return@mapValues null
+            val idx = points.binarySearchBy(currentPositionMs) { it.timestampMs }
+            val insertionPoint = if (idx >= 0) idx else -(idx + 1)
+            val candidates = listOfNotNull(
+                points.getOrNull(insertionPoint - 1),
+                points.getOrNull(insertionPoint)
+            )
+            candidates.minByOrNull { kotlin.math.abs(it.timestampMs - currentPositionMs) }?.value
+        }
     }
 
     Scaffold(
@@ -130,22 +260,127 @@ internal fun AnalysisVideoScreen(
             return@Scaffold
         }
 
-        VideoPreviewCard(
-            player = player,
-            isPlaying = isPlaying,
-            durationMs = durationMs,
-            onPlayPause = {
-                if (isPlaying) {
-                    player.pause()
-                } else {
-                    player.play()
-                }
-            },
-            title = stringResource(R.string.training_analysis_preview_title),
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            VideoPreviewCard(
+                player = player,
+                isPlaying = isPlaying,
+                durationMs = durationMs,
+                onPlayPause = {
+                    if (isPlaying) player.pause() else player.play()
+                },
+                title = stringResource(R.string.training_analysis_preview_title),
+                modifier = Modifier.fillMaxWidth(),
+                    videoOverlay = {
+                        PoseOverlayCanvas(
+                            poseFrame = nearestFrame,
+                            currentAngles = currentAngles,
+                            angleTimeSeries = angleData,
+                            currentPositionMs = currentPositionMs,
+                            totalDurationMs = durationMs,
+                            videoWidth = videoWidth,
+                            videoHeight = videoHeight,
+                            showSkeleton = showSkeleton,
+                            showAngleDisplay = showAngleDisplay,
+                            showAnglePlot = showAnglePlot,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+            )
+
+            // Overlay toggle bar
+            OverlayToggleBar(
+                showSkeleton = showSkeleton,
+                showAngleDisplay = showAngleDisplay,
+                showAnglePlot = showAnglePlot,
+                showBarbellTrace = showBarbellTrace,
+                onToggleSkeleton = { showSkeleton = !showSkeleton },
+                onToggleAngleDisplay = { showAngleDisplay = !showAngleDisplay },
+                onToggleAnglePlot = { showAnglePlot = !showAnglePlot },
+                onToggleBarbellTrace = { showBarbellTrace = !showBarbellTrace }
+            )
+        }
+    }
+}
+
+@Composable
+private fun OverlayToggleBar(
+    showSkeleton: Boolean,
+    showAngleDisplay: Boolean,
+    showAnglePlot: Boolean,
+    showBarbellTrace: Boolean,
+    onToggleSkeleton: () -> Unit,
+    onToggleAngleDisplay: () -> Unit,
+    onToggleAnglePlot: () -> Unit,
+    onToggleBarbellTrace: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.training_analysis_overlay_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            OverlayToggleRow(
+                label = stringResource(R.string.training_analysis_overlay_skeleton),
+                checked = showSkeleton,
+                onCheckedChange = { onToggleSkeleton() }
+            )
+
+            OverlayToggleRow(
+                label = stringResource(R.string.training_analysis_overlay_angle_display),
+                checked = showAngleDisplay,
+                onCheckedChange = { onToggleAngleDisplay() }
+            )
+
+            OverlayToggleRow(
+                label = stringResource(R.string.training_analysis_overlay_angle_plot),
+                checked = showAnglePlot,
+                onCheckedChange = { onToggleAnglePlot() }
+            )
+
+            OverlayToggleRow(
+                label = stringResource(R.string.training_analysis_overlay_barbell_trace),
+                checked = showBarbellTrace,
+                onCheckedChange = { onToggleBarbellTrace() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun OverlayToggleRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = { onCheckedChange() }
         )
     }
 }

@@ -18,11 +18,10 @@ import kotlinx.coroutines.withContext
 internal class VideoProcessingWorker(
     private val videoFileManager: VideoFileManager,
     private val poseDetectionService: PoseDetectionService,
-    private val videoEncoderService: VideoEncoderService,
     private val logger: AppLogger,
     private val videoProcessStore: VideoProcessStore
 ) {
-    suspend fun processVideo(videoName: String, options: DrawingOptions) = withContext(Dispatchers.IO) {
+    suspend fun processVideo(videoName: String) = withContext(Dispatchers.IO) {
         val inputFile = awaitInputVideoFile(videoName)
 
         if (inputFile == null) {
@@ -38,11 +37,9 @@ internal class VideoProcessingWorker(
             return@withContext
         }
 
-        val processedVideoName = videoFileManager.processedVideoName(videoName)
-        val outputFile = videoFileManager.resolveVideoFile(processedVideoName)
         val metahistoryId = videoProcessStore.getMetaHistoryIdByVideoName(videoName)
 
-        logger.debug(TAG, "Starting pose landmark processing: videoName=$videoName, output=${outputFile.name}")
+        logger.debug(TAG, "Starting pose detection: videoName=$videoName")
 
         videoProcessStore.upsertVideoProcessState(
             VideoProcessStateEntity(
@@ -53,18 +50,13 @@ internal class VideoProcessingWorker(
             )
         )
 
-        outputFile.delete()
-
         try {
             val result = processFrames(
                 inputFile = inputFile,
-                outputFile = outputFile,
                 videoName = videoName,
-                options = options,
                 metahistoryId = metahistoryId
             )
 
-            // Persist timeseries data if we have a metahistory record
             if (metahistoryId != null && result.timeseriesEntries.isNotEmpty()) {
                 videoProcessStore.replaceTimeseries(metahistoryId, result.timeseriesEntries)
                 logger.info(TAG, "Persisted ${result.timeseriesEntries.size} timeseries data points: videoName=$videoName, metahistoryId=$metahistoryId")
@@ -72,7 +64,6 @@ internal class VideoProcessingWorker(
                 logger.warn(TAG, "No metahistory record found for videoName=$videoName, skipping timeseries persistence")
             }
 
-            // Persist pose frames if we have a metahistory record
             if (metahistoryId != null && result.poseFrameEntries.isNotEmpty()) {
                 videoProcessStore.replacePoseFrames(metahistoryId, result.poseFrameEntries)
                 logger.info(TAG, "Persisted ${result.poseFrameEntries.size} pose frame entries: videoName=$videoName, metahistoryId=$metahistoryId")
@@ -85,13 +76,11 @@ internal class VideoProcessingWorker(
                     videoName = videoName,
                     state = VideoProcessState.DONE.name,
                     progress = 100,
-                    processedVideoName = processedVideoName
+                    processedVideoName = null
                 )
             )
-            logger.info(TAG, "Finished pose landmark processing: videoName=$videoName, output=${outputFile.name}")
+            logger.info(TAG, "Finished pose detection: videoName=$videoName")
         } catch (error: Exception) {
-            outputFile.delete()
-
             logger.error(TAG, "Video processing failed: videoName=$videoName", error)
 
             videoProcessStore.upsertVideoProcessState(
@@ -107,9 +96,7 @@ internal class VideoProcessingWorker(
 
     private fun processFrames(
         inputFile: java.io.File,
-        outputFile: java.io.File,
         videoName: String,
-        options: DrawingOptions,
         metahistoryId: Int?
     ): ProcessFrameResult {
         val timestampsUs = readFrameTimestamps(inputFile)
@@ -123,19 +110,9 @@ internal class VideoProcessingWorker(
         val firstFrame = firstFrameData.bitmap
         val firstFrameTimestampUs = firstFrameData.timestampUs
 
-        val frameSize = normalizeFrameSize(firstFrame.width, firstFrame.height)
-        val frameRate = estimateFrameRate(timestampsUs)
-        val encoderSession = videoEncoderService.createSession(
-            outputFile = outputFile,
-            width = frameSize.first,
-            height = frameSize.second,
-            frameRate = frameRate
-        )
-
-        var lastQueuedPresentationTimeUs = 0L
-        var encodedFrameCount = 0
         val timeseriesEntries = mutableListOf<MetahistoryTimeseriesEntity>()
         val poseFrameEntries = mutableListOf<PoseFrameEntity>()
+        var processedFrameCount = 0
 
         try {
             timestampsUs.forEachIndexed { index, timestampUs ->
@@ -144,22 +121,13 @@ internal class VideoProcessingWorker(
                 } else {
                     loadFrameBitmap(
                         retriever = retriever,
-                        presentationTimeUs = timestampUs,
-                        width = frameSize.first,
-                        height = frameSize.second
+                        presentationTimeUs = timestampUs
                     ) ?: return@forEachIndexed
                 }
 
-                val preparedFrame = ensureFrameSize(
-                    bitmap = sourceFrame,
-                    width = frameSize.first,
-                    height = frameSize.second
-                )
-                val detectionResult = poseDetectionService.detectAndDrawPose(preparedFrame, options)
-                val processedFrame = detectionResult.bitmap
+                val detectionResult = poseDetectionService.detectAndDrawPose(sourceFrame)
                 val normalizedPresentationTimeUs = (timestampUs - firstFrameTimestampUs).coerceAtLeast(0L)
 
-                // Collect timeseries entries for this frame
                 if (metahistoryId != null) {
                     val normalizedPresentationTimeMs = normalizedPresentationTimeUs / 1000L
                     timeseriesEntries.addAll(
@@ -169,43 +137,26 @@ internal class VideoProcessingWorker(
                             angles = detectionResult.angles
                         )
                     )
-                    // Collect pose frames
                     if (detectionResult.landmarkPositions.isNotEmpty()) {
                         poseFrameEntries += PoseFrameEntity(
                             metahistoryId = metahistoryId,
                             timestampMs = normalizedPresentationTimeMs,
                             landmarksJson = buildLandmarksJson(
                                 positions = detectionResult.landmarkPositions,
-                                frameWidth = preparedFrame.width,
-                                frameHeight = preparedFrame.height
+                                frameWidth = sourceFrame.width,
+                                frameHeight = sourceFrame.height
                             )
                         )
                     }
                 }
 
-                encoderSession.writeFrame(
-                    bitmap = processedFrame,
-                    presentationTimeUs = normalizedPresentationTimeUs
-                )
+                processedFrameCount++
 
-                lastQueuedPresentationTimeUs = normalizedPresentationTimeUs
-                encodedFrameCount++
-
-                if (encodedFrameCount % 100 == 0) {
-                    logger.trace(
-                        TAG,
-                        "Processed video frames: videoName=$videoName, framesProcessed=$encodedFrameCount"
-                    )
+                if (processedFrameCount % 100 == 0) {
+                    logger.trace(TAG, "Detected pose in frames: videoName=$videoName, framesProcessed=$processedFrameCount")
                 }
 
-                if (processedFrame !== preparedFrame) {
-                    processedFrame.recycle()
-                }
-
-                if (preparedFrame !== sourceFrame) {
-                    preparedFrame.recycle()
-                }
-
+                // Recycle non-first frames (firstFrame is recycled in finally)
                 if (sourceFrame !== firstFrame) {
                     sourceFrame.recycle()
                 }
@@ -219,18 +170,14 @@ internal class VideoProcessingWorker(
                 }
             }
 
-            if (encodedFrameCount == 0) {
-                throw IllegalStateException("No frames were encoded")
+            if (processedFrameCount == 0) {
+                throw IllegalStateException("No frames were detected")
             }
-
-            encoderSession.finish(lastQueuedPresentationTimeUs)
         } finally {
             if (!firstFrame.isRecycled) {
                 firstFrame.recycle()
             }
-
             retriever.release()
-            encoderSession.release()
         }
 
         return ProcessFrameResult(timeseriesEntries, poseFrameEntries)
@@ -443,60 +390,8 @@ internal class VideoProcessingWorker(
         }
     }
 
-    private fun ensureFrameSize(bitmap: Bitmap, width: Int, height: Int): Bitmap {
-        if (bitmap.width == width && bitmap.height == height) {
-            return bitmap
-        }
-
-        return Bitmap.createScaledBitmap(bitmap, width, height, true)
-    }
-
-    private fun normalizeFrameSize(width: Int, height: Int): Pair<Int, Int> {
-        val normalizedWidth = normalizeDimension(width)
-        val normalizedHeight = normalizeDimension(height)
-
-        return normalizedWidth to normalizedHeight
-    }
-
-    private fun normalizeDimension(value: Int): Int {
-        if (value <= 2) {
-            return 2
-        }
-
-        return if (value % 2 == 0) {
-            value
-        } else {
-            value - 1
-        }
-    }
-
-    private fun estimateFrameRate(timestampsUs: List<Long>): Int {
-        if (timestampsUs.size < 2) {
-            return DEFAULT_FRAME_RATE
-        }
-
-        val deltas = timestampsUs.zipWithNext { first, second -> second - first }
-            .filter { delta -> delta > 0L }
-
-        if (deltas.isEmpty()) {
-            return DEFAULT_FRAME_RATE
-        }
-
-        val averageDeltaUs = deltas.average()
-        if (averageDeltaUs <= 0.0) {
-            return DEFAULT_FRAME_RATE
-        }
-
-        return (1_000_000.0 / averageDeltaUs)
-            .toInt()
-            .coerceIn(MIN_FRAME_RATE, MAX_FRAME_RATE)
-    }
-
     private companion object {
         private const val TAG = "VideoProcessingWorker"
-        const val DEFAULT_FRAME_RATE = 30
-        const val MAX_FRAME_RATE = 60
-        const val MIN_FRAME_RATE = 12
     }
 }
 

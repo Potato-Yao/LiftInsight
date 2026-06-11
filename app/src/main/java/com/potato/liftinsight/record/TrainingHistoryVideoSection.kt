@@ -72,6 +72,7 @@ internal fun VideoPlayerOverlay(
 @Composable
 internal fun AnalysisVideoOverlay(
     videoFileName: String,
+    metahistoryId: Int?,
     videoProcessor: VideoProcessor,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -82,6 +83,7 @@ internal fun AnalysisVideoOverlay(
     ) {
         AnalysisVideoScreen(
             videoFileName = videoFileName,
+            metahistoryId = metahistoryId,
             videoProcessor = videoProcessor,
             onDismiss = onDismiss,
             modifier = modifier.fillMaxSize()

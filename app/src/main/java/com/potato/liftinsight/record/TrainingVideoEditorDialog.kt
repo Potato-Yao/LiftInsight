@@ -353,12 +353,6 @@ internal fun TrainingVideoEditorDialog(
                 onTogglePoseDetection = {
                     analysisState = analysisState.togglePoseDetection()
                 },
-                onToggleAngleDisplay = {
-                    analysisState = analysisState.toggleAngleDisplay()
-                },
-                onToggleAnglePlot = {
-                    analysisState = analysisState.toggleAnglePlot()
-                },
                 onToggleBarbellDetection = {
                     analysisState = analysisState.toggleBarbellDetection()
                 },
@@ -685,8 +679,6 @@ private fun TimelineEditor(
 private fun AnalysisOptionsCard(
     analysisState: AnalysisVideoState,
     onTogglePoseDetection: () -> Unit,
-    onToggleAngleDisplay: () -> Unit,
-    onToggleAnglePlot: () -> Unit,
     onToggleBarbellDetection: () -> Unit,
     onTogglePowerCalculation: () -> Unit
 ) {
@@ -710,18 +702,6 @@ private fun AnalysisOptionsCard(
                 label = stringResource(R.string.training_analysis_pose_detection),
                 checked = analysisState.poseDetection,
                 onCheckedChange = { onTogglePoseDetection() }
-            )
-
-            AnalysisToggleRow(
-                label = stringResource(R.string.training_analysis_angle_display),
-                checked = analysisState.angleDisplay,
-                onCheckedChange = { onToggleAngleDisplay() }
-            )
-
-            AnalysisToggleRow(
-                label = stringResource(R.string.training_analysis_angle_plot),
-                checked = analysisState.anglePlot,
-                onCheckedChange = { onToggleAnglePlot() }
             )
 
             AnalysisToggleRow(
