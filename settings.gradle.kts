@@ -30,4 +30,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "LiftInsight"
 include(":app")
- 
+include(":opencv")
