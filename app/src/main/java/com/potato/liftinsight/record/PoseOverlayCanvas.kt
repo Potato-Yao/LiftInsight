@@ -1,6 +1,7 @@
 package com.potato.liftinsight.record
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -11,10 +12,16 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import com.potato.liftinsight.training.data.TimeseriesPoint
+import com.potato.liftinsight.video.BarbellOverlayRenderer
+import com.potato.liftinsight.video.BarbellPosition
 import com.potato.liftinsight.video.PoseOverlayLandmark
 import com.potato.liftinsight.video.PoseOverlayRenderer
 import com.potato.liftinsight.video.RdpSimplifier
+import com.potato.liftinsight.video.SelectableCircle
+
+private const val BARBELL_TRAIL_LENGTH = 10
 
 internal data class PoseFrameSnapshot(
     val timestampMs: Long,
@@ -25,6 +32,13 @@ internal data class LandmarkPosition(
     val x: Float,
     val y: Float,
     val visibility: Float
+)
+
+internal data class BarbellFrameSnapshot(
+    val timestampMs: Long,
+    val x: Float,
+    val y: Float,
+    val radius: Float
 )
 
 @Composable
@@ -42,15 +56,70 @@ internal fun PoseOverlayCanvas(
     rdpEpsilon: Double = 1.5,
     allPoseFrames: List<PoseFrameSnapshot> = emptyList(),
     rdpSmoothSkeleton: Boolean = false,
+    showBarbellTrace: Boolean = false,
+    barbellFrames: List<BarbellFrameSnapshot> = emptyList(),
+    selectableCircles: List<SelectableCircle> = emptyList(),
+    onCircleTapped: ((Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val hasAnyOverlay = (showSkeleton && poseFrame != null) ||
             (showAngleDisplay && currentAngles.values.any { it != null }) ||
-            (showAnglePlot && angleTimeSeries.values.any { it.isNotEmpty() })
+            (showAnglePlot && angleTimeSeries.values.any { it.isNotEmpty() }) ||
+            (showBarbellTrace && barbellFrames.isNotEmpty()) ||
+            selectableCircles.isNotEmpty()
 
     if (!hasAnyOverlay) return
 
-    Canvas(modifier = modifier) {
+    val effectiveModifier = if (onCircleTapped != null && selectableCircles.isNotEmpty()) {
+        modifier.pointerInput(selectableCircles) {
+            detectTapGestures { tapOffset ->
+                val w = size.width.toFloat()
+                val h = size.height.toFloat()
+
+                // Calculate video display area (letterboxing)
+                val videoAspect = if (videoWidth > 0 && videoHeight > 0) {
+                    videoWidth.toFloat() / videoHeight.toFloat()
+                } else {
+                    w / h
+                }
+                val canvasAspect = w / h
+
+                val videoDisplayW: Float
+                val videoDisplayH: Float
+                val offsetX: Float
+                val offsetY: Float
+                if (videoAspect > canvasAspect) {
+                    videoDisplayW = w
+                    videoDisplayH = w / videoAspect
+                    offsetX = 0f
+                    offsetY = (h - videoDisplayH) / 2f
+                } else {
+                    videoDisplayW = h * videoAspect
+                    videoDisplayH = h
+                    offsetX = (w - videoDisplayW) / 2f
+                    offsetY = 0f
+                }
+
+                // Find which circle was tapped
+                for ((index, circle) in selectableCircles.withIndex()) {
+                    val circleX = offsetX + circle.x * videoDisplayW
+                    val circleY = offsetY + circle.y * videoDisplayH
+                    val halfSize = circle.radius.coerceAtLeast(8f)
+
+                    if (tapOffset.x in (circleX - halfSize)..(circleX + halfSize) &&
+                        tapOffset.y in (circleY - halfSize)..(circleY + halfSize)
+                    ) {
+                        onCircleTapped(index)
+                        return@detectTapGestures
+                    }
+                }
+            }
+        }
+    } else {
+        modifier
+    }
+
+    Canvas(modifier = effectiveModifier) {
         val canvas = drawContext.canvas.nativeCanvas
         val w = size.width
         val h = size.height
@@ -155,6 +224,51 @@ internal fun PoseOverlayCanvas(
                 RdpSimplifier.simplify(points, rdpEpsilon)
             }
             drawAnglePlot(simplifiedAngleTimeSeries, currentPositionMs, totalDurationMs)
+        }
+
+        if (showBarbellTrace && barbellFrames.isNotEmpty()) {
+            // Find nearest barbell frame by timestamp
+            val nearestIdx = run {
+                val idx = barbellFrames.binarySearchBy(currentPositionMs) { it.timestampMs }
+                val insertionPoint = if (idx >= 0) idx else -(idx + 1)
+                val candidates = listOfNotNull(
+                    barbellFrames.getOrNull(insertionPoint - 1),
+                    barbellFrames.getOrNull(insertionPoint)
+                )
+                if (candidates.isEmpty()) {
+                    0
+                } else {
+                    val nearest = candidates.minByOrNull { kotlin.math.abs(it.timestampMs - currentPositionMs) }
+                    barbellFrames.indexOf(nearest).coerceIn(0, barbellFrames.size - 1)
+                }
+            }
+
+            // Show only the recent trail (last BARBELL_TRAIL_LENGTH frames)
+            val trailStart = (nearestIdx - BARBELL_TRAIL_LENGTH + 1).coerceAtLeast(0)
+            val trailPositions = barbellFrames.subList(trailStart, nearestIdx + 1).map { frame ->
+                BarbellPosition(
+                    x = offsetX + frame.x * videoDisplayW,
+                    y = offsetY + frame.y * videoDisplayH,
+                    radius = (frame.radius * videoDisplayW.coerceAtMost(videoDisplayH)).coerceIn(4f, 16f),
+                    confidence = 1f
+                )
+            }
+            BarbellOverlayRenderer.drawBarbellTraceAndPosition(canvas, trailPositions, trailPositions.lastIndex)
+        }
+
+        // Draw selectable weight plate candidates
+        if (selectableCircles.isNotEmpty()) {
+            // Scale normalized coordinates to the video display area
+            val scaledCircles = selectableCircles.map { circle ->
+                SelectableCircle(
+                    x = offsetX + circle.x * videoDisplayW,
+                    y = offsetY + circle.y * videoDisplayH,
+                    radius = circle.radius * videoDisplayW.coerceAtMost(videoDisplayH),
+                    isSelected = circle.isSelected,
+                    nearHand = circle.nearHand
+                )
+            }
+            BarbellOverlayRenderer.drawSelectableCircles(canvas, scaledCircles)
         }
     }
 }

@@ -164,6 +164,7 @@ internal fun AnalysisVideoOverlay(
 @Composable
 internal fun VideoEditorOverlay(
     videoFileName: String,
+    metahistoryId: Int? = null,
     videoProcessor: VideoProcessor,
     hasProcessedCopy: Boolean,
     onDismiss: () -> Unit,
@@ -177,6 +178,7 @@ internal fun VideoEditorOverlay(
     ) {
         TrainingVideoEditorDialog(
             videoFileName = videoFileName,
+            metahistoryId = metahistoryId,
             videoProcessor = videoProcessor,
             hasProcessedCopy = hasProcessedCopy,
             onDismiss = onDismiss,

@@ -66,8 +66,13 @@ import androidx.media3.exoplayer.source.ClippingMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.potato.liftinsight.R
+import com.potato.liftinsight.common.logging.AndroidAppLogger
 import com.potato.liftinsight.record.model.AnalysisVideoState
+import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.ui.component.VideoPreviewCard
+import com.potato.liftinsight.video.BarbellDetectionService
+import com.potato.liftinsight.video.PoseOverlayLandmark
+import com.potato.liftinsight.video.SelectableCircle
 import com.potato.liftinsight.video.VideoEditSelection
 import com.potato.liftinsight.video.VideoEditSelections
 import com.potato.liftinsight.video.VideoEditor
@@ -84,6 +89,7 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun TrainingVideoEditorDialog(
     videoFileName: String,
+    metahistoryId: Int? = null,
     videoProcessor: VideoProcessor,
     hasProcessedCopy: Boolean,
     onDismiss: () -> Unit,
@@ -108,6 +114,26 @@ internal fun TrainingVideoEditorDialog(
     var processedFile by remember(videoFileName, hasProcessedCopy) { mutableStateOf<File?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var analysisState by remember { mutableStateOf(initialAnalysisState) }
+
+    // Barbell detection/tracking state (user-driven, interactive)
+    var detectedCircles by remember { mutableStateOf<List<SelectableCircle>>(emptyList()) }
+    var selectedCircleIndex by remember { mutableIntStateOf(-1) }
+    var isTracking by remember { mutableStateOf(false) }
+    var trackingProgress by remember { mutableIntStateOf(0) }
+    var hasTracked by remember { mutableStateOf(false) }
+
+    // Video dimensions for overlay coordinate scaling
+    var videoWidth by remember { mutableIntStateOf(0) }
+    var videoHeight by remember { mutableIntStateOf(0) }
+
+    // Pose and barbell frame data loaded from DB
+    var poseFrames by remember { mutableStateOf<List<PoseFrameSnapshot>>(emptyList()) }
+    var barbellFrames by remember { mutableStateOf<List<BarbellFrameSnapshot>>(emptyList()) }
+
+    // Shared detection service — initialized once per composition
+    val barbellDetectionService = remember {
+        BarbellDetectionService(AndroidAppLogger).also { it.initialize() }
+    }
 
     val sourceFile = remember(videoFileName, context) {
         resolveSourceVideoFile(
@@ -212,6 +238,178 @@ internal fun TrainingVideoEditorDialog(
         }
     }
 
+    // Load video dimensions from file metadata
+    LaunchedEffect(videoFileName) {
+        val file = sourceFile ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            val retriever = android.media.MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(file.absolutePath)
+                val width = retriever.extractMetadata(
+                    android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH
+                )?.toIntOrNull() ?: 0
+                val height = retriever.extractMetadata(
+                    android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT
+                )?.toIntOrNull() ?: 0
+                val rotation = retriever.extractMetadata(
+                    android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION
+                )?.toIntOrNull() ?: 0
+
+                if (rotation == 90 || rotation == 270) {
+                    videoWidth = height
+                    videoHeight = width
+                } else {
+                    videoWidth = width
+                    videoHeight = height
+                }
+            } catch (_: Exception) {
+                // Fallback: videoWidth/videoHeight remain 0
+            } finally {
+                retriever.release()
+            }
+        }
+    }
+
+    // Load pose and barbell frames from DB
+    LaunchedEffect(metahistoryId) {
+        if (metahistoryId == null) return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            val database = LiftInsightDatabase.from(context)
+            val frames = database.poseFrameDao().getPoseFrames(metahistoryId)
+            poseFrames = frames.map { entity ->
+                PoseFrameSnapshot(
+                    timestampMs = entity.timestampMs,
+                    landmarks = parseLandmarksJson(entity.landmarksJson)
+                )
+            }
+            val bbFrames = database.barbellFrameDao().getBarbellFrames(metahistoryId)
+            barbellFrames = bbFrames.map { entity ->
+                BarbellFrameSnapshot(
+                    timestampMs = entity.timestampMs,
+                    x = entity.x,
+                    y = entity.y,
+                    radius = entity.radius
+                )
+            }
+        }
+    }
+
+    // Find nearest pose frame for the current playback position
+    val nearestPoseFrame = remember(previewPositionMs, poseFrames) {
+        if (poseFrames.isEmpty()) return@remember null
+        val idx = poseFrames.binarySearchBy(previewPositionMs) { it.timestampMs }
+        val insertionPoint = if (idx >= 0) idx else -(idx + 1)
+        val candidates = listOfNotNull(
+            poseFrames.getOrNull(insertionPoint - 1),
+            poseFrames.getOrNull(insertionPoint)
+        )
+        candidates.minByOrNull { kotlin.math.abs(it.timestampMs - previewPositionMs) }
+    }
+
+    // Barbell detection: when analysisState.barbellDetection is toggled ON, detect circles
+    // When toggled OFF, clear detection state and remove barbell frames from DB
+    LaunchedEffect(analysisState.barbellDetection) {
+        val file = previewFile
+        if (analysisState.barbellDetection && file != null) {
+            // Pause video so user can select
+            player.pause()
+            isPlaying = false
+
+            val sourcePositionMs = VideoEditSelections.sourcePositionAtEditedPosition(selection, previewPositionMs)
+
+            withContext(Dispatchers.IO) {
+                detectCirclesInCurrentFrame(
+                    videoFile = file,
+                    positionMs = sourcePositionMs,
+                    nearestPoseFrame = nearestPoseFrame,
+                    videoWidth = videoWidth,
+                    videoHeight = videoHeight,
+                    barbellDetectionService = barbellDetectionService,
+                    onResult = { circles ->
+                        detectedCircles = circles
+                    }
+                )
+            }
+        } else if (!analysisState.barbellDetection) {
+            // Clear detection state
+            detectedCircles = emptyList()
+            selectedCircleIndex = -1
+            isTracking = false
+            trackingProgress = 0
+            hasTracked = false
+            barbellFrames = emptyList()
+
+            // Clear barbell frames from DB
+            if (metahistoryId != null) {
+                withContext(Dispatchers.IO) {
+                    videoProcessor.clearBarbellFrames(metahistoryId)
+                }
+            }
+        }
+    }
+
+    // When user seeks (even before tracking), re-detect circles so the user can select
+    LaunchedEffect(previewPositionMs) {
+        val file = previewFile
+        if (analysisState.barbellDetection && file != null && !isTracking) {
+            selectedCircleIndex = -1 // Reset selection on seek
+            val sourcePositionMs = VideoEditSelections.sourcePositionAtEditedPosition(selection, previewPositionMs)
+
+            withContext(Dispatchers.IO) {
+                detectCirclesInCurrentFrame(
+                    videoFile = file,
+                    positionMs = sourcePositionMs,
+                    nearestPoseFrame = nearestPoseFrame,
+                    videoWidth = videoWidth,
+                    videoHeight = videoHeight,
+                    barbellDetectionService = barbellDetectionService,
+                    onResult = { circles ->
+                        detectedCircles = circles
+                    }
+                )
+            }
+        }
+    }
+
+    // When user selects a circle, start tracking across all frames
+    LaunchedEffect(selectedCircleIndex) {
+        if (selectedCircleIndex < 0 || selectedCircleIndex >= detectedCircles.size) return@LaunchedEffect
+        if (metahistoryId == null || previewFile == null) return@LaunchedEffect
+
+        val selectedCircle = detectedCircles[selectedCircleIndex]
+        isTracking = true
+        trackingProgress = 0
+
+        withContext(Dispatchers.IO) {
+            val entities = videoProcessor.trackBarbell(
+                videoName = videoFileName,
+                metahistoryId = metahistoryId,
+                initialX = selectedCircle.x,
+                initialY = selectedCircle.y,
+                initialRadius = selectedCircle.radius,
+                onProgress = { progress ->
+                    trackingProgress = progress
+                }
+            )
+
+            // Reload barbell frames from DB
+            val database = LiftInsightDatabase.from(context)
+            val bbFrames = database.barbellFrameDao().getBarbellFrames(metahistoryId)
+            barbellFrames = bbFrames.map { entity ->
+                BarbellFrameSnapshot(
+                    timestampMs = entity.timestampMs,
+                    x = entity.x,
+                    y = entity.y,
+                    radius = entity.radius
+                )
+            }
+
+            hasTracked = true
+            isTracking = false
+            trackingProgress = 100
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -300,6 +498,39 @@ internal fun TrainingVideoEditorDialog(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                },
+                videoOverlay = {
+                    val displayCircles = detectedCircles.mapIndexed { index, circle ->
+                        SelectableCircle(
+                            x = circle.x,
+                            y = circle.y,
+                            radius = circle.radius,
+                            isSelected = index == selectedCircleIndex,
+                            nearHand = circle.nearHand
+                        )
+                    }
+                    PoseOverlayCanvas(
+                        poseFrame = nearestPoseFrame,
+                        currentAngles = emptyMap(),
+                        angleTimeSeries = emptyMap(),
+                        currentPositionMs = previewPositionMs,
+                        totalDurationMs = durationMs,
+                        videoWidth = videoWidth,
+                        videoHeight = videoHeight,
+                        showSkeleton = false,
+                        showAngleDisplay = false,
+                        showAnglePlot = false,
+                        rdpEpsilon = 1.5,
+                        allPoseFrames = emptyList(),
+                        rdpSmoothSkeleton = false,
+                        showBarbellTrace = hasTracked && barbellFrames.isNotEmpty(),
+                        barbellFrames = barbellFrames,
+                        selectableCircles = displayCircles,
+                        onCircleTapped = if (analysisState.barbellDetection && !isTracking) { { index ->
+                            selectedCircleIndex = index
+                        } } else null,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             )
 
@@ -361,6 +592,36 @@ internal fun TrainingVideoEditorDialog(
                 }
             )
 
+            // Tracking progress indicator
+            if (isTracking) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    shape = RoundedCornerShape(28.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.training_video_editor_tracking_barbell),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        LinearProgressIndicator(
+                            progress = { trackingProgress / 100f },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = "$trackingProgress%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             errorMessage?.let { message ->
                 Text(
                     text = message,
@@ -382,6 +643,8 @@ internal fun TrainingVideoEditorDialog(
 
         player.pause()
 
+        val analysisChanged = analysisState != initialAnalysisState
+
         if (hasEdit) {
             val didSave = VideoEditor.applyEditInPlace(
                 sourceFile = sourceFile,
@@ -390,16 +653,82 @@ internal fun TrainingVideoEditorDialog(
             )
 
             if (didSave) {
-                onAnalysisSaved(analysisState)
+                if (analysisChanged) {
+                    onAnalysisSaved(analysisState)
+                }
                 onSaved()
             } else {
                 isSaving = false
                 errorMessage = context.getString(R.string.training_video_editor_save_error)
             }
         } else {
-            onAnalysisSaved(analysisState)
+            if (analysisChanged) {
+                onAnalysisSaved(analysisState)
+            }
             onSaved()
         }
+    }
+}
+
+private suspend fun detectCirclesInCurrentFrame(
+    videoFile: File,
+    positionMs: Long,
+    nearestPoseFrame: PoseFrameSnapshot?,
+    videoWidth: Int,
+    videoHeight: Int,
+    barbellDetectionService: BarbellDetectionService,
+    onResult: (List<SelectableCircle>) -> Unit
+) {
+    val retriever = android.media.MediaMetadataRetriever()
+    try {
+        retriever.setDataSource(videoFile.absolutePath)
+
+        val positionUs = positionMs * 1000L
+        val bitmap = retriever.getFrameAtTime(
+            positionUs.coerceAtLeast(0L),
+            android.media.MediaMetadataRetriever.OPTION_CLOSEST
+        ) ?: run {
+            onResult(emptyList())
+            return
+        }
+
+        try {
+            // Build hand landmarks in pixel coordinates from the nearest pose frame
+            val handLandmarks: Map<Int, PoseOverlayLandmark>? = nearestPoseFrame?.let { frame ->
+                val frameW = if (videoWidth > 0) videoWidth.toFloat() else bitmap.width.toFloat()
+                val frameH = if (videoHeight > 0) videoHeight.toFloat() else bitmap.height.toFloat()
+                frame.landmarks.mapValues { (_, lp) ->
+                    PoseOverlayLandmark(
+                        x = lp.x * frameW,
+                        y = lp.y * frameH,
+                        visibility = lp.visibility
+                    )
+                }
+            }
+
+            val candidates = barbellDetectionService.detectWeightPlateCandidates(bitmap, handLandmarks)
+
+            val effectiveWidth = if (videoWidth > 0) videoWidth.toFloat() else bitmap.width.toFloat()
+            val effectiveHeight = if (videoHeight > 0) videoHeight.toFloat() else bitmap.height.toFloat()
+
+            val result = candidates.map { candidate ->
+                SelectableCircle(
+                    x = candidate.x / effectiveWidth,
+                    y = candidate.y / effectiveHeight,
+                    radius = candidate.radius / effectiveWidth.coerceAtMost(effectiveHeight),
+                    isSelected = false,
+                    nearHand = candidate.nearHand
+                )
+            }
+
+            onResult(result)
+        } finally {
+            bitmap.recycle()
+        }
+    } catch (e: Exception) {
+        onResult(emptyList())
+    } finally {
+        retriever.release()
     }
 }
 

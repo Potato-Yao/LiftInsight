@@ -3,6 +3,7 @@ package com.potato.liftinsight.video
 import android.content.Context
 import com.potato.liftinsight.common.logging.AndroidAppLogger
 import com.potato.liftinsight.common.logging.AppLogger
+import com.potato.liftinsight.training.data.BarbellFrameEntity
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.VideoProcessState
 import java.io.File
@@ -47,6 +48,21 @@ interface VideoProcessor {
 
     fun clearAnalysisData(metahistoryId: Int)
 
+    fun clearPoseFrames(metahistoryId: Int)
+
+    fun clearBarbellFrames(metahistoryId: Int)
+
+    fun clearTimeseries(metahistoryId: Int)
+
+    suspend fun trackBarbell(
+        videoName: String,
+        metahistoryId: Int,
+        initialX: Float,
+        initialY: Float,
+        initialRadius: Float,
+        onProgress: (Int) -> Unit
+    ): List<BarbellFrameEntity>
+
     companion object {
         fun from(
             context: Context,
@@ -57,6 +73,8 @@ interface VideoProcessor {
             val videoProcessStore = VideoProcessStore.fromDatabase(database, logger)
             val videoFileManager = VideoFileManager(appContext)
             val poseDetectionService = PoseDetectionService(appContext)
+            val barbellDetectionService = BarbellDetectionService(logger)
+            val barbellTrackingService = BarbellTrackingService(logger)
             val worker = VideoProcessingWorker(
                 videoFileManager = videoFileManager,
                 poseDetectionService = poseDetectionService,
@@ -68,6 +86,8 @@ interface VideoProcessor {
                 videoProcessStore = videoProcessStore,
                 videoFileManager = videoFileManager,
                 worker = worker,
+                barbellDetectionService = barbellDetectionService,
+                barbellTrackingService = barbellTrackingService,
                 logger = logger
             )
         }
@@ -102,6 +122,21 @@ object NoOpVideoProcessor : VideoProcessor {
     override fun getPlaybackVideoFile(videoName: String): File? = null
 
     override fun clearAnalysisData(metahistoryId: Int) = Unit
+
+    override fun clearPoseFrames(metahistoryId: Int) = Unit
+
+    override fun clearBarbellFrames(metahistoryId: Int) = Unit
+
+    override fun clearTimeseries(metahistoryId: Int) = Unit
+
+    override suspend fun trackBarbell(
+        videoName: String,
+        metahistoryId: Int,
+        initialX: Float,
+        initialY: Float,
+        initialRadius: Float,
+        onProgress: (Int) -> Unit
+    ): List<BarbellFrameEntity> = emptyList()
 }
 
 private class PoseLandmarkVideoProcessor(
@@ -109,6 +144,8 @@ private class PoseLandmarkVideoProcessor(
     private val videoProcessStore: VideoProcessStore,
     private val videoFileManager: VideoFileManager,
     private val worker: VideoProcessingWorker,
+    private val barbellDetectionService: BarbellDetectionService,
+    private val barbellTrackingService: BarbellTrackingService,
     private val logger: AppLogger
 ) : VideoProcessor {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -159,6 +196,41 @@ private class PoseLandmarkVideoProcessor(
                 }
             }
         }
+    }
+
+    override suspend fun trackBarbell(
+        videoName: String,
+        metahistoryId: Int,
+        initialX: Float,
+        initialY: Float,
+        initialRadius: Float,
+        onProgress: (Int) -> Unit
+    ): List<BarbellFrameEntity> {
+        val inputFile = videoFileManager.resolveVideoFile(videoName)
+        if (!inputFile.exists()) {
+            logger.warn(TAG, "Video file not found for barbell tracking: videoName=$videoName")
+            return emptyList()
+        }
+
+        barbellDetectionService.initialize()
+
+        val entities = barbellTrackingService.trackSelectedCircle(
+            videoFile = inputFile,
+            initialX = initialX,
+            initialY = initialY,
+            initialRadius = initialRadius,
+            metahistoryId = metahistoryId,
+            detectionService = barbellDetectionService,
+            onProgress = onProgress
+        )
+
+        // Persist to database
+        if (entities.isNotEmpty()) {
+            videoProcessStore.replaceBarbellFrames(metahistoryId, entities)
+            logger.info(TAG, "Persisted ${entities.size} barbell frames from user-driven tracking: videoName=$videoName, metahistoryId=$metahistoryId")
+        }
+
+        return entities
     }
 
     override fun hasProcessedCopy(videoName: String): Boolean {
@@ -268,6 +340,19 @@ private class PoseLandmarkVideoProcessor(
     override fun clearAnalysisData(metahistoryId: Int) {
         videoProcessStore.deleteTimeseries(metahistoryId)
         videoProcessStore.deletePoseFrames(metahistoryId)
+        videoProcessStore.deleteBarbellFrames(metahistoryId)
+    }
+
+    override fun clearPoseFrames(metahistoryId: Int) {
+        videoProcessStore.deletePoseFrames(metahistoryId)
+    }
+
+    override fun clearBarbellFrames(metahistoryId: Int) {
+        videoProcessStore.deleteBarbellFrames(metahistoryId)
+    }
+
+    override fun clearTimeseries(metahistoryId: Int) {
+        videoProcessStore.deleteTimeseries(metahistoryId)
     }
 
     companion object {

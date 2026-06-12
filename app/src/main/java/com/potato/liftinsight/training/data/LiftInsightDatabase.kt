@@ -25,9 +25,10 @@ import com.potato.liftinsight.common.logging.AndroidAppLogger
         MetahistoryTimeseriesEntity::class,
         MetahistoryTimeseriesBinEntity::class,
         PoseFrameEntity::class,
+        BarbellFrameEntity::class,
         VideoExportStateEntity::class
     ],
-    version = 28,
+    version = 29,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -37,6 +38,7 @@ abstract class LiftInsightDatabase : RoomDatabase() {
     abstract fun bodyMetricDao(): BodyMetricDao
     abstract fun timeseriesDao(): TimeseriesDao
     abstract fun poseFrameDao(): PoseFrameDao
+    abstract fun barbellFrameDao(): BarbellFrameDao
 
     companion object {
         private const val TAG = "LiftInsightDatabase"
@@ -492,6 +494,28 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_28_29 = object : Migration(28, 29) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 28 -> 29")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS metahistory_barbell_frame (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        metahistory_id INTEGER NOT NULL,
+                        timestamp_ms INTEGER NOT NULL,
+                        x REAL NOT NULL,
+                        y REAL NOT NULL,
+                        radius REAL NOT NULL,
+                        confidence REAL NOT NULL,
+                        is_manually_edited INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(metahistory_id) REFERENCES metahistory(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_barbell_frame_metahistory_id_timestamp_ms ON metahistory_barbell_frame (metahistory_id, timestamp_ms)")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -545,7 +569,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                         MIGRATION_24_25,
                         MIGRATION_25_26,
                         MIGRATION_26_27,
-                        MIGRATION_27_28
+                        MIGRATION_27_28,
+                        MIGRATION_28_29
                     )
                         .build()
 

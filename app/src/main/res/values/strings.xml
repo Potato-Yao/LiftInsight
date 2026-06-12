@@ -335,6 +335,7 @@
     <string name="training_video_editor_removed_time_label">Removed time</string>
     <string name="training_video_editor_processed_copy_note">Processed review video will be cut too, so the current process state stays usable.</string>
     <string name="training_video_editor_loading">Loading video editor…</string>
+    <string name="training_video_editor_tracking_barbell">Tracking barbell…</string>
     <string name="training_video_editor_save_error">LiftInsight could not save this video edit.</string>
 
     <!-- Training history - marked records -->

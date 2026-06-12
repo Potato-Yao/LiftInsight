@@ -371,18 +371,31 @@ class TrainingHistoryController(
     ): TrainingHistoryState {
         logDebug("submitAnalysisProcessing start: videoName=$videoName, analysisState=$analysisState")
 
-        val drawingOptions = DrawingOptions(
-            drawLandmarks = analysisState.poseDetection,
-            drawAngles = analysisState.angleDisplay
-        )
+        // Determine which toggles were newly disabled
+        val poseJustDisabled = record.poseDetection && !analysisState.poseDetection
+        val barbellJustDisabled = record.barbellDetection && !analysisState.barbellDetection
+        val powerJustDisabled = record.powerCalculation && !analysisState.powerCalculation
+
+        // Determine if any toggle was newly enabled (requires re-processing)
+        val poseJustEnabled = !record.poseDetection && analysisState.poseDetection
+        val barbellJustEnabled = !record.barbellDetection && analysisState.barbellDetection
+        val needsReprocessing = poseJustEnabled || barbellJustEnabled
 
         withContext(Dispatchers.IO) {
-            // If pose detection was enabled and is now being disabled, clear analysis data
-            if (record.poseDetection && !analysisState.poseDetection) {
-                logDebug("Pose detection disabled, clearing analysis data for metahistoryId=${record.id}")
+            // Selectively clear data for disabled features (cascade handled by dependency)
+            if (poseJustDisabled) {
+                logDebug("Pose detection disabled, clearing all analysis data for metahistoryId=${record.id}")
                 videoProcessor.clearAnalysisData(record.id)
+            } else if (barbellJustDisabled) {
+                logDebug("Barbell detection disabled, clearing barbell + timeseries for metahistoryId=${record.id}")
+                videoProcessor.clearBarbellFrames(record.id)
+                videoProcessor.clearTimeseries(record.id)
+            } else if (powerJustDisabled) {
+                logDebug("Power calculation disabled, clearing timeseries for metahistoryId=${record.id}")
+                videoProcessor.clearTimeseries(record.id)
             }
 
+            // Always update the analysis settings in DB
             trainingPlanStore.updateAnalysisVideoState(
                 recordId = record.id,
                 poseDetection = analysisState.poseDetection,
@@ -391,8 +404,17 @@ class TrainingHistoryController(
                 barbellDetection = analysisState.barbellDetection,
                 powerCalculation = analysisState.powerCalculation
             )
-            videoProcessor.resetProcessingState(videoName)
-            videoProcessor.submitForProcessing(videoName, drawingOptions)
+
+            // Only re-process if something was newly enabled
+            if (needsReprocessing) {
+                logDebug("Analysis options changed requiring re-processing, submitting for processing")
+                val drawingOptions = DrawingOptions(
+                    drawLandmarks = analysisState.poseDetection,
+                    drawAngles = analysisState.angleDisplay
+                )
+                videoProcessor.resetProcessingState(videoName)
+                videoProcessor.submitForProcessing(videoName, drawingOptions)
+            }
         }
 
         // Update the record in state with the new analysis values

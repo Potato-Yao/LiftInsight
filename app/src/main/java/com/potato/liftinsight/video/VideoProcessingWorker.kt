@@ -6,6 +6,7 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.os.Build
 import com.potato.liftinsight.common.logging.AppLogger
+import com.potato.liftinsight.training.data.BarbellFrameEntity
 import com.potato.liftinsight.training.data.MetahistoryTimeseriesEntity
 import com.potato.liftinsight.training.data.PoseFrameEntity
 import com.potato.liftinsight.training.data.TimeseriesMetric
@@ -71,6 +72,13 @@ internal class VideoProcessingWorker(
                 logger.warn(TAG, "No metahistory record found for videoName=$videoName, skipping pose frame persistence")
             }
 
+            if (metahistoryId != null && result.barbellFrameEntries.isNotEmpty()) {
+                videoProcessStore.replaceBarbellFrames(metahistoryId, result.barbellFrameEntries)
+                logger.info(TAG, "Persisted ${result.barbellFrameEntries.size} barbell frame entries: videoName=$videoName, metahistoryId=$metahistoryId")
+            } else if (metahistoryId == null && result.barbellFrameEntries.isNotEmpty()) {
+                logger.warn(TAG, "No metahistory record found for videoName=$videoName, skipping barbell frame persistence")
+            }
+
             videoProcessStore.upsertVideoProcessState(
                 VideoProcessStateEntity(
                     videoName = videoName,
@@ -112,6 +120,9 @@ internal class VideoProcessingWorker(
 
         val timeseriesEntries = mutableListOf<MetahistoryTimeseriesEntity>()
         val poseFrameEntries = mutableListOf<PoseFrameEntity>()
+        // Barbell detection is now user-driven (interactive), not automatic.
+        // Barbell trajectory is built on-demand via BarbellTrackingService.
+        val barbellFrameEntries = emptyList<BarbellFrameEntity>()
         var processedFrameCount = 0
 
         try {
@@ -127,9 +138,9 @@ internal class VideoProcessingWorker(
 
                 val detectionResult = poseDetectionService.detectAndDrawPose(sourceFrame)
                 val normalizedPresentationTimeUs = (timestampUs - firstFrameTimestampUs).coerceAtLeast(0L)
+                val normalizedPresentationTimeMs = normalizedPresentationTimeUs / 1000L
 
                 if (metahistoryId != null) {
-                    val normalizedPresentationTimeMs = normalizedPresentationTimeUs / 1000L
                     timeseriesEntries.addAll(
                         buildTimeseriesEntries(
                             metahistoryId = metahistoryId,
@@ -180,7 +191,7 @@ internal class VideoProcessingWorker(
             retriever.release()
         }
 
-        return ProcessFrameResult(timeseriesEntries, poseFrameEntries)
+        return ProcessFrameResult(timeseriesEntries, poseFrameEntries, barbellFrameEntries)
     }
 
     private fun buildTimeseriesEntries(
@@ -397,7 +408,8 @@ internal class VideoProcessingWorker(
 
 private data class ProcessFrameResult(
     val timeseriesEntries: List<MetahistoryTimeseriesEntity>,
-    val poseFrameEntries: List<PoseFrameEntity>
+    val poseFrameEntries: List<PoseFrameEntity>,
+    val barbellFrameEntries: List<BarbellFrameEntity>
 )
 
 private data class DecodedFrame(

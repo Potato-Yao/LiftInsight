@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,6 +93,9 @@ internal fun AnalysisVideoScreen(
     // Pose data loaded from DB
     var poseFrames by remember { mutableStateOf<List<PoseFrameSnapshot>>(emptyList()) }
     var angleData by remember { mutableStateOf<Map<String, List<TimeseriesPoint>>>(emptyMap()) }
+    var barbellFrames by remember { mutableStateOf<List<BarbellFrameSnapshot>>(emptyList()) }
+
+    val scope = rememberCoroutineScope()
 
     val player = remember(videoFileName, context) {
         ExoPlayer.Builder(context).build()
@@ -201,6 +205,17 @@ internal fun AnalysisVideoScreen(
                 tsDao.getTimeSeries(metahistoryId, metric)
             }
 
+            // Load barbell frames
+            val bbFrames = database.barbellFrameDao().getBarbellFrames(metahistoryId)
+            barbellFrames = bbFrames.map { entity ->
+                BarbellFrameSnapshot(
+                    timestampMs = entity.timestampMs,
+                    x = entity.x,
+                    y = entity.y,
+                    radius = entity.radius
+                )
+            }
+
             // Load saved overlay settings
             val settings = database.planDao().getAnalysisSettings(metahistoryId)
             if (settings != null) {
@@ -234,23 +249,7 @@ internal fun AnalysisVideoScreen(
         }
     }
 
-    // Save settings when they change
-    LaunchedEffect(showSkeleton, showAngleDisplay, showAnglePlot, showBarbellTrace, rdpEpsilon, rdpSmoothSkeleton) {
-        if (metahistoryId != null) {
-            saveAnalysisSettings(
-                context = context,
-                metahistoryId = metahistoryId,
-                showSkeleton = showSkeleton,
-                showAngleDisplay = showAngleDisplay,
-                showAnglePlot = showAnglePlot,
-                showBarbellTrace = showBarbellTrace,
-                rdpEpsilon = rdpEpsilon,
-                rdpSmoothSkeleton = rdpSmoothSkeleton
-            )
-        }
-    }
-
-    // Find nearest pose frame
+    // Find nearest pose frame (must be before LaunchedEffects that reference it)
     val nearestFrame = remember(currentPositionMs, poseFrames) {
         if (poseFrames.isEmpty()) return@remember null
         val idx = poseFrames.binarySearchBy(currentPositionMs) { it.timestampMs }
@@ -273,6 +272,22 @@ internal fun AnalysisVideoScreen(
                 points.getOrNull(insertionPoint)
             )
             candidates.minByOrNull { kotlin.math.abs(it.timestampMs - currentPositionMs) }?.value
+        }
+    }
+
+    // Save settings when they change
+    LaunchedEffect(showSkeleton, showAngleDisplay, showAnglePlot, showBarbellTrace, rdpEpsilon, rdpSmoothSkeleton) {
+        if (metahistoryId != null) {
+            saveAnalysisSettings(
+                context = context,
+                metahistoryId = metahistoryId,
+                showSkeleton = showSkeleton,
+                showAngleDisplay = showAngleDisplay,
+                showAnglePlot = showAnglePlot,
+                showBarbellTrace = showBarbellTrace,
+                rdpEpsilon = rdpEpsilon,
+                rdpSmoothSkeleton = rdpSmoothSkeleton
+            )
         }
     }
 
@@ -346,6 +361,10 @@ internal fun AnalysisVideoScreen(
                             rdpEpsilon = rdpEpsilon,
                             allPoseFrames = poseFrames,
                             rdpSmoothSkeleton = rdpSmoothSkeleton,
+                            showBarbellTrace = showBarbellTrace,
+                            barbellFrames = barbellFrames,
+                            selectableCircles = emptyList(),
+                            onCircleTapped = null,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -376,9 +395,10 @@ internal fun AnalysisVideoScreen(
     }
 
         // Fullscreen overlay
-        if (isFullscreen && videoFile != null) {
+        val fullscreenFile = videoFile
+        if (isFullscreen && fullscreenFile != null) {
             MotionVideoPlayer(
-                videoUri = Uri.fromFile(videoFile!!),
+                videoUri = Uri.fromFile(fullscreenFile),
                 onDismiss = { isFullscreen = false },
                 overlayContent = { fsCurrentPositionMs, fsDurationMs ->
                     // Find nearest pose frame for fullscreen player position
@@ -420,6 +440,10 @@ internal fun AnalysisVideoScreen(
                         rdpEpsilon = rdpEpsilon,
                         allPoseFrames = poseFrames,
                         rdpSmoothSkeleton = rdpSmoothSkeleton,
+                        showBarbellTrace = showBarbellTrace,
+                        barbellFrames = barbellFrames,
+                        selectableCircles = emptyList(),
+                        onCircleTapped = null,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

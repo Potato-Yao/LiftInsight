@@ -47,6 +47,7 @@ interface VideoExporter {
                 videoFileManager = videoFileManager,
                 poseFrameDao = database.poseFrameDao(),
                 timeseriesDao = database.timeseriesDao(),
+                barbellFrameDao = database.barbellFrameDao(),
                 logger = logger
             )
             return VideoExporterImpl(

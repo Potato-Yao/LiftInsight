@@ -18,6 +18,7 @@ import com.potato.liftinsight.plan.route.PlanRoute
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.VideoProcessState
+import com.potato.liftinsight.training.data.BarbellFrameEntity
 import com.potato.liftinsight.video.DrawingOptions
 import com.potato.liftinsight.video.VideoProcessingStatus
 import com.potato.liftinsight.video.VideoProcessor
@@ -584,5 +585,20 @@ private class FakeVideoProcessor : VideoProcessor {
     override fun getPlaybackVideoFile(videoName: String) = null
 
     override fun clearAnalysisData(metahistoryId: Int) = Unit
+
+    override fun clearPoseFrames(metahistoryId: Int) = Unit
+
+    override fun clearBarbellFrames(metahistoryId: Int) = Unit
+
+    override fun clearTimeseries(metahistoryId: Int) = Unit
+
+    override suspend fun trackBarbell(
+        videoName: String,
+        metahistoryId: Int,
+        initialX: Float,
+        initialY: Float,
+        initialRadius: Float,
+        onProgress: (Int) -> Unit
+    ): List<BarbellFrameEntity> = emptyList()
 }
 

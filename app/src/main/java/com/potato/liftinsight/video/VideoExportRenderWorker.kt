@@ -9,6 +9,7 @@ import com.potato.liftinsight.record.LandmarkPosition
 import com.potato.liftinsight.record.parseLandmarksJson
 import com.potato.liftinsight.training.data.PoseFrameDao
 import com.potato.liftinsight.training.data.PoseFrameEntity
+import com.potato.liftinsight.training.data.BarbellFrameDao
 import com.potato.liftinsight.training.data.TimeseriesDao
 import com.potato.liftinsight.training.data.TimeseriesPoint
 import java.io.File
@@ -17,6 +18,7 @@ internal class VideoExportRenderWorker(
     private val videoFileManager: VideoFileManager,
     private val poseFrameDao: PoseFrameDao,
     private val timeseriesDao: TimeseriesDao,
+    private val barbellFrameDao: BarbellFrameDao,
     private val logger: AppLogger
 ) {
 
@@ -46,6 +48,14 @@ internal class VideoExportRenderWorker(
         val rawPoseFrames = poseFrameDao.getPoseFrames(metahistoryId)
             .sortedBy { it.timestampMs }
         logger.info(TAG, "Pose frames loaded: count=${rawPoseFrames.size}")
+
+        // Load barbell frames if barbell trace overlay is enabled
+        val rawBarbellFrames = if (options.showBarbellTrace) {
+            barbellFrameDao.getBarbellFrames(metahistoryId).sortedBy { it.timestampMs }
+        } else {
+            emptyList()
+        }
+        logger.info(TAG, "Barbell frames loaded: count=${rawBarbellFrames.size}, showBarbellTrace=${options.showBarbellTrace}")
 
         // Apply RDP smoothing to pose frames if enabled
         val poseFrames = if (options.rdpSmoothSkeleton && rawPoseFrames.size > 2) {
@@ -188,6 +198,25 @@ internal class VideoExportRenderWorker(
                         canvasHeight = height.toFloat(),
                         rdpEpsilon = options.rdpEpsilon
                     )
+                }
+
+                // If showBarbellTrace: draw barbell position and trace
+                if (options.showBarbellTrace && rawBarbellFrames.isNotEmpty()) {
+                    val barbellIndex = if (timestampsUs.size > 1) {
+                        (index.toLong() * (rawBarbellFrames.size - 1) / timestampsUs.size).toInt()
+                            .coerceIn(0, rawBarbellFrames.size - 1)
+                    } else {
+                        0
+                    }
+                    val tracePositions = rawBarbellFrames.subList(0, barbellIndex + 1).map { frame ->
+                        BarbellPosition(
+                            x = frame.x * width,
+                            y = frame.y * height,
+                            radius = frame.radius * width.coerceAtMost(height).toFloat(),
+                            confidence = frame.confidence
+                        )
+                    }
+                    BarbellOverlayRenderer.drawBarbellTraceAndPosition(canvas, tracePositions, tracePositions.lastIndex)
                 }
 
                 // Write frame to encoder

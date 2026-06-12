@@ -3,6 +3,8 @@ package com.potato.liftinsight.video
 import android.content.Context
 import com.potato.liftinsight.common.logging.AndroidAppLogger
 import com.potato.liftinsight.common.logging.AppLogger
+import com.potato.liftinsight.training.data.BarbellFrameDao
+import com.potato.liftinsight.training.data.BarbellFrameEntity
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.MetahistoryTimeseriesEntity
 import com.potato.liftinsight.training.data.PlanDao
@@ -17,6 +19,7 @@ class VideoProcessStore private constructor(
     private val planDao: PlanDao,
     private val timeseriesDao: TimeseriesDao,
     private val poseFrameDao: PoseFrameDao,
+    private val barbellFrameDao: BarbellFrameDao,
     private val logger: AppLogger
 ) {
     fun getVideoProcessState(videoName: String): VideoProcessStateEntity? {
@@ -85,6 +88,19 @@ class VideoProcessStore private constructor(
         }
     }
 
+    fun replaceBarbellFrames(metahistoryId: Int, entities: List<BarbellFrameEntity>) {
+        database.runInTransaction {
+            barbellFrameDao.deleteByMetaHistoryId(metahistoryId)
+            if (entities.isNotEmpty()) {
+                barbellFrameDao.insertAll(entities)
+            }
+        }
+    }
+
+    fun deleteBarbellFrames(metahistoryId: Int) {
+        barbellFrameDao.deleteByMetaHistoryId(metahistoryId)
+    }
+
     fun getVideoExportState(videoName: String): VideoExportStateEntity? = planDao.getVideoExportState(videoName)
 
     fun upsertVideoExportState(state: VideoExportStateEntity) = planDao.upsertVideoExportState(state)
@@ -102,6 +118,7 @@ class VideoProcessStore private constructor(
                 planDao = database.planDao(),
                 timeseriesDao = database.timeseriesDao(),
                 poseFrameDao = database.poseFrameDao(),
+                barbellFrameDao = database.barbellFrameDao(),
                 logger = AndroidAppLogger
             )
         }
@@ -110,7 +127,7 @@ class VideoProcessStore private constructor(
             database: LiftInsightDatabase,
             logger: AppLogger = AndroidAppLogger
         ): VideoProcessStore {
-            return VideoProcessStore(database, database.planDao(), database.timeseriesDao(), database.poseFrameDao(), logger)
+            return VideoProcessStore(database, database.planDao(), database.timeseriesDao(), database.poseFrameDao(), database.barbellFrameDao(), logger)
         }
     }
 }

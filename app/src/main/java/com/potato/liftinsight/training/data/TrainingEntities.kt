@@ -462,6 +462,35 @@ data class PoseFrameEntity(
     val landmarksJson: String
 )
 
+@Entity(
+    tableName = "metahistory_barbell_frame",
+    foreignKeys = [
+        ForeignKey(
+            entity = MetaHistoryEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["metahistory_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["metahistory_id", "timestamp_ms"])
+    ]
+)
+data class BarbellFrameEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+    @ColumnInfo(name = "metahistory_id")
+    val metahistoryId: Int,
+    @ColumnInfo(name = "timestamp_ms")
+    val timestampMs: Long,
+    val x: Float,
+    val y: Float,
+    val radius: Float,
+    val confidence: Float,
+    @ColumnInfo(name = "is_manually_edited")
+    val isManuallyEdited: Boolean = false
+)
+
 internal fun MotionEntity.toRecord(): MotionRecord {
     return MotionRecord(
         id = id,

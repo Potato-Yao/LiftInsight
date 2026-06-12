@@ -818,6 +818,7 @@ internal fun TrainingHistoryScreen(
         if (!videoName.isNullOrBlank()) {
             VideoEditorOverlay(
                 videoFileName = videoName,
+                metahistoryId = record.id,
                 videoProcessor = videoProcessor,
                 hasProcessedCopy = videoEditorHasProcessedCopy,
                 onDismiss = {
