@@ -5,7 +5,8 @@ data class ExportOverlayOptions(
     val showAngleDisplay: Boolean = false,
     val showAnglePlot: Boolean = false,
     val showBarbellTrace: Boolean = false,
-    val rdpEpsilon: Double = 1.5
+    val rdpEpsilon: Double = 1.5,
+    val rdpSmoothSkeleton: Boolean = false
 ) {
     val renderedItemsCode: String
         get() = buildString {

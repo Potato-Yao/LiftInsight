@@ -104,6 +104,7 @@ data class MetaHistoryRecord(
     val powerCalculation: Boolean = false,
     val marked: Boolean = false,
     val rdpEpsilon: Double = 1.5,
+    val rdpSmoothSkeleton: Boolean = false,
     val historyId: Int? = null
 )
 

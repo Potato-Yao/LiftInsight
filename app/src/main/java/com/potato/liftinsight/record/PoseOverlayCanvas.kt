@@ -40,6 +40,8 @@ internal fun PoseOverlayCanvas(
     showAngleDisplay: Boolean,
     showAnglePlot: Boolean,
     rdpEpsilon: Double = 1.5,
+    allPoseFrames: List<PoseFrameSnapshot> = emptyList(),
+    rdpSmoothSkeleton: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val hasAnyOverlay = (showSkeleton && poseFrame != null) ||
@@ -76,8 +78,53 @@ internal fun PoseOverlayCanvas(
         }
 
         if (showSkeleton && poseFrame != null) {
+            val effectiveFrame = if (rdpSmoothSkeleton && allPoseFrames.size > 2) {
+                // Apply RDP smoothing to each landmark's x and y time series independently
+                val smoothedLandmarks = mutableMapOf<Int, LandmarkPosition>()
+                val landmarkTypes = poseFrame.landmarks.keys
+
+                for (landmarkType in landmarkTypes) {
+                    // Build x and y time series for this landmark across all frames
+                    val xPoints = mutableListOf<TimeseriesPoint>()
+                    val yPoints = mutableListOf<TimeseriesPoint>()
+
+                    for (frame in allPoseFrames) {
+                        val lp = frame.landmarks[landmarkType] ?: continue
+                        xPoints.add(TimeseriesPoint(frame.timestampMs, lp.x.toDouble()))
+                        yPoints.add(TimeseriesPoint(frame.timestampMs, lp.y.toDouble()))
+                    }
+
+                    if (xPoints.size > 2) {
+                        // Apply RDP to x and y independently
+                        val simplifiedX = RdpSimplifier.simplify(xPoints, rdpEpsilon / 1000.0)
+                        val simplifiedY = RdpSimplifier.simplify(yPoints, rdpEpsilon / 1000.0)
+
+                        // Interpolate current position from simplified series
+                        val smoothedX = RdpSimplifier.interpolateValue(simplifiedX, currentPositionMs)
+                        val smoothedY = RdpSimplifier.interpolateValue(simplifiedY, currentPositionMs)
+
+                        if (smoothedX != null && smoothedY != null) {
+                            smoothedLandmarks[landmarkType] = LandmarkPosition(
+                                x = smoothedX.toFloat(),
+                                y = smoothedY.toFloat(),
+                                visibility = poseFrame.landmarks[landmarkType]?.visibility ?: 0f
+                            )
+                        } else {
+                            // Fallback to original
+                            poseFrame.landmarks[landmarkType]?.let { smoothedLandmarks[landmarkType] = it }
+                        }
+                    } else {
+                        poseFrame.landmarks[landmarkType]?.let { smoothedLandmarks[landmarkType] = it }
+                    }
+                }
+
+                PoseFrameSnapshot(timestampMs = currentPositionMs, landmarks = smoothedLandmarks)
+            } else {
+                poseFrame
+            }
+
             // Scale normalized coordinates to the video display area (not full canvas)
-            val pixelPositions = poseFrame.landmarks.mapValues { (_, lp) ->
+            val pixelPositions = effectiveFrame.landmarks.mapValues { (_, lp) ->
                 PoseOverlayLandmark(
                     x = offsetX + lp.x * videoDisplayW,
                     y = offsetY + lp.y * videoDisplayH,

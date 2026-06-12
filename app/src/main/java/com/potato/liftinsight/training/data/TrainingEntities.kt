@@ -216,6 +216,8 @@ data class MetaHistoryEntity(
     val marked: Boolean = false,
     @ColumnInfo(name = "rdp_epsilon", defaultValue = "1.5")
     val rdpEpsilon: Double = 1.5,
+    @ColumnInfo(name = "rdp_smooth_skeleton", defaultValue = "0")
+    val rdpSmoothSkeleton: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -289,6 +291,8 @@ data class MetaHistoryRow(
     val marked: Boolean = false,
     @ColumnInfo(name = "rdp_epsilon")
     val rdpEpsilon: Double = 1.5,
+    @ColumnInfo(name = "rdp_smooth_skeleton")
+    val rdpSmoothSkeleton: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -346,6 +350,8 @@ data class MetaHistoryBinEntity(
     val marked: Boolean = false,
     @ColumnInfo(name = "rdp_epsilon", defaultValue = "1.5")
     val rdpEpsilon: Double = 1.5,
+    @ColumnInfo(name = "rdp_smooth_skeleton", defaultValue = "0")
+    val rdpSmoothSkeleton: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -386,6 +392,8 @@ data class MetaHistoryBinRow(
     val marked: Boolean = false,
     @ColumnInfo(name = "rdp_epsilon")
     val rdpEpsilon: Double = 1.5,
+    @ColumnInfo(name = "rdp_smooth_skeleton")
+    val rdpSmoothSkeleton: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -538,6 +546,7 @@ internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
         powerCalculation = powerCalculation,
         marked = marked,
         rdpEpsilon = rdpEpsilon,
+        rdpSmoothSkeleton = rdpSmoothSkeleton,
         historyId = historyId
     )
 }
@@ -575,6 +584,7 @@ internal fun MetaHistoryBinRow.toRecord(): MetaHistoryRecord {
         powerCalculation = powerCalculation,
         marked = marked,
         rdpEpsilon = rdpEpsilon,
+        rdpSmoothSkeleton = rdpSmoothSkeleton,
         historyId = historyId
     )
 }

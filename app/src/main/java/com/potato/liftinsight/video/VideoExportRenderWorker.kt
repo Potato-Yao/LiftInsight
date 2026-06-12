@@ -8,6 +8,7 @@ import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.record.LandmarkPosition
 import com.potato.liftinsight.record.parseLandmarksJson
 import com.potato.liftinsight.training.data.PoseFrameDao
+import com.potato.liftinsight.training.data.PoseFrameEntity
 import com.potato.liftinsight.training.data.TimeseriesDao
 import com.potato.liftinsight.training.data.TimeseriesPoint
 import java.io.File
@@ -42,9 +43,17 @@ internal class VideoExportRenderWorker(
         logger.info(TAG, "Frame timestamps read: count=${timestampsUs.size}, first=${timestampsUs.firstOrNull()}, last=${timestampsUs.lastOrNull()}")
 
         // 3. Load ALL pose frames sorted by timestampMs
-        val poseFrames = poseFrameDao.getPoseFrames(metahistoryId)
+        val rawPoseFrames = poseFrameDao.getPoseFrames(metahistoryId)
             .sortedBy { it.timestampMs }
-        logger.info(TAG, "Pose frames loaded: count=${poseFrames.size}")
+        logger.info(TAG, "Pose frames loaded: count=${rawPoseFrames.size}")
+
+        // Apply RDP smoothing to pose frames if enabled
+        val poseFrames = if (options.rdpSmoothSkeleton && rawPoseFrames.size > 2) {
+            applyRdpSmoothingToPoseFrames(rawPoseFrames, options.rdpEpsilon)
+        } else {
+            rawPoseFrames
+        }
+        logger.info(TAG, "Effective pose frames after RDP smoothing: count=${poseFrames.size}")
 
         // 4. Load ALL timeseries grouped by metricName
         val timeseriesByMetric = loadTimeseries(metahistoryId)
@@ -283,6 +292,46 @@ internal class VideoExportRenderWorker(
         return input
             .replace(" ", "_")
             .replace(Regex("[^a-zA-Z0-9_\\-]"), "")
+    }
+
+    private fun applyRdpSmoothingToPoseFrames(
+        frames: List<PoseFrameEntity>,
+        epsilon: Double
+    ): List<PoseFrameEntity> {
+        // Build a "motion magnitude" time series: total landmark displacement per frame
+        val motionPoints = mutableListOf<TimeseriesPoint>()
+        for (i in frames.indices) {
+            val frame = frames[i]
+            val prevFrame = frames.getOrNull(i - 1)
+            val displacement = if (prevFrame != null) {
+                val currLandmarks = parseLandmarksJson(frame.landmarksJson)
+                val prevLandmarks = parseLandmarksJson(prevFrame.landmarksJson)
+                var totalDist = 0.0
+                var count = 0
+                for ((type, curr) in currLandmarks) {
+                    val prev = prevLandmarks[type] ?: continue
+                    val dx = curr.x - prev.x
+                    val dy = curr.y - prev.y
+                    totalDist += Math.sqrt((dx * dx + dy * dy).toDouble())
+                    count++
+                }
+                if (count > 0) totalDist / count else 0.0
+            } else {
+                1.0 // Keep first frame
+            }
+            motionPoints.add(TimeseriesPoint(frame.timestampMs, displacement))
+        }
+
+        // Apply RDP to the motion series
+        val simplifiedMotion = RdpSimplifier.simplify(motionPoints, epsilon / 1000.0)
+        val simplifiedTimestamps = simplifiedMotion.map { it.timestampMs }.toSet()
+
+        // Keep frames that are at simplified timestamps (or nearest), always keep first and last
+        return frames.filter { frame ->
+            simplifiedTimestamps.any { ts -> Math.abs(ts - frame.timestampMs) < 16 } ||
+                frame == frames.first() ||
+                frame == frames.last()
+        }
     }
 
     companion object {

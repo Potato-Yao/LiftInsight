@@ -14,7 +14,8 @@ data class AnalysisSettings(
     @ColumnInfo(name = "angle_plot") val anglePlot: Boolean,
     @ColumnInfo(name = "barbell_detection") val barbellDetection: Boolean,
     @ColumnInfo(name = "power_calculation") val powerCalculation: Boolean,
-    @ColumnInfo(name = "rdp_epsilon") val rdpEpsilon: Double
+    @ColumnInfo(name = "rdp_epsilon") val rdpEpsilon: Double,
+    @ColumnInfo(name = "rdp_smooth_skeleton") val rdpSmoothSkeleton: Boolean
 )
 
 @Dao
@@ -124,7 +125,7 @@ abstract class PlanDao {
         powerCalculation: Boolean
     )
 
-    @Query("SELECT pose_detection, angle_display, angle_plot, barbell_detection, power_calculation, rdp_epsilon FROM metahistory WHERE id = :id")
+    @Query("SELECT pose_detection, angle_display, angle_plot, barbell_detection, power_calculation, rdp_epsilon, rdp_smooth_skeleton FROM metahistory WHERE id = :id")
     abstract fun getAnalysisSettings(id: Int): AnalysisSettings?
 
     @Query(
@@ -135,7 +136,8 @@ abstract class PlanDao {
             angle_plot = :anglePlot,
             barbell_detection = :barbellDetection,
             power_calculation = :powerCalculation,
-            rdp_epsilon = :rdpEpsilon
+            rdp_epsilon = :rdpEpsilon,
+            rdp_smooth_skeleton = :rdpSmoothSkeleton
         WHERE id = :recordId
         """
     )
@@ -146,7 +148,8 @@ abstract class PlanDao {
         anglePlot: Boolean,
         barbellDetection: Boolean,
         powerCalculation: Boolean,
-        rdpEpsilon: Double
+        rdpEpsilon: Double,
+        rdpSmoothSkeleton: Boolean
     )
 
     @Transaction
@@ -210,7 +213,8 @@ abstract class PlanDao {
             metahistory.barbell_detection,
             metahistory.power_calculation,
             metahistory.marked,
-            metahistory.rdp_epsilon
+            metahistory.rdp_epsilon,
+            metahistory.rdp_smooth_skeleton
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         ORDER BY metahistory.date DESC, metahistory.id DESC
@@ -241,7 +245,8 @@ abstract class PlanDao {
             metahistory.barbell_detection,
             metahistory.power_calculation,
             metahistory.marked,
-            metahistory.rdp_epsilon
+            metahistory.rdp_epsilon,
+            metahistory.rdp_smooth_skeleton
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.history_id = :historyId
@@ -404,7 +409,8 @@ abstract class PlanDao {
             barbell_detection,
             power_calculation,
             marked,
-            rdp_epsilon
+            rdp_epsilon,
+            rdp_smooth_skeleton
         FROM metahistory_bin
         ORDER BY date DESC, id DESC
         """
@@ -440,7 +446,8 @@ abstract class PlanDao {
             metahistory.barbell_detection,
             metahistory.power_calculation,
             metahistory.marked,
-            metahistory.rdp_epsilon
+            metahistory.rdp_epsilon,
+            metahistory.rdp_smooth_skeleton
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.id = :id
@@ -471,7 +478,8 @@ abstract class PlanDao {
             barbell_detection,
             power_calculation,
             marked,
-            rdp_epsilon
+            rdp_epsilon,
+            rdp_smooth_skeleton
         FROM metahistory_bin
         WHERE id = :id
         """
@@ -502,6 +510,7 @@ abstract class PlanDao {
             powerCalculation = row.powerCalculation,
             marked = row.marked,
             rdpEpsilon = row.rdpEpsilon,
+            rdpSmoothSkeleton = row.rdpSmoothSkeleton,
             historyId = row.historyId
         )
 
@@ -562,6 +571,7 @@ abstract class PlanDao {
             powerCalculation = row.powerCalculation,
             marked = row.marked,
             rdpEpsilon = row.rdpEpsilon,
+            rdpSmoothSkeleton = row.rdpSmoothSkeleton,
             historyId = row.historyId
         )
 

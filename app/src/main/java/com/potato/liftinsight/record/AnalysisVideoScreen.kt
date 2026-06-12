@@ -81,6 +81,7 @@ internal fun AnalysisVideoScreen(
     var showAngleDisplay by remember { mutableStateOf(false) }
     var showAnglePlot by remember { mutableStateOf(false) }
     var showBarbellTrace by remember { mutableStateOf(false) }
+    var rdpSmoothSkeleton by remember { mutableStateOf(false) }
 
     // RDP epsilon value
     var rdpEpsilon by remember { mutableStateOf(1.5) }
@@ -208,6 +209,7 @@ internal fun AnalysisVideoScreen(
                 showAnglePlot = settings.anglePlot
                 showBarbellTrace = settings.barbellDetection
                 rdpEpsilon = settings.rdpEpsilon
+                rdpSmoothSkeleton = settings.rdpSmoothSkeleton
             }
         }
     }
@@ -233,7 +235,7 @@ internal fun AnalysisVideoScreen(
     }
 
     // Save settings when they change
-    LaunchedEffect(showSkeleton, showAngleDisplay, showAnglePlot, showBarbellTrace, rdpEpsilon) {
+    LaunchedEffect(showSkeleton, showAngleDisplay, showAnglePlot, showBarbellTrace, rdpEpsilon, rdpSmoothSkeleton) {
         if (metahistoryId != null) {
             saveAnalysisSettings(
                 context = context,
@@ -242,7 +244,8 @@ internal fun AnalysisVideoScreen(
                 showAngleDisplay = showAngleDisplay,
                 showAnglePlot = showAnglePlot,
                 showBarbellTrace = showBarbellTrace,
-                rdpEpsilon = rdpEpsilon
+                rdpEpsilon = rdpEpsilon,
+                rdpSmoothSkeleton = rdpSmoothSkeleton
             )
         }
     }
@@ -341,6 +344,8 @@ internal fun AnalysisVideoScreen(
                             showAngleDisplay = showAngleDisplay,
                             showAnglePlot = showAnglePlot,
                             rdpEpsilon = rdpEpsilon,
+                            allPoseFrames = poseFrames,
+                            rdpSmoothSkeleton = rdpSmoothSkeleton,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -352,14 +357,16 @@ internal fun AnalysisVideoScreen(
                 showAngleDisplay = showAngleDisplay,
                 showAnglePlot = showAnglePlot,
                 showBarbellTrace = showBarbellTrace,
+                showRdpSkeleton = rdpSmoothSkeleton,
                 onToggleSkeleton = { showSkeleton = !showSkeleton },
                 onToggleAngleDisplay = { showAngleDisplay = !showAngleDisplay },
                 onToggleAnglePlot = { showAnglePlot = !showAnglePlot },
-                onToggleBarbellTrace = { showBarbellTrace = !showBarbellTrace }
+                onToggleBarbellTrace = { showBarbellTrace = !showBarbellTrace },
+                onToggleRdpSkeleton = { rdpSmoothSkeleton = !rdpSmoothSkeleton }
             )
 
-            // RDP smoothing settings (only visible when angle display or plot is on)
-            if (showAngleDisplay || showAnglePlot) {
+            // RDP smoothing settings (only visible when angle display, plot, or skeleton smoothing is on)
+            if (showAngleDisplay || showAnglePlot || rdpSmoothSkeleton) {
                 RdpSettingsCard(
                     rdpEpsilon = rdpEpsilon,
                     onEpsilonChanged = { rdpEpsilon = it }
@@ -411,6 +418,8 @@ internal fun AnalysisVideoScreen(
                         showAngleDisplay = showAngleDisplay,
                         showAnglePlot = showAnglePlot,
                         rdpEpsilon = rdpEpsilon,
+                        allPoseFrames = poseFrames,
+                        rdpSmoothSkeleton = rdpSmoothSkeleton,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -425,10 +434,12 @@ private fun OverlayToggleBar(
     showAngleDisplay: Boolean,
     showAnglePlot: Boolean,
     showBarbellTrace: Boolean,
+    showRdpSkeleton: Boolean,
     onToggleSkeleton: () -> Unit,
     onToggleAngleDisplay: () -> Unit,
     onToggleAnglePlot: () -> Unit,
-    onToggleBarbellTrace: () -> Unit
+    onToggleBarbellTrace: () -> Unit,
+    onToggleRdpSkeleton: () -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -468,6 +479,12 @@ private fun OverlayToggleBar(
                 label = stringResource(R.string.training_analysis_overlay_barbell_trace),
                 checked = showBarbellTrace,
                 onCheckedChange = { onToggleBarbellTrace() }
+            )
+
+            OverlayToggleRow(
+                label = stringResource(R.string.training_analysis_overlay_rdp_skeleton),
+                checked = showRdpSkeleton,
+                onCheckedChange = { onToggleRdpSkeleton() }
             )
         }
     }
@@ -580,7 +597,8 @@ private fun saveAnalysisSettings(
     showAngleDisplay: Boolean,
     showAnglePlot: Boolean,
     showBarbellTrace: Boolean,
-    rdpEpsilon: Double
+    rdpEpsilon: Double,
+    rdpSmoothSkeleton: Boolean
 ) {
     CoroutineScope(Dispatchers.IO).launch {
         val database = LiftInsightDatabase.from(context)
@@ -591,7 +609,8 @@ private fun saveAnalysisSettings(
             anglePlot = showAnglePlot,
             barbellDetection = showBarbellTrace,
             powerCalculation = false,
-            rdpEpsilon = rdpEpsilon
+            rdpEpsilon = rdpEpsilon,
+            rdpSmoothSkeleton = rdpSmoothSkeleton
         )
     }
 }
