@@ -281,3 +281,79 @@ CREATE TABLE metahistory_bin (
 │       ├── TrainingEntities.kt
 │       └── TrainingRecords.kt
 ```
+
+== Multi-Agent Workflow
+
+本项目的代码是全部由AI完成的。项目的前期使用的是简单的单一agent工作模式。但是这就引入了需求描述不清导致最后生成的代码有误、反复测试或调整导致token消耗过多等问题。并且由于生成代码量太大，我难以全部人工审查，因此留下了很多不良或不规范的代码设计。
+
+因此，在项目的中后期，我在opencode中引入了multi-agent workflow以提升工作效率、减少因描述不够详细造成AI的误解、降低token用量，我称之为devloop。
+
+#figure(
+  block(width: 100%, inset: 10pt, {
+    set text(font: "Inter", size: 9pt)
+    set align(center)
+    text(size: 12pt, weight: "bold")[Devloop Multi-Agent Workflow]
+    v(8pt)
+    let node(label, color, body) = box(stroke: 1.2pt + color, radius: 6pt, inset: 6pt, fill: color.lighten(90%))[
+      #text(weight: "bold")[#label] #h(4pt) #text(size: 8pt)[#body]
+    ]
+    node("User", rgb("#2563eb"), "Requirement")
+    v(2pt)
+    text(size: 11pt)[↓]
+    v(2pt)
+    node("Devloop", rgb("#0d9488"), "Orchestrator · Routes to agents")
+    v(2pt)
+    text(size: 11pt)[↓]
+    v(2pt)
+    node("1 · Planner", rgb("#16a34a"), "Questions · Constraints · Tasks")
+    v(1pt)
+    text(size: 7pt, style: "italic")[clarify with user if needed]
+    v(1pt)
+    text(size: 11pt)[↓]
+    v(2pt)
+    node("2 · Engineer", rgb("#9333ea"), "Implement · Verify · Test")
+    v(2pt)
+    text(size: 11pt)[↓]
+    v(2pt)
+    node("3 · Reviewer", rgb("#dc2626"), "Quality · Architecture · Fit")
+    v(2pt)
+    text(size: 11pt)[↓]
+    v(4pt)
+    grid(
+      columns: (1fr, 1fr),
+      column-gutter: 16pt,
+      align(center, {
+        box(stroke: 1pt + rgb("#ca8a04"), radius: 4pt, inset: 5pt, fill: rgb("#fefce8"))[
+          #text(size: 8pt)[✗ Not approved]
+        ]
+        v(2pt)
+        text(size: 7pt)[→ Devloop sends feedback \
+          back to Engineer (max 3×)]
+      }),
+      align(center, {
+        box(stroke: 1pt + rgb("#16a34a"), radius: 4pt, inset: 5pt, fill: rgb("#f0fdf4"))[
+          #text(size: 8pt)[✓ Approved]
+        ]
+        v(2pt)
+        text(size: 11pt)[↓]
+        v(2pt)
+        node("4 · Summarizer", rgb("#ea580c"), "Summary · Tradeoffs")
+        v(2pt)
+        text(size: 11pt)[↓]
+        v(2pt)
+        box(stroke: 1pt + gray, radius: 4pt, inset: 5pt)[
+          #text(size: 8pt)[Final Response → User]
+        ]
+      }),
+    )
+  }),
+  caption: [Devloop工作原理],
+) <fig-workflow>
+
+需要注意的是，除了图中的几个模型，实际上还有一个用于指挥的agent，我也称之为devloop。
+
+agent的模型选择经历了多次变化。在最开始，我可用的模型是来自GitHub copilot的GPT5.4和deepseek v4，于是选择了GPT作为devloop、planner和engineer，deepseek pro作为reviewer和summarizer。
+
+后来GPT的额度耗尽，同时我发现reviewer和summarizer的工作较为简单，于是为了降低成本、加快速度，改成了deepseek pro作为devloop、planner和engineer，deepseek flash作为reviewer和summarizer。
+
+但是deepseek速度实在太慢，并且它作为planner对模糊需求的猜测和计划制定的能力并不足，因此我又购入了Xiaomi mimo 2.5，使用mimo2.5作为devloop和planner，deepseek pro作为engineer，deepseek flash作为reviewer和summarizer。这样效率和工作正确度就高了很多。之所以不用更聪明和便宜的mimo作为engineer，是因为engineer是token用量最大的地方，而当planner的计划描述足够清晰时，不同模型在代码质量上的差异就会很小，因此选用了deepseek进行这项工作。
