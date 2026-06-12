@@ -27,7 +27,7 @@ import com.potato.liftinsight.common.logging.AndroidAppLogger
         PoseFrameEntity::class,
         VideoExportStateEntity::class
     ],
-    version = 25,
+    version = 27,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -373,6 +373,117 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_25_26 = object : Migration(25, 26) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 25 -> 26")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN rdp_epsilons TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE metahistory_bin ADD COLUMN rdp_epsilons TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_26_27 = object : Migration(26, 27) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 26 -> 27")
+
+                // Recreate metahistory table without rdp_epsilons column
+                db.execSQL("""
+                    CREATE TABLE metahistory_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        date TEXT NOT NULL,
+                        rep INTEGER NOT NULL,
+                        rpe INTEGER NOT NULL,
+                        weight REAL NOT NULL,
+                        motion_id INTEGER NOT NULL,
+                        video_name TEXT,
+                        video_source TEXT NOT NULL DEFAULT 'CAMERA_CAPTURE',
+                        imported_video_analysis_mode TEXT NOT NULL DEFAULT 'ESTIMATED',
+                        imported_reference_label TEXT NOT NULL DEFAULT '',
+                        imported_reference_pixel_distance REAL,
+                        imported_reference_distance_meters REAL,
+                        pose_detection INTEGER NOT NULL DEFAULT 0,
+                        angle_display INTEGER NOT NULL DEFAULT 0,
+                        angle_plot INTEGER NOT NULL DEFAULT 0,
+                        barbell_detection INTEGER NOT NULL DEFAULT 0,
+                        power_calculation INTEGER NOT NULL DEFAULT 0,
+                        marked INTEGER NOT NULL DEFAULT 0,
+                        rdp_epsilon REAL NOT NULL DEFAULT 1.5,
+                        history_id INTEGER,
+                        FOREIGN KEY(motion_id) REFERENCES motion(id) ON UPDATE NO ACTION ON DELETE RESTRICT,
+                        FOREIGN KEY(history_id) REFERENCES history(id) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """)
+                db.execSQL("""
+                    INSERT INTO metahistory_new (
+                        id, date, rep, rpe, weight, motion_id, video_name,
+                        video_source, imported_video_analysis_mode,
+                        imported_reference_label, imported_reference_pixel_distance,
+                        imported_reference_distance_meters,
+                        pose_detection, angle_display, angle_plot, barbell_detection,
+                        power_calculation, marked, rdp_epsilon, history_id
+                    )
+                    SELECT
+                        id, date, rep, rpe, weight, motion_id, video_name,
+                        video_source, imported_video_analysis_mode,
+                        imported_reference_label, imported_reference_pixel_distance,
+                        imported_reference_distance_meters,
+                        pose_detection, angle_display, angle_plot, barbell_detection,
+                        power_calculation, marked, 1.5, history_id
+                    FROM metahistory
+                """)
+                db.execSQL("DROP TABLE metahistory")
+                db.execSQL("ALTER TABLE metahistory_new RENAME TO metahistory")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_motion_id ON metahistory (motion_id)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_metahistory_history_id ON metahistory (history_id)")
+
+                // Recreate metahistory_bin table without rdp_epsilons column
+                db.execSQL("""
+                    CREATE TABLE metahistory_bin_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        date TEXT NOT NULL,
+                        rep INTEGER NOT NULL,
+                        rpe INTEGER NOT NULL,
+                        weight REAL NOT NULL,
+                        motion_id INTEGER NOT NULL,
+                        motion_name TEXT NOT NULL,
+                        video_name TEXT,
+                        video_source TEXT NOT NULL DEFAULT 'CAMERA_CAPTURE',
+                        imported_video_analysis_mode TEXT NOT NULL DEFAULT 'ESTIMATED',
+                        imported_reference_label TEXT NOT NULL DEFAULT '',
+                        imported_reference_pixel_distance REAL,
+                        imported_reference_distance_meters REAL,
+                        pose_detection INTEGER NOT NULL DEFAULT 0,
+                        angle_display INTEGER NOT NULL DEFAULT 0,
+                        angle_plot INTEGER NOT NULL DEFAULT 0,
+                        barbell_detection INTEGER NOT NULL DEFAULT 0,
+                        power_calculation INTEGER NOT NULL DEFAULT 0,
+                        marked INTEGER NOT NULL DEFAULT 0,
+                        rdp_epsilon REAL NOT NULL DEFAULT 1.5,
+                        history_id INTEGER
+                    )
+                """)
+                db.execSQL("""
+                    INSERT INTO metahistory_bin_new (
+                        id, date, rep, rpe, weight, motion_id, motion_name, video_name,
+                        video_source, imported_video_analysis_mode,
+                        imported_reference_label, imported_reference_pixel_distance,
+                        imported_reference_distance_meters,
+                        pose_detection, angle_display, angle_plot, barbell_detection,
+                        power_calculation, marked, rdp_epsilon, history_id
+                    )
+                    SELECT
+                        id, date, rep, rpe, weight, motion_id, motion_name, video_name,
+                        video_source, imported_video_analysis_mode,
+                        imported_reference_label, imported_reference_pixel_distance,
+                        imported_reference_distance_meters,
+                        pose_detection, angle_display, angle_plot, barbell_detection,
+                        power_calculation, marked, 1.5, history_id
+                    FROM metahistory_bin
+                """)
+                db.execSQL("DROP TABLE metahistory_bin")
+                db.execSQL("ALTER TABLE metahistory_bin_new RENAME TO metahistory_bin")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -423,7 +534,9 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                         MIGRATION_21_22,
                         MIGRATION_22_23,
                         MIGRATION_23_24,
-                        MIGRATION_24_25
+                        MIGRATION_24_25,
+                        MIGRATION_25_26,
+                        MIGRATION_26_27
                     )
                         .build()
 

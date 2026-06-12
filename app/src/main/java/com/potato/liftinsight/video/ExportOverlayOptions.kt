@@ -4,7 +4,8 @@ data class ExportOverlayOptions(
     val showSkeleton: Boolean = false,
     val showAngleDisplay: Boolean = false,
     val showAnglePlot: Boolean = false,
-    val showBarbellTrace: Boolean = false
+    val showBarbellTrace: Boolean = false,
+    val rdpEpsilon: Double = 1.5
 ) {
     val renderedItemsCode: String
         get() = buildString {

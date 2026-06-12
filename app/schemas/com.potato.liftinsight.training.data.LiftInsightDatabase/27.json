@@ -1,0 +1,1095 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 27,
+    "identityHash": "c6b76174f96bbd158dd25026bc28c4cf",
+    "entities": [
+      {
+        "tableName": "motion",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_motion_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_motion_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "plan",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `cycle_period` INTEGER NOT NULL, `current_index` INTEGER NOT NULL, `last_applied_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cyclePeriod",
+            "columnName": "cycle_period",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentIndex",
+            "columnName": "current_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAppliedAt",
+            "columnName": "last_applied_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "plan_selection",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `current_plan_id` INTEGER, `current_day_epoch` INTEGER, PRIMARY KEY(`id`), FOREIGN KEY(`current_plan_id`) REFERENCES `plan`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentPlanId",
+            "columnName": "current_plan_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "currentDayEpoch",
+            "columnName": "current_day_epoch",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_plan_selection_current_plan_id",
+            "unique": false,
+            "columnNames": [
+              "current_plan_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_plan_selection_current_plan_id` ON `${TABLE_NAME}` (`current_plan_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "plan",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "current_plan_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "workout_session",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `is_workout_going` INTEGER NOT NULL, `is_paused` INTEGER NOT NULL, `started_at` INTEGER NOT NULL, `last_resumed_at` INTEGER NOT NULL, `elapsed_before_pause_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isWorkoutGoing",
+            "columnName": "is_workout_going",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isPaused",
+            "columnName": "is_paused",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "started_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastResumedAt",
+            "columnName": "last_resumed_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedBeforePauseMs",
+            "columnName": "elapsed_before_pause_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "workout_progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `plan_id` INTEGER NOT NULL, `plan_day_index` INTEGER NOT NULL, `next_set_index` INTEGER NOT NULL, `active_set_index` INTEGER, `total_set_count` INTEGER NOT NULL, `break_ends_at` INTEGER NOT NULL, `is_finished` INTEGER NOT NULL, `completed_elapsed_time_ms` INTEGER NOT NULL, `active_history_id` INTEGER, `workout_intensity` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "planId",
+            "columnName": "plan_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "planDayIndex",
+            "columnName": "plan_day_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextSetIndex",
+            "columnName": "next_set_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeSetIndex",
+            "columnName": "active_set_index",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "totalSetCount",
+            "columnName": "total_set_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "breakEndsAt",
+            "columnName": "break_ends_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFinished",
+            "columnName": "is_finished",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedElapsedTimeMs",
+            "columnName": "completed_elapsed_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeHistoryId",
+            "columnName": "active_history_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "workoutIntensity",
+            "columnName": "workout_intensity",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "metaplan",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `plan_id` INTEGER NOT NULL, `motion_id` INTEGER NOT NULL, `day_index` INTEGER NOT NULL, `sets` INTEGER NOT NULL, `reps` INTEGER NOT NULL, `intensity` REAL NOT NULL, `weight` REAL NOT NULL, `order_index` INTEGER NOT NULL, FOREIGN KEY(`plan_id`) REFERENCES `plan`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`motion_id`) REFERENCES `motion`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "planId",
+            "columnName": "plan_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "motionId",
+            "columnName": "motion_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayIndex",
+            "columnName": "day_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sets",
+            "columnName": "sets",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reps",
+            "columnName": "reps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intensity",
+            "columnName": "intensity",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weight",
+            "columnName": "weight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "orderIndex",
+            "columnName": "order_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_metaplan_plan_id",
+            "unique": false,
+            "columnNames": [
+              "plan_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_metaplan_plan_id` ON `${TABLE_NAME}` (`plan_id`)"
+          },
+          {
+            "name": "index_metaplan_motion_id",
+            "unique": false,
+            "columnNames": [
+              "motion_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_metaplan_motion_id` ON `${TABLE_NAME}` (`motion_id`)"
+          },
+          {
+            "name": "index_metaplan_plan_id_day_index_order_index",
+            "unique": true,
+            "columnNames": [
+              "plan_id",
+              "day_index",
+              "order_index"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_metaplan_plan_id_day_index_order_index` ON `${TABLE_NAME}` (`plan_id`, `day_index`, `order_index`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "plan",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "plan_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "motion",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "motion_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "metahistory",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `rep` INTEGER NOT NULL, `rpe` INTEGER NOT NULL, `weight` REAL NOT NULL, `motion_id` INTEGER NOT NULL, `video_name` TEXT, `video_source` TEXT NOT NULL, `imported_video_analysis_mode` TEXT NOT NULL, `imported_reference_label` TEXT NOT NULL, `imported_reference_pixel_distance` REAL, `imported_reference_distance_meters` REAL, `pose_detection` INTEGER NOT NULL DEFAULT 0, `angle_display` INTEGER NOT NULL DEFAULT 0, `angle_plot` INTEGER NOT NULL DEFAULT 0, `barbell_detection` INTEGER NOT NULL DEFAULT 0, `power_calculation` INTEGER NOT NULL DEFAULT 0, `marked` INTEGER NOT NULL DEFAULT 0, `rdp_epsilon` REAL NOT NULL DEFAULT 1.5, `history_id` INTEGER, FOREIGN KEY(`motion_id`) REFERENCES `motion`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`history_id`) REFERENCES `history`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rep",
+            "columnName": "rep",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rpe",
+            "columnName": "rpe",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weight",
+            "columnName": "weight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "motionId",
+            "columnName": "motion_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "videoName",
+            "columnName": "video_name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "videoSource",
+            "columnName": "video_source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedVideoAnalysisMode",
+            "columnName": "imported_video_analysis_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedReferenceLabel",
+            "columnName": "imported_reference_label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedReferencePixelDistance",
+            "columnName": "imported_reference_pixel_distance",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "importedReferenceDistanceMeters",
+            "columnName": "imported_reference_distance_meters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "poseDetection",
+            "columnName": "pose_detection",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "angleDisplay",
+            "columnName": "angle_display",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "anglePlot",
+            "columnName": "angle_plot",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "barbellDetection",
+            "columnName": "barbell_detection",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "powerCalculation",
+            "columnName": "power_calculation",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "marked",
+            "columnName": "marked",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "rdpEpsilon",
+            "columnName": "rdp_epsilon",
+            "affinity": "REAL",
+            "notNull": true,
+            "defaultValue": "1.5"
+          },
+          {
+            "fieldPath": "historyId",
+            "columnName": "history_id",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_metahistory_motion_id",
+            "unique": false,
+            "columnNames": [
+              "motion_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_metahistory_motion_id` ON `${TABLE_NAME}` (`motion_id`)"
+          },
+          {
+            "name": "index_metahistory_history_id",
+            "unique": false,
+            "columnNames": [
+              "history_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_metahistory_history_id` ON `${TABLE_NAME}` (`history_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "motion",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "motion_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "history",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "history_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "video_process_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `video_name` TEXT NOT NULL, `state` TEXT NOT NULL, `progress` INTEGER NOT NULL, `processed_video_name` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "videoName",
+            "columnName": "video_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "progress",
+            "columnName": "progress",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "processedVideoName",
+            "columnName": "processed_video_name",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_video_process_state_video_name",
+            "unique": true,
+            "columnNames": [
+              "video_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_video_process_state_video_name` ON `${TABLE_NAME}` (`video_name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "metahistory_bin",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `rep` INTEGER NOT NULL, `rpe` INTEGER NOT NULL, `weight` REAL NOT NULL, `motion_id` INTEGER NOT NULL, `motion_name` TEXT NOT NULL, `video_name` TEXT, `video_source` TEXT NOT NULL, `imported_video_analysis_mode` TEXT NOT NULL, `imported_reference_label` TEXT NOT NULL, `imported_reference_pixel_distance` REAL, `imported_reference_distance_meters` REAL, `pose_detection` INTEGER NOT NULL DEFAULT 0, `angle_display` INTEGER NOT NULL DEFAULT 0, `angle_plot` INTEGER NOT NULL DEFAULT 0, `barbell_detection` INTEGER NOT NULL DEFAULT 0, `power_calculation` INTEGER NOT NULL DEFAULT 0, `marked` INTEGER NOT NULL DEFAULT 0, `rdp_epsilon` REAL NOT NULL DEFAULT 1.5, `history_id` INTEGER)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rep",
+            "columnName": "rep",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rpe",
+            "columnName": "rpe",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weight",
+            "columnName": "weight",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "motionId",
+            "columnName": "motion_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "motionName",
+            "columnName": "motion_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "videoName",
+            "columnName": "video_name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "videoSource",
+            "columnName": "video_source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedVideoAnalysisMode",
+            "columnName": "imported_video_analysis_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedReferenceLabel",
+            "columnName": "imported_reference_label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importedReferencePixelDistance",
+            "columnName": "imported_reference_pixel_distance",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "importedReferenceDistanceMeters",
+            "columnName": "imported_reference_distance_meters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "poseDetection",
+            "columnName": "pose_detection",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "angleDisplay",
+            "columnName": "angle_display",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "anglePlot",
+            "columnName": "angle_plot",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "barbellDetection",
+            "columnName": "barbell_detection",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "powerCalculation",
+            "columnName": "power_calculation",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "marked",
+            "columnName": "marked",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "rdpEpsilon",
+            "columnName": "rdp_epsilon",
+            "affinity": "REAL",
+            "notNull": true,
+            "defaultValue": "1.5"
+          },
+          {
+            "fieldPath": "historyId",
+            "columnName": "history_id",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `plan_id` INTEGER NOT NULL, `start_time` INTEGER NOT NULL, `end_time` INTEGER NOT NULL, `intensity` INTEGER NOT NULL, `day_index` INTEGER NOT NULL, FOREIGN KEY(`plan_id`) REFERENCES `plan`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "planId",
+            "columnName": "plan_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTime",
+            "columnName": "start_time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTime",
+            "columnName": "end_time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intensity",
+            "columnName": "intensity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayIndex",
+            "columnName": "day_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_history_plan_id",
+            "unique": false,
+            "columnNames": [
+              "plan_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_history_plan_id` ON `${TABLE_NAME}` (`plan_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "plan",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "plan_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "body_metric",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `value` TEXT NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "metahistory_timeseries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `metahistory_id` INTEGER NOT NULL, `timestamp_ms` INTEGER NOT NULL, `metric_name` TEXT NOT NULL, `value` REAL NOT NULL, FOREIGN KEY(`metahistory_id`) REFERENCES `metahistory`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metahistoryId",
+            "columnName": "metahistory_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestampMs",
+            "columnName": "timestamp_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metricName",
+            "columnName": "metric_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_metahistory_timeseries_metahistory_id_metric_name_timestamp_ms",
+            "unique": false,
+            "columnNames": [
+              "metahistory_id",
+              "metric_name",
+              "timestamp_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_metahistory_timeseries_metahistory_id_metric_name_timestamp_ms` ON `${TABLE_NAME}` (`metahistory_id`, `metric_name`, `timestamp_ms`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "metahistory",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "metahistory_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "metahistory_timeseries_bin",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `original_metahistory_id` INTEGER NOT NULL, `timestamp_ms` INTEGER NOT NULL, `metric_name` TEXT NOT NULL, `value` REAL NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalMetahistoryId",
+            "columnName": "original_metahistory_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestampMs",
+            "columnName": "timestamp_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metricName",
+            "columnName": "metric_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "metahistory_pose_frame",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `metahistory_id` INTEGER NOT NULL, `timestamp_ms` INTEGER NOT NULL, `landmarks_json` TEXT NOT NULL, FOREIGN KEY(`metahistory_id`) REFERENCES `metahistory`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "metahistoryId",
+            "columnName": "metahistory_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestampMs",
+            "columnName": "timestamp_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "landmarksJson",
+            "columnName": "landmarks_json",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_metahistory_pose_frame_metahistory_id_timestamp_ms",
+            "unique": false,
+            "columnNames": [
+              "metahistory_id",
+              "timestamp_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_metahistory_pose_frame_metahistory_id_timestamp_ms` ON `${TABLE_NAME}` (`metahistory_id`, `timestamp_ms`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "metahistory",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "metahistory_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "video_export_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `video_name` TEXT NOT NULL, `rendered_items` TEXT NOT NULL, `state` TEXT NOT NULL, `progress` INTEGER NOT NULL, `exported_file_name` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "videoName",
+            "columnName": "video_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "renderedItems",
+            "columnName": "rendered_items",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "progress",
+            "columnName": "progress",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exportedFileName",
+            "columnName": "exported_file_name",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_video_export_state_video_name",
+            "unique": true,
+            "columnNames": [
+              "video_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_video_export_state_video_name` ON `${TABLE_NAME}` (`video_name`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c6b76174f96bbd158dd25026bc28c4cf')"
+    ]
+  }
+}

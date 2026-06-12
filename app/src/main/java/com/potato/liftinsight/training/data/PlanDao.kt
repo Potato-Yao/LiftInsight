@@ -1,11 +1,21 @@
 package com.potato.liftinsight.training.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+
+data class AnalysisSettings(
+    @ColumnInfo(name = "pose_detection") val poseDetection: Boolean,
+    @ColumnInfo(name = "angle_display") val angleDisplay: Boolean,
+    @ColumnInfo(name = "angle_plot") val anglePlot: Boolean,
+    @ColumnInfo(name = "barbell_detection") val barbellDetection: Boolean,
+    @ColumnInfo(name = "power_calculation") val powerCalculation: Boolean,
+    @ColumnInfo(name = "rdp_epsilon") val rdpEpsilon: Double
+)
 
 @Dao
 abstract class PlanDao {
@@ -114,6 +124,31 @@ abstract class PlanDao {
         powerCalculation: Boolean
     )
 
+    @Query("SELECT pose_detection, angle_display, angle_plot, barbell_detection, power_calculation, rdp_epsilon FROM metahistory WHERE id = :id")
+    abstract fun getAnalysisSettings(id: Int): AnalysisSettings?
+
+    @Query(
+        """
+        UPDATE metahistory SET
+            pose_detection = :poseDetection,
+            angle_display = :angleDisplay,
+            angle_plot = :anglePlot,
+            barbell_detection = :barbellDetection,
+            power_calculation = :powerCalculation,
+            rdp_epsilon = :rdpEpsilon
+        WHERE id = :recordId
+        """
+    )
+    abstract fun updateAnalysisSettings(
+        recordId: Int,
+        poseDetection: Boolean,
+        angleDisplay: Boolean,
+        anglePlot: Boolean,
+        barbellDetection: Boolean,
+        powerCalculation: Boolean,
+        rdpEpsilon: Double
+    )
+
     @Transaction
     open fun upsertVideoExportState(state: VideoExportStateEntity) {
         deleteVideoExportState(state.videoName)
@@ -174,7 +209,8 @@ abstract class PlanDao {
             metahistory.angle_plot,
             metahistory.barbell_detection,
             metahistory.power_calculation,
-            metahistory.marked
+            metahistory.marked,
+            metahistory.rdp_epsilon
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         ORDER BY metahistory.date DESC, metahistory.id DESC
@@ -204,7 +240,8 @@ abstract class PlanDao {
             metahistory.angle_plot,
             metahistory.barbell_detection,
             metahistory.power_calculation,
-            metahistory.marked
+            metahistory.marked,
+            metahistory.rdp_epsilon
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.history_id = :historyId
@@ -366,7 +403,8 @@ abstract class PlanDao {
             angle_plot,
             barbell_detection,
             power_calculation,
-            marked
+            marked,
+            rdp_epsilon
         FROM metahistory_bin
         ORDER BY date DESC, id DESC
         """
@@ -401,7 +439,8 @@ abstract class PlanDao {
             metahistory.angle_plot,
             metahistory.barbell_detection,
             metahistory.power_calculation,
-            metahistory.marked
+            metahistory.marked,
+            metahistory.rdp_epsilon
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.id = :id
@@ -431,7 +470,8 @@ abstract class PlanDao {
             angle_plot,
             barbell_detection,
             power_calculation,
-            marked
+            marked,
+            rdp_epsilon
         FROM metahistory_bin
         WHERE id = :id
         """
@@ -461,6 +501,7 @@ abstract class PlanDao {
             barbellDetection = row.barbellDetection,
             powerCalculation = row.powerCalculation,
             marked = row.marked,
+            rdpEpsilon = row.rdpEpsilon,
             historyId = row.historyId
         )
 
@@ -520,6 +561,7 @@ abstract class PlanDao {
             barbellDetection = row.barbellDetection,
             powerCalculation = row.powerCalculation,
             marked = row.marked,
+            rdpEpsilon = row.rdpEpsilon,
             historyId = row.historyId
         )
 

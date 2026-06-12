@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import com.potato.liftinsight.training.data.TimeseriesPoint
 import com.potato.liftinsight.video.PoseOverlayLandmark
 import com.potato.liftinsight.video.PoseOverlayRenderer
+import com.potato.liftinsight.video.RdpSimplifier
 
 internal data class PoseFrameSnapshot(
     val timestampMs: Long,
@@ -38,6 +39,7 @@ internal fun PoseOverlayCanvas(
     showSkeleton: Boolean,
     showAngleDisplay: Boolean,
     showAnglePlot: Boolean,
+    rdpEpsilon: Double = 1.5,
     modifier: Modifier = Modifier
 ) {
     val hasAnyOverlay = (showSkeleton && poseFrame != null) ||
@@ -86,12 +88,26 @@ internal fun PoseOverlayCanvas(
         }
 
         if (showAngleDisplay) {
-            val lines = buildAngleTextLines(currentAngles)
+            // Compute RDP-interpolated angles for display text
+            val interpolatedAngles = angleTimeSeries.mapValues { (_, points) ->
+                if (points.isEmpty()) return@mapValues null
+                val simplified = RdpSimplifier.simplify(points, rdpEpsilon)
+                RdpSimplifier.interpolateValue(simplified, currentPositionMs)
+            }
+            // Merge with raw currentAngles: prefer interpolated when available, fall back to raw
+            val displayAngles = currentAngles.mapValues { (key, raw) ->
+                interpolatedAngles[key] ?: raw
+            }
+            val lines = buildAngleTextLines(displayAngles)
             PoseOverlayRenderer.drawAngleOverlay(canvas, lines)
         }
 
         if (showAnglePlot && angleTimeSeries.values.any { it.isNotEmpty() }) {
-            drawAnglePlot(angleTimeSeries, currentPositionMs, totalDurationMs)
+            // Compute RDP-simplified series for the plot
+            val simplifiedAngleTimeSeries = angleTimeSeries.mapValues { (_, points) ->
+                RdpSimplifier.simplify(points, rdpEpsilon)
+            }
+            drawAnglePlot(simplifiedAngleTimeSeries, currentPositionMs, totalDurationMs)
         }
     }
 }

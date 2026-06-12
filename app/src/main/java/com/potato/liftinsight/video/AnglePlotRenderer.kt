@@ -56,9 +56,15 @@ object AnglePlotRenderer {
         currentPositionMs: Long,
         totalDurationMs: Long,
         canvasWidth: Float,
-        canvasHeight: Float
+        canvasHeight: Float,
+        rdpEpsilon: Double = 1.5
     ) {
         if (totalDurationMs <= 0L) return
+
+        // Apply RDP simplification for each metric
+        val simplifiedSeries = angleTimeSeries.mapValues { (_, points) ->
+            RdpSimplifier.simplify(points, rdpEpsilon)
+        }
 
         // Define plot area (bottom-right corner, compact)
         val plotPadding = 16f
@@ -73,7 +79,7 @@ object AnglePlotRenderer {
         // Draw border
         canvas.drawRect(plotLeft, plotTop, plotLeft + plotWidth, plotTop + plotHeight, borderPaint)
 
-        // Find global min/max for normalization
+        // Find global min/max for normalization (use raw data for scale)
         var globalMin = Float.MAX_VALUE
         var globalMax = Float.MIN_VALUE
         angleTimeSeries.values.forEach { points ->
@@ -92,8 +98,8 @@ object AnglePlotRenderer {
         val paddedMax = globalMax + range * 0.1f
         val paddedRange = paddedMax - paddedMin
 
-        // Draw each angle line
-        angleTimeSeries.forEach { (metricName, points) ->
+        // Draw each angle line (using simplified series)
+        simplifiedSeries.forEach { (metricName, points) ->
             if (points.isEmpty()) return@forEach
 
             val color = lineColors[metricName] ?: Color.WHITE

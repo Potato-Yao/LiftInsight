@@ -214,6 +214,8 @@ data class MetaHistoryEntity(
     val powerCalculation: Boolean = false,
     @ColumnInfo(name = "marked", defaultValue = "0")
     val marked: Boolean = false,
+    @ColumnInfo(name = "rdp_epsilon", defaultValue = "1.5")
+    val rdpEpsilon: Double = 1.5,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -285,6 +287,8 @@ data class MetaHistoryRow(
     val powerCalculation: Boolean = false,
     @ColumnInfo(name = "marked")
     val marked: Boolean = false,
+    @ColumnInfo(name = "rdp_epsilon")
+    val rdpEpsilon: Double = 1.5,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -340,6 +344,8 @@ data class MetaHistoryBinEntity(
     val powerCalculation: Boolean = false,
     @ColumnInfo(name = "marked", defaultValue = "0")
     val marked: Boolean = false,
+    @ColumnInfo(name = "rdp_epsilon", defaultValue = "1.5")
+    val rdpEpsilon: Double = 1.5,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -378,6 +384,8 @@ data class MetaHistoryBinRow(
     val powerCalculation: Boolean = false,
     @ColumnInfo(name = "marked")
     val marked: Boolean = false,
+    @ColumnInfo(name = "rdp_epsilon")
+    val rdpEpsilon: Double = 1.5,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -529,6 +537,7 @@ internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
         barbellDetection = barbellDetection,
         powerCalculation = powerCalculation,
         marked = marked,
+        rdpEpsilon = rdpEpsilon,
         historyId = historyId
     )
 }
@@ -565,6 +574,7 @@ internal fun MetaHistoryBinRow.toRecord(): MetaHistoryRecord {
         barbellDetection = barbellDetection,
         powerCalculation = powerCalculation,
         marked = marked,
+        rdpEpsilon = rdpEpsilon,
         historyId = historyId
     )
 }

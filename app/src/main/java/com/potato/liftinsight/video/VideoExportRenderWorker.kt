@@ -153,18 +153,14 @@ internal class VideoExportRenderWorker(
                     }
                 }
 
-                // If showAngleDisplay: use proportional index matching
+                // If showAngleDisplay: use proportional index matching with RDP interpolation
                 if (options.showAngleDisplay && timeseriesByMetric.isNotEmpty()) {
                     val currentAngles = mutableMapOf<String, Double?>()
                     timeseriesByMetric.forEach { (metricName, points) ->
                         if (points.isNotEmpty()) {
-                            val pointIndex = if (timestampsUs.size > 1) {
-                                (index.toLong() * (points.size - 1) / timestampsUs.size).toInt()
-                                    .coerceIn(0, points.size - 1)
-                            } else {
-                                0
-                            }
-                            currentAngles[metricName] = points[pointIndex].value
+                            val simplified = RdpSimplifier.simplify(points, options.rdpEpsilon)
+                            val interpolated = RdpSimplifier.interpolateValue(simplified, timestampMs)
+                            currentAngles[metricName] = interpolated
                         }
                     }
                     val lines = buildAngleTextLinesFromMap(currentAngles)
@@ -180,7 +176,8 @@ internal class VideoExportRenderWorker(
                         currentPositionMs = timestampMs,
                         totalDurationMs = totalDurationMs,
                         canvasWidth = width.toFloat(),
-                        canvasHeight = height.toFloat()
+                        canvasHeight = height.toFloat(),
+                        rdpEpsilon = options.rdpEpsilon
                     )
                 }
 

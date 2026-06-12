@@ -5,21 +5,29 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -44,8 +52,10 @@ import com.potato.liftinsight.motion.MotionVideoPlayer
 import com.potato.liftinsight.ui.component.VideoPreviewCard
 import com.potato.liftinsight.video.VideoProcessor
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,6 +81,9 @@ internal fun AnalysisVideoScreen(
     var showAngleDisplay by remember { mutableStateOf(false) }
     var showAnglePlot by remember { mutableStateOf(false) }
     var showBarbellTrace by remember { mutableStateOf(false) }
+
+    // RDP epsilon value
+    var rdpEpsilon by remember { mutableStateOf(1.5) }
 
     // Fullscreen state
     var isFullscreen by remember { mutableStateOf(false) }
@@ -186,6 +199,16 @@ internal fun AnalysisVideoScreen(
             angleData = metrics.associateWith { metric ->
                 tsDao.getTimeSeries(metahistoryId, metric)
             }
+
+            // Load saved overlay settings
+            val settings = database.planDao().getAnalysisSettings(metahistoryId)
+            if (settings != null) {
+                showSkeleton = settings.poseDetection
+                showAngleDisplay = settings.angleDisplay
+                showAnglePlot = settings.anglePlot
+                showBarbellTrace = settings.barbellDetection
+                rdpEpsilon = settings.rdpEpsilon
+            }
         }
     }
 
@@ -206,6 +229,21 @@ internal fun AnalysisVideoScreen(
     LaunchedEffect(isFullscreen) {
         if (isFullscreen) {
             player.pause()
+        }
+    }
+
+    // Save settings when they change
+    LaunchedEffect(showSkeleton, showAngleDisplay, showAnglePlot, showBarbellTrace, rdpEpsilon) {
+        if (metahistoryId != null) {
+            saveAnalysisSettings(
+                context = context,
+                metahistoryId = metahistoryId,
+                showSkeleton = showSkeleton,
+                showAngleDisplay = showAngleDisplay,
+                showAnglePlot = showAnglePlot,
+                showBarbellTrace = showBarbellTrace,
+                rdpEpsilon = rdpEpsilon
+            )
         }
     }
 
@@ -276,6 +314,7 @@ internal fun AnalysisVideoScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -301,6 +340,7 @@ internal fun AnalysisVideoScreen(
                             showSkeleton = showSkeleton,
                             showAngleDisplay = showAngleDisplay,
                             showAnglePlot = showAnglePlot,
+                            rdpEpsilon = rdpEpsilon,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -317,6 +357,14 @@ internal fun AnalysisVideoScreen(
                 onToggleAnglePlot = { showAnglePlot = !showAnglePlot },
                 onToggleBarbellTrace = { showBarbellTrace = !showBarbellTrace }
             )
+
+            // RDP smoothing settings (only visible when angle display or plot is on)
+            if (showAngleDisplay || showAnglePlot) {
+                RdpSettingsCard(
+                    rdpEpsilon = rdpEpsilon,
+                    onEpsilonChanged = { rdpEpsilon = it }
+                )
+            }
         }
     }
 
@@ -362,6 +410,7 @@ internal fun AnalysisVideoScreen(
                         showSkeleton = showSkeleton,
                         showAngleDisplay = showAngleDisplay,
                         showAnglePlot = showAnglePlot,
+                        rdpEpsilon = rdpEpsilon,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -443,6 +492,106 @@ private fun OverlayToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = { onCheckedChange() }
+        )
+    }
+}
+
+@Composable
+private fun RdpSettingsCard(
+    rdpEpsilon: Double,
+    onEpsilonChanged: (Double) -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(28.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.training_analysis_smoothing_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            RdpTextInputRow(
+                label = stringResource(R.string.training_analysis_smoothing_epsilon),
+                value = rdpEpsilon,
+                onValueChange = onEpsilonChanged
+            )
+        }
+    }
+}
+
+@Composable
+private fun RdpTextInputRow(
+    label: String,
+    value: Double,
+    onValueChange: (Double) -> Unit
+) {
+    var textValue by remember { mutableStateOf("%.1f".format(value)) }
+    var isError by remember { mutableStateOf(false) }
+
+    // Sync text when value changes externally
+    LaunchedEffect(value) {
+        textValue = "%.1f".format(value)
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.width(100.dp)
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        OutlinedTextField(
+            value = textValue,
+            onValueChange = { newText ->
+                textValue = newText
+                val parsed = newText.toDoubleOrNull()
+                if (parsed != null && parsed >= 0.0) {
+                    isError = false
+                    onValueChange(parsed)
+                } else {
+                    isError = true
+                }
+            },
+            isError = isError,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.weight(1f).defaultMinSize(minWidth = 0.dp),
+            textStyle = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+private fun saveAnalysisSettings(
+    context: android.content.Context,
+    metahistoryId: Int,
+    showSkeleton: Boolean,
+    showAngleDisplay: Boolean,
+    showAnglePlot: Boolean,
+    showBarbellTrace: Boolean,
+    rdpEpsilon: Double
+) {
+    CoroutineScope(Dispatchers.IO).launch {
+        val database = LiftInsightDatabase.from(context)
+        database.planDao().updateAnalysisSettings(
+            recordId = metahistoryId,
+            poseDetection = showSkeleton,
+            angleDisplay = showAngleDisplay,
+            anglePlot = showAnglePlot,
+            barbellDetection = showBarbellTrace,
+            powerCalculation = false,
+            rdpEpsilon = rdpEpsilon
         )
     }
 }

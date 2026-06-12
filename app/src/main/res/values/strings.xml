@@ -311,6 +311,8 @@
     <string name="training_analysis_overlay_angle_display">Angle display</string>
     <string name="training_analysis_overlay_angle_plot">Angle plot</string>
     <string name="training_analysis_overlay_barbell_trace">Barbell trace</string>
+    <string name="training_analysis_smoothing_title">Smoothing (RDP)</string>
+    <string name="training_analysis_smoothing_epsilon">Epsilon</string>
     <string name="training_video_editor_title">Edit video</string>
     <string name="training_video_editor_preview_title">Preview</string>
     <string name="training_video_editor_preview_subtitle">Play the edited video and place the split where you want the cut to land.</string>

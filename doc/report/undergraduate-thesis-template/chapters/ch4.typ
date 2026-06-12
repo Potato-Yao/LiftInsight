@@ -4,6 +4,8 @@
 
 == 总体技术方案的确定
 
+在总结本项目的设计目标、分析各个需求及其需要的技术工作后，
+
 == 运动生理学
 
 本项目采用了若干成熟的运动生理学指标来衡量训练强度、估算恢复时长等。为此我阅读了大量运动生理学相关论文，得到了以下的计算公式。
@@ -356,4 +358,4 @@ agent的模型选择经历了多次变化。在最开始，我可用的模型是
 
 后来GPT的额度耗尽，同时我发现reviewer和summarizer的工作较为简单，于是为了降低成本、加快速度，改成了deepseek pro作为devloop、planner和engineer，deepseek flash作为reviewer和summarizer。
 
-但是deepseek速度实在太慢，并且它作为planner对模糊需求的猜测和计划制定的能力并不足，因此我又购入了Xiaomi mimo 2.5，使用mimo2.5作为devloop和planner，deepseek pro作为engineer，deepseek flash作为reviewer和summarizer。这样效率和工作正确度就高了很多。之所以不用更聪明和便宜的mimo作为engineer，是因为engineer是token用量最大的地方，而当planner的计划描述足够清晰时，不同模型在代码质量上的差异就会很小，因此选用了deepseek进行这项工作。
+但是deepseek速度实在太慢，并且它作为planner对模糊需求的猜测和计划制定的能力并不足。因此我又购入了Xiaomi mimo 2.5，使用mimo2.5 pro作为devloop和planner，deepseek pro作为engineer，deepseek flash作为reviewer和summarizer。这样效率和工作正确度就高了很多。之所以不用更聪明和便宜的mimo作为engineer，是因为engineer是token用量最大的地方，而当planner的计划描述足够清晰时，不同模型在代码质量上的差异就会很小，因此选用了deepseek进行这项工作。
