@@ -105,6 +105,7 @@ data class MetaHistoryRecord(
     val marked: Boolean = false,
     val rdpEpsilon: Double = 1.5,
     val rdpSmoothSkeleton: Boolean = false,
+    val videoEdited: Boolean = false,
     val historyId: Int? = null
 )
 

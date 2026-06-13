@@ -1,7 +1,8 @@
 ---
 description: Default requirement-to-delivery workflow that plans, implements, reviews, and summarizes work using four subagents.
 mode: primary
-model: xiaomi-token-plan-cn/mimo-v2.5-pro
+# model: xiaomi-token-plan-cn/mimo-v2.5-pro
+model: codexcn/gpt-5.5
 permission:
   read: allow
   glob: allow

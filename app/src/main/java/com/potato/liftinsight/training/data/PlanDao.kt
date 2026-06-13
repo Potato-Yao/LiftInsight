@@ -214,7 +214,8 @@ abstract class PlanDao {
             metahistory.power_calculation,
             metahistory.marked,
             metahistory.rdp_epsilon,
-            metahistory.rdp_smooth_skeleton
+            metahistory.rdp_smooth_skeleton,
+            metahistory.video_edited
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         ORDER BY metahistory.date DESC, metahistory.id DESC
@@ -246,7 +247,8 @@ abstract class PlanDao {
             metahistory.power_calculation,
             metahistory.marked,
             metahistory.rdp_epsilon,
-            metahistory.rdp_smooth_skeleton
+            metahistory.rdp_smooth_skeleton,
+            metahistory.video_edited
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.history_id = :historyId
@@ -410,7 +412,8 @@ abstract class PlanDao {
             power_calculation,
             marked,
             rdp_epsilon,
-            rdp_smooth_skeleton
+            rdp_smooth_skeleton,
+            video_edited
         FROM metahistory_bin
         ORDER BY date DESC, id DESC
         """
@@ -447,7 +450,8 @@ abstract class PlanDao {
             metahistory.power_calculation,
             metahistory.marked,
             metahistory.rdp_epsilon,
-            metahistory.rdp_smooth_skeleton
+            metahistory.rdp_smooth_skeleton,
+            metahistory.video_edited
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.id = :id
@@ -479,7 +483,8 @@ abstract class PlanDao {
             power_calculation,
             marked,
             rdp_epsilon,
-            rdp_smooth_skeleton
+            rdp_smooth_skeleton,
+            video_edited
         FROM metahistory_bin
         WHERE id = :id
         """
@@ -511,6 +516,7 @@ abstract class PlanDao {
             marked = row.marked,
             rdpEpsilon = row.rdpEpsilon,
             rdpSmoothSkeleton = row.rdpSmoothSkeleton,
+            videoEdited = row.videoEdited,
             historyId = row.historyId
         )
 
@@ -572,6 +578,7 @@ abstract class PlanDao {
             marked = row.marked,
             rdpEpsilon = row.rdpEpsilon,
             rdpSmoothSkeleton = row.rdpSmoothSkeleton,
+            videoEdited = row.videoEdited,
             historyId = row.historyId
         )
 
@@ -609,4 +616,51 @@ abstract class PlanDao {
 
         return count
     }
+
+    @Query("UPDATE metahistory SET video_edited = 1 WHERE id = :recordId")
+    abstract fun markVideoEdited(recordId: Int): Int
+
+    @Query("UPDATE metahistory SET video_name = NULL, pose_detection = 0, angle_display = 0, angle_plot = 0, barbell_detection = 0, power_calculation = 0, video_edited = 0 WHERE id = :recordId")
+    abstract fun clearVideoAndResetFlags(recordId: Int): Int
+
+    @Query(
+        """
+        SELECT
+            metahistory.id,
+            metahistory.date,
+            metahistory.rep,
+            metahistory.rpe,
+            metahistory.weight,
+            metahistory.motion_id,
+            motion.name AS motion_name,
+            metahistory.video_name,
+            metahistory.video_source,
+            metahistory.imported_video_analysis_mode,
+            metahistory.imported_reference_label,
+            metahistory.imported_reference_pixel_distance,
+            metahistory.imported_reference_distance_meters,
+            metahistory.history_id,
+            metahistory.pose_detection,
+            metahistory.angle_display,
+            metahistory.angle_plot,
+            metahistory.barbell_detection,
+            metahistory.power_calculation,
+            metahistory.marked,
+            metahistory.rdp_epsilon,
+            metahistory.rdp_smooth_skeleton,
+            metahistory.video_edited
+        FROM metahistory
+        INNER JOIN motion ON motion.id = metahistory.motion_id
+        WHERE metahistory.video_name IS NOT NULL
+            AND metahistory.video_name != ''
+            AND metahistory.marked = 0
+            AND metahistory.video_edited = 0
+            AND metahistory.pose_detection = 0
+            AND metahistory.angle_display = 0
+            AND metahistory.angle_plot = 0
+            AND metahistory.barbell_detection = 0
+            AND metahistory.power_calculation = 0
+        """
+    )
+    abstract fun getRecordsWithRawVideoNotMarked(): List<MetaHistoryRow>
 }

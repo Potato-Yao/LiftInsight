@@ -215,6 +215,44 @@ class TrainingHistoryControllerTest {
         }
     }
 
+    private fun insertTestHistoryRecordWithVideo(
+        motionId: Int = 1,
+        videoName: String? = "test-video.mp4",
+        date: String = "2024-01-01 10:00:00",
+        rep: Int = 10,
+        rpe: Int = 8,
+        weight: Double = 100.0,
+        marked: Boolean = false,
+        poseDetection: Boolean = false,
+        angleDisplay: Boolean = false,
+        anglePlot: Boolean = false,
+        barbellDetection: Boolean = false,
+        powerCalculation: Boolean = false,
+        videoEdited: Boolean = false
+    ): Long {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                database.planDao().insertMetaHistory(
+                    com.potato.liftinsight.training.data.MetaHistoryEntity(
+                        date = date,
+                        rep = rep,
+                        rpe = rpe,
+                        weight = weight,
+                        motionId = motionId,
+                        videoName = videoName,
+                        marked = marked,
+                        poseDetection = poseDetection,
+                        angleDisplay = angleDisplay,
+                        anglePlot = anglePlot,
+                        barbellDetection = barbellDetection,
+                        powerCalculation = powerCalculation,
+                        videoEdited = videoEdited
+                    )
+                )
+            }
+        }
+    }
+
     // --- softDeleteRecord ---
 
     @Test
@@ -878,7 +916,181 @@ class TrainingHistoryControllerTest {
         assertEquals(records, updatedState.records)
     }
 
-    // --- toggleRecordMarked ---
+    // --- deleteVideo ---
+
+    @Test
+    fun deleteVideo_clearsVideoNameOnRecord() = runBlocking {
+        insertTestMotion()
+        val videoFile = createVideoFile("delete-video-test.mp4")
+        val recordId = insertTestHistoryRecordWithVideo(
+            videoName = videoFile.name,
+            poseDetection = true,
+            barbellDetection = true
+        ).toInt()
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+
+        val updatedState = controller.deleteVideo(state, record)
+
+        val updatedRecord = updatedState.records.first { it.id == recordId }
+        assertNull(updatedRecord.videoName)
+    }
+
+    @Test
+    fun deleteVideo_resetsAnalysisFlagsInDb() = runBlocking {
+        insertTestMotion()
+        val videoFile = createVideoFile("delete-video-flags.mp4")
+        val recordId = insertTestHistoryRecordWithVideo(
+            videoName = videoFile.name,
+            poseDetection = true,
+            angleDisplay = true,
+            anglePlot = true,
+            barbellDetection = true,
+            powerCalculation = true,
+            videoEdited = true
+        ).toInt()
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+
+        controller.deleteVideo(state, record)
+
+        val refreshedState = controller.loadState()
+        val refreshedRecord = refreshedState.records.first { it.id == recordId }
+
+        assertNull(refreshedRecord.videoName)
+        assertFalse(refreshedRecord.poseDetection)
+        assertFalse(refreshedRecord.angleDisplay)
+        assertFalse(refreshedRecord.anglePlot)
+        assertFalse(refreshedRecord.barbellDetection)
+        assertFalse(refreshedRecord.powerCalculation)
+        assertFalse(refreshedRecord.videoEdited)
+    }
+
+    @Test
+    fun deleteVideo_doesNothingWhenNoVideoAttached() = runBlocking {
+        insertTestMotion()
+        val recordId = insertTestHistoryRecord().toInt()
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+        assertNull(record.videoName)
+
+        val updatedState = controller.deleteVideo(state, record)
+
+        assertEquals(record, updatedState.records.first { it.id == recordId })
+    }
+
+    // --- cleanupOldRawVideos ---
+
+    @Test
+    fun cleanupOldRawVideos_skipsWhenThresholdIsZeroOrNegative() = runBlocking {
+        insertTestMotion()
+        val videoFile = createVideoFile("cleanup-zero.mp4")
+        insertTestHistoryRecordWithVideo(videoName = videoFile.name, date = "2020-01-01 10:00:00")
+
+        controller.cleanupOldRawVideos(0)
+
+        val state = controller.loadState()
+        val record = state.records.first()
+        assertNotNull(record.videoName)
+        assertTrue(videoFile.exists())
+    }
+
+    @Test
+    fun cleanupOldRawVideos_deletesOldUnmarkedUnprocessedVideos() = runBlocking {
+        insertTestMotion()
+        val oldVideoFile = createVideoFile("cleanup-old.mp4")
+        val oldRecordId = insertTestHistoryRecordWithVideo(
+            videoName = oldVideoFile.name,
+            date = "2020-01-01 10:00:00",
+            marked = false,
+            poseDetection = false,
+            barbellDetection = false,
+            angleDisplay = false,
+            anglePlot = false,
+            powerCalculation = false,
+            videoEdited = false
+        ).toInt()
+
+        controller.cleanupOldRawVideos(30)
+
+        val state = controller.loadState()
+        val oldRecord = state.records.first { it.id == oldRecordId }
+        assertNull(oldRecord.videoName)
+        assertFalse(oldVideoFile.exists())
+    }
+
+    @Test
+    fun cleanupOldRawVideos_preservesMarkedRecords() = runBlocking {
+        insertTestMotion()
+        val videoFile = createVideoFile("cleanup-marked.mp4")
+        val recordId = insertTestHistoryRecordWithVideo(
+            videoName = videoFile.name,
+            date = "2020-01-01 10:00:00",
+            marked = true
+        ).toInt()
+
+        controller.cleanupOldRawVideos(30)
+
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+        assertNotNull(record.videoName)
+        assertTrue(videoFile.exists())
+    }
+
+    @Test
+    fun cleanupOldRawVideos_preservesRecentRecords() = runBlocking {
+        insertTestMotion()
+        val todayDate = java.time.LocalDate.now().toString() + " 10:00:00"
+        val videoFile = createVideoFile("cleanup-recent.mp4")
+        val recordId = insertTestHistoryRecordWithVideo(
+            videoName = videoFile.name,
+            date = todayDate
+        ).toInt()
+
+        controller.cleanupOldRawVideos(30)
+
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+        assertNotNull(record.videoName)
+        assertTrue(videoFile.exists())
+    }
+
+    @Test
+    fun cleanupOldRawVideos_preservesProcessedRecords() = runBlocking {
+        insertTestMotion()
+        val videoFile = createVideoFile("cleanup-processed.mp4")
+        val recordId = insertTestHistoryRecordWithVideo(
+            videoName = videoFile.name,
+            date = "2020-01-01 10:00:00",
+            poseDetection = true,
+            barbellDetection = true
+        ).toInt()
+
+        controller.cleanupOldRawVideos(30)
+
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+        assertNotNull(record.videoName)
+        assertTrue(videoFile.exists())
+    }
+
+    @Test
+    fun cleanupOldRawVideos_preservesEditedRecords() = runBlocking {
+        insertTestMotion()
+        val videoFile = createVideoFile("cleanup-edited.mp4")
+        val recordId = insertTestHistoryRecordWithVideo(
+            videoName = videoFile.name,
+            date = "2020-01-01 10:00:00",
+            videoEdited = true
+        ).toInt()
+
+        controller.cleanupOldRawVideos(30)
+
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+        assertNotNull(record.videoName)
+        assertTrue(videoFile.exists())
+    }
 
     @Test
     fun toggleRecordMarked_marksUnmarkedRecord() = runBlocking {

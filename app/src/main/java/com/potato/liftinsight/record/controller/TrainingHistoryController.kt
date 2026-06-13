@@ -157,6 +157,100 @@ class TrainingHistoryController(
         return state.withUpdatedRecord(updatedRecord)
     }
 
+    suspend fun markVideoEdited(
+        state: TrainingHistoryState,
+        recordId: Int
+    ): TrainingHistoryState {
+        logDebug("markVideoEdited start: recordId=$recordId")
+        val didUpdate = withContext(Dispatchers.IO) {
+            trainingPlanStore.markVideoEdited(recordId)
+        }
+
+        if (!didUpdate) {
+            logWarn("markVideoEdited: update failed for recordId=$recordId")
+            return state
+        }
+
+        val updatedRecord = state.records.firstOrNull { it.id == recordId }
+            ?.copy(videoEdited = true)
+            ?: return state
+
+        return state.withUpdatedRecord(updatedRecord)
+    }
+
+    suspend fun deleteVideo(
+        state: TrainingHistoryState,
+        record: MetaHistoryRecord
+    ): TrainingHistoryState {
+        logDebug("deleteVideo start: recordId=${record.id}, videoName=${record.videoName}")
+        val videoName = record.videoName
+
+        if (videoName.isNullOrBlank()) {
+            logWarn("deleteVideo: videoName is null or blank")
+            return state
+        }
+
+        val metahistoryId = record.id
+
+        withContext(Dispatchers.IO) {
+            videoProcessor.clearAnalysisData(metahistoryId)
+            videoProcessor.deleteVideoFiles(videoName)
+            trainingPlanStore.clearVideoOnRecord(metahistoryId)
+        }
+
+        val updatedRecord = record.copy(
+            videoName = null,
+            poseDetection = false,
+            angleDisplay = false,
+            anglePlot = false,
+            barbellDetection = false,
+            powerCalculation = false,
+            videoEdited = false
+        )
+
+        return state.withUpdatedRecord(updatedRecord)
+    }
+
+    suspend fun cleanupOldRawVideos(
+        thresholdDays: Int
+    ) {
+        logDebug("cleanupOldRawVideos start: thresholdDays=$thresholdDays")
+
+        if (thresholdDays <= 0) {
+            logDebug("cleanupOldRawVideos: thresholdDays is <= 0, skipping")
+            return
+        }
+
+        val cutoffDate = java.time.LocalDate.now().minusDays(thresholdDays.toLong()).toString()
+        logDebug("cleanupOldRawVideos: cutoffDate=$cutoffDate")
+
+        val records = withContext(Dispatchers.IO) {
+            trainingPlanStore.getRecordsWithRawVideoNotMarked()
+        }
+
+        val oldRecords = records.filter { record ->
+            record.date.take(10) <= cutoffDate
+        }
+
+        logDebug("cleanupOldRawVideos: total raw videos=${records.size}, old enough for cleanup=${oldRecords.size}")
+
+        for (record in oldRecords) {
+            val videoName = record.videoName
+            if (videoName.isNullOrBlank()) {
+                continue
+            }
+
+            logDebug("cleanupOldRawVideos: deleting video for recordId=${record.id}, videoName=$videoName")
+            val metahistoryId = record.id
+
+            withContext(Dispatchers.IO) {
+                videoProcessor.clearAnalysisData(metahistoryId)
+                videoProcessor.deleteVideoFiles(videoName)
+                trainingPlanStore.clearVideoOnRecord(metahistoryId)
+            }
+        }
+    }
+
     suspend fun attachLocalVideo(
         state: TrainingHistoryState,
         context: Context,

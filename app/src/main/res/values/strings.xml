@@ -404,4 +404,16 @@
     <string name="training_export_barbell_coming_soon">Coming soon</string>
     <string name="training_process_state_exporting">Exporting (%1$d%%)</string>
     <string name="training_export_started">Export started</string>
+
+    <!-- Delete video -->
+    <string name="training_delete_video">Delete video</string>
+
+    <!-- Settings - video cleanup -->
+    <string name="settings_video_cleanup">Video cleanup</string>
+    <string name="settings_video_cleanup_summary">Auto-delete raw videos older than %1$d days</string>
+    <string name="settings_video_cleanup_page_title">Auto-cleanup raw videos</string>
+    <string name="settings_video_cleanup_page_subtitle">Set how many days to keep raw unprocessed videos attached to unmarked records. Older raw videos will be deleted automatically on app launch.</string>
+    <string name="settings_video_cleanup_days_label">Delete raw videos older than (days)</string>
+    <string name="settings_video_cleanup_days_error">Enter a value between %1$d and %2$d days</string>
+    <string name="settings_video_cleanup_days_unsaved">Unsaved changes</string>
 </resources>

@@ -218,6 +218,8 @@ data class MetaHistoryEntity(
     val rdpEpsilon: Double = 1.5,
     @ColumnInfo(name = "rdp_smooth_skeleton", defaultValue = "0")
     val rdpSmoothSkeleton: Boolean = false,
+    @ColumnInfo(name = "video_edited", defaultValue = "0")
+    val videoEdited: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -293,6 +295,8 @@ data class MetaHistoryRow(
     val rdpEpsilon: Double = 1.5,
     @ColumnInfo(name = "rdp_smooth_skeleton")
     val rdpSmoothSkeleton: Boolean = false,
+    @ColumnInfo(name = "video_edited")
+    val videoEdited: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -352,6 +356,8 @@ data class MetaHistoryBinEntity(
     val rdpEpsilon: Double = 1.5,
     @ColumnInfo(name = "rdp_smooth_skeleton", defaultValue = "0")
     val rdpSmoothSkeleton: Boolean = false,
+    @ColumnInfo(name = "video_edited", defaultValue = "0")
+    val videoEdited: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -394,6 +400,8 @@ data class MetaHistoryBinRow(
     val rdpEpsilon: Double = 1.5,
     @ColumnInfo(name = "rdp_smooth_skeleton")
     val rdpSmoothSkeleton: Boolean = false,
+    @ColumnInfo(name = "video_edited")
+    val videoEdited: Boolean = false,
     @ColumnInfo(name = "history_id")
     val historyId: Int? = null
 )
@@ -487,6 +495,10 @@ data class BarbellFrameEntity(
     val y: Float,
     val radius: Float,
     val confidence: Float,
+    @ColumnInfo(name = "x2")
+    val x2: Float? = null,
+    @ColumnInfo(name = "y2")
+    val y2: Float? = null,
     @ColumnInfo(name = "is_manually_edited")
     val isManuallyEdited: Boolean = false
 )
@@ -576,6 +588,7 @@ internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
         marked = marked,
         rdpEpsilon = rdpEpsilon,
         rdpSmoothSkeleton = rdpSmoothSkeleton,
+        videoEdited = videoEdited,
         historyId = historyId
     )
 }
@@ -614,6 +627,7 @@ internal fun MetaHistoryBinRow.toRecord(): MetaHistoryRecord {
         marked = marked,
         rdpEpsilon = rdpEpsilon,
         rdpSmoothSkeleton = rdpSmoothSkeleton,
+        videoEdited = videoEdited,
         historyId = historyId
     )
 }

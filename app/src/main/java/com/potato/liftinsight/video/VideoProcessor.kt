@@ -54,12 +54,25 @@ interface VideoProcessor {
 
     fun clearTimeseries(metahistoryId: Int)
 
+    fun deleteVideoFiles(videoName: String)
+
     suspend fun trackBarbell(
         videoName: String,
         metahistoryId: Int,
         initialX: Float,
         initialY: Float,
         initialRadius: Float,
+        onProgress: (Int) -> Unit
+    ): List<BarbellFrameEntity>
+
+    suspend fun trackBarbellHybrid(
+        videoName: String,
+        metahistoryId: Int,
+        initialX: Float,
+        initialY: Float,
+        initialRadius: Float,
+        initialX2: Float?,
+        initialY2: Float?,
         onProgress: (Int) -> Unit
     ): List<BarbellFrameEntity>
 
@@ -88,6 +101,7 @@ interface VideoProcessor {
                 worker = worker,
                 barbellDetectionService = barbellDetectionService,
                 barbellTrackingService = barbellTrackingService,
+                poseDetectionService = poseDetectionService,
                 logger = logger
             )
         }
@@ -129,12 +143,25 @@ object NoOpVideoProcessor : VideoProcessor {
 
     override fun clearTimeseries(metahistoryId: Int) = Unit
 
+    override fun deleteVideoFiles(videoName: String) = Unit
+
     override suspend fun trackBarbell(
         videoName: String,
         metahistoryId: Int,
         initialX: Float,
         initialY: Float,
         initialRadius: Float,
+        onProgress: (Int) -> Unit
+    ): List<BarbellFrameEntity> = emptyList()
+
+    override suspend fun trackBarbellHybrid(
+        videoName: String,
+        metahistoryId: Int,
+        initialX: Float,
+        initialY: Float,
+        initialRadius: Float,
+        initialX2: Float?,
+        initialY2: Float?,
         onProgress: (Int) -> Unit
     ): List<BarbellFrameEntity> = emptyList()
 }
@@ -146,6 +173,7 @@ private class PoseLandmarkVideoProcessor(
     private val worker: VideoProcessingWorker,
     private val barbellDetectionService: BarbellDetectionService,
     private val barbellTrackingService: BarbellTrackingService,
+    private val poseDetectionService: PoseDetectionService,
     private val logger: AppLogger
 ) : VideoProcessor {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -228,6 +256,45 @@ private class PoseLandmarkVideoProcessor(
         if (entities.isNotEmpty()) {
             videoProcessStore.replaceBarbellFrames(metahistoryId, entities)
             logger.info(TAG, "Persisted ${entities.size} barbell frames from user-driven tracking: videoName=$videoName, metahistoryId=$metahistoryId")
+        }
+
+        return entities
+    }
+
+    override suspend fun trackBarbellHybrid(
+        videoName: String,
+        metahistoryId: Int,
+        initialX: Float,
+        initialY: Float,
+        initialRadius: Float,
+        initialX2: Float?,
+        initialY2: Float?,
+        onProgress: (Int) -> Unit
+    ): List<BarbellFrameEntity> {
+        val inputFile = videoFileManager.resolveVideoFile(videoName)
+        if (!inputFile.exists()) {
+            logger.warn(TAG, "Video file not found for hybrid barbell tracking: videoName=$videoName")
+            return emptyList()
+        }
+
+        barbellDetectionService.initialize()
+
+        val entities = barbellTrackingService.trackBarbellHybrid(
+            videoFile = inputFile,
+            initialX = initialX,
+            initialY = initialY,
+            initialRadius = initialRadius,
+            initialX2 = initialX2,
+            initialY2 = initialY2,
+            metahistoryId = metahistoryId,
+            detectionService = barbellDetectionService,
+            poseDetectionService = poseDetectionService,
+            onProgress = onProgress
+        )
+
+        if (entities.isNotEmpty()) {
+            videoProcessStore.replaceBarbellFrames(metahistoryId, entities)
+            logger.info(TAG, "Persisted ${entities.size} barbell frames from hybrid tracking: videoName=$videoName, metahistoryId=$metahistoryId")
         }
 
         return entities
@@ -353,6 +420,29 @@ private class PoseLandmarkVideoProcessor(
 
     override fun clearTimeseries(metahistoryId: Int) {
         videoProcessStore.deleteTimeseries(metahistoryId)
+    }
+
+    override fun deleteVideoFiles(videoName: String) {
+        val normalizedVideoName = videoName.trim()
+
+        if (normalizedVideoName.isBlank()) {
+            return
+        }
+
+        val originalFile = videoFileManager.resolveVideoFile(normalizedVideoName)
+        if (originalFile.exists()) {
+            originalFile.delete()
+        }
+
+        val processedVideoName = videoFileManager.processedVideoName(normalizedVideoName)
+        val processedFile = videoFileManager.resolveVideoFile(processedVideoName)
+        if (processedFile.exists()) {
+            processedFile.delete()
+        }
+
+        videoProcessStore.deleteVideoProcessState(normalizedVideoName)
+        videoProcessStore.deleteVideoExportState(normalizedVideoName)
+        queuedVideoNames.remove(normalizedVideoName)
     }
 
     companion object {

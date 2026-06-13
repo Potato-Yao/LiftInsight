@@ -592,12 +592,25 @@ private class FakeVideoProcessor : VideoProcessor {
 
     override fun clearTimeseries(metahistoryId: Int) = Unit
 
+    override fun deleteVideoFiles(videoName: String) = Unit
+
     override suspend fun trackBarbell(
         videoName: String,
         metahistoryId: Int,
         initialX: Float,
         initialY: Float,
         initialRadius: Float,
+        onProgress: (Int) -> Unit
+    ): List<BarbellFrameEntity> = emptyList()
+
+    override suspend fun trackBarbellHybrid(
+        videoName: String,
+        metahistoryId: Int,
+        initialX: Float,
+        initialY: Float,
+        initialRadius: Float,
+        initialX2: Float?,
+        initialY2: Float?,
         onProgress: (Int) -> Unit
     ): List<BarbellFrameEntity> = emptyList()
 }

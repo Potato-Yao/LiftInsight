@@ -73,6 +73,7 @@ import com.potato.liftinsight.ui.component.VideoPreviewCard
 import com.potato.liftinsight.video.BarbellDetectionService
 import com.potato.liftinsight.video.PoseOverlayLandmark
 import com.potato.liftinsight.video.SelectableCircle
+import com.potato.liftinsight.video.SelectableLine
 import com.potato.liftinsight.video.VideoEditSelection
 import com.potato.liftinsight.video.VideoEditSelections
 import com.potato.liftinsight.video.VideoEditor
@@ -117,7 +118,9 @@ internal fun TrainingVideoEditorDialog(
 
     // Barbell detection/tracking state (user-driven, interactive)
     var detectedCircles by remember { mutableStateOf<List<SelectableCircle>>(emptyList()) }
+    var detectedLines by remember { mutableStateOf<List<SelectableLine>>(emptyList()) }
     var selectedCircleIndex by remember { mutableIntStateOf(-1) }
+    var selectedLineIndex by remember { mutableIntStateOf(-1) }
     var isTracking by remember { mutableStateOf(false) }
     var trackingProgress by remember { mutableIntStateOf(0) }
     var hasTracked by remember { mutableStateOf(false) }
@@ -306,7 +309,7 @@ internal fun TrainingVideoEditorDialog(
         candidates.minByOrNull { kotlin.math.abs(it.timestampMs - previewPositionMs) }
     }
 
-    // Barbell detection: when analysisState.barbellDetection is toggled ON, detect circles
+    // Barbell detection: when analysisState.barbellDetection is toggled ON, detect barbell (hybrid)
     // When toggled OFF, clear detection state and remove barbell frames from DB
     LaunchedEffect(analysisState.barbellDetection) {
         val file = previewFile
@@ -318,22 +321,27 @@ internal fun TrainingVideoEditorDialog(
             val sourcePositionMs = VideoEditSelections.sourcePositionAtEditedPosition(selection, previewPositionMs)
 
             withContext(Dispatchers.IO) {
-                detectCirclesInCurrentFrame(
+                detectBarbellInCurrentFrame(
                     videoFile = file,
                     positionMs = sourcePositionMs,
                     nearestPoseFrame = nearestPoseFrame,
                     videoWidth = videoWidth,
                     videoHeight = videoHeight,
                     barbellDetectionService = barbellDetectionService,
-                    onResult = { circles ->
+                    onCircles = { circles ->
                         detectedCircles = circles
+                    },
+                    onLines = { lines ->
+                        detectedLines = lines
                     }
                 )
             }
         } else if (!analysisState.barbellDetection) {
             // Clear detection state
             detectedCircles = emptyList()
+            detectedLines = emptyList()
             selectedCircleIndex = -1
+            selectedLineIndex = -1
             isTracking = false
             trackingProgress = 0
             hasTracked = false
@@ -348,23 +356,27 @@ internal fun TrainingVideoEditorDialog(
         }
     }
 
-    // When user seeks (even before tracking), re-detect circles so the user can select
+    // When user seeks (even before tracking), re-detect so the user can select
     LaunchedEffect(previewPositionMs) {
         val file = previewFile
         if (analysisState.barbellDetection && file != null && !isTracking) {
             selectedCircleIndex = -1 // Reset selection on seek
+            selectedLineIndex = -1
             val sourcePositionMs = VideoEditSelections.sourcePositionAtEditedPosition(selection, previewPositionMs)
 
             withContext(Dispatchers.IO) {
-                detectCirclesInCurrentFrame(
+                detectBarbellInCurrentFrame(
                     videoFile = file,
                     positionMs = sourcePositionMs,
                     nearestPoseFrame = nearestPoseFrame,
                     videoWidth = videoWidth,
                     videoHeight = videoHeight,
                     barbellDetectionService = barbellDetectionService,
-                    onResult = { circles ->
+                    onCircles = { circles ->
                         detectedCircles = circles
+                    },
+                    onLines = { lines ->
+                        detectedLines = lines
                     }
                 )
             }
@@ -377,16 +389,69 @@ internal fun TrainingVideoEditorDialog(
         if (metahistoryId == null || previewFile == null) return@LaunchedEffect
 
         val selectedCircle = detectedCircles[selectedCircleIndex]
+        selectedLineIndex = -1 // Mutual exclusion
         isTracking = true
         trackingProgress = 0
 
         withContext(Dispatchers.IO) {
-            val entities = videoProcessor.trackBarbell(
+            val entities = videoProcessor.trackBarbellHybrid(
                 videoName = videoFileName,
                 metahistoryId = metahistoryId,
                 initialX = selectedCircle.x,
                 initialY = selectedCircle.y,
                 initialRadius = selectedCircle.radius,
+                initialX2 = null,
+                initialY2 = null,
+                onProgress = { progress ->
+                    trackingProgress = progress
+                }
+            )
+
+            // Reload barbell frames from DB
+            val database = LiftInsightDatabase.from(context)
+            val bbFrames = database.barbellFrameDao().getBarbellFrames(metahistoryId)
+            barbellFrames = bbFrames.map { entity ->
+                BarbellFrameSnapshot(
+                    timestampMs = entity.timestampMs,
+                    x = entity.x,
+                    y = entity.y,
+                    radius = entity.radius
+                )
+            }
+
+            hasTracked = true
+            isTracking = false
+            trackingProgress = 100
+        }
+    }
+
+    // When user selects a line, start hybrid tracking across all frames
+    LaunchedEffect(selectedLineIndex) {
+        if (selectedLineIndex < 0 || selectedLineIndex >= detectedLines.size) return@LaunchedEffect
+        if (metahistoryId == null || previewFile == null) return@LaunchedEffect
+
+        val selectedLine = detectedLines[selectedLineIndex]
+        selectedCircleIndex = -1 // Mutual exclusion
+        isTracking = true
+        trackingProgress = 0
+
+        // Compute center and length as "radius" for the line
+        val centerX = (selectedLine.x1 + selectedLine.x2) / 2f
+        val centerY = (selectedLine.y1 + selectedLine.y2) / 2f
+        val lineLen = kotlin.math.sqrt(
+            ((selectedLine.x2 - selectedLine.x1) * (selectedLine.x2 - selectedLine.x1) +
+             (selectedLine.y2 - selectedLine.y1) * (selectedLine.y2 - selectedLine.y1))
+        )
+
+        withContext(Dispatchers.IO) {
+            val entities = videoProcessor.trackBarbellHybrid(
+                videoName = videoFileName,
+                metahistoryId = metahistoryId,
+                initialX = centerX,
+                initialY = centerY,
+                initialRadius = lineLen,
+                initialX2 = selectedLine.x2,
+                initialY2 = selectedLine.y2,
                 onProgress = { progress ->
                     trackingProgress = progress
                 }
@@ -509,6 +574,16 @@ internal fun TrainingVideoEditorDialog(
                             nearHand = circle.nearHand
                         )
                     }
+                    val displayLines = detectedLines.mapIndexed { index, line ->
+                        SelectableLine(
+                            x1 = line.x1,
+                            y1 = line.y1,
+                            x2 = line.x2,
+                            y2 = line.y2,
+                            isSelected = index == selectedLineIndex,
+                            nearHand = line.nearHand
+                        )
+                    }
                     PoseOverlayCanvas(
                         poseFrame = nearestPoseFrame,
                         currentAngles = emptyMap(),
@@ -528,6 +603,10 @@ internal fun TrainingVideoEditorDialog(
                         selectableCircles = displayCircles,
                         onCircleTapped = if (analysisState.barbellDetection && !isTracking) { { index ->
                             selectedCircleIndex = index
+                        } } else null,
+                        selectableLines = displayLines,
+                        onLineTapped = if (analysisState.barbellDetection && !isTracking) { { index ->
+                            selectedLineIndex = index
                         } } else null,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -670,14 +749,15 @@ internal fun TrainingVideoEditorDialog(
     }
 }
 
-private suspend fun detectCirclesInCurrentFrame(
+private suspend fun detectBarbellInCurrentFrame(
     videoFile: File,
     positionMs: Long,
     nearestPoseFrame: PoseFrameSnapshot?,
     videoWidth: Int,
     videoHeight: Int,
     barbellDetectionService: BarbellDetectionService,
-    onResult: (List<SelectableCircle>) -> Unit
+    onCircles: (List<SelectableCircle>) -> Unit,
+    onLines: (List<SelectableLine>) -> Unit
 ) {
     val retriever = android.media.MediaMetadataRetriever()
     try {
@@ -688,7 +768,8 @@ private suspend fun detectCirclesInCurrentFrame(
             positionUs.coerceAtLeast(0L),
             android.media.MediaMetadataRetriever.OPTION_CLOSEST
         ) ?: run {
-            onResult(emptyList())
+            onCircles(emptyList())
+            onLines(emptyList())
             return
         }
 
@@ -706,27 +787,59 @@ private suspend fun detectCirclesInCurrentFrame(
                 }
             }
 
-            val candidates = barbellDetectionService.detectWeightPlateCandidates(bitmap, handLandmarks)
-
             val effectiveWidth = if (videoWidth > 0) videoWidth.toFloat() else bitmap.width.toFloat()
             val effectiveHeight = if (videoHeight > 0) videoHeight.toFloat() else bitmap.height.toFloat()
+            val effectiveMinDim = effectiveWidth.coerceAtMost(effectiveHeight)
 
-            val result = candidates.map { candidate ->
-                SelectableCircle(
-                    x = candidate.x / effectiveWidth,
-                    y = candidate.y / effectiveHeight,
-                    radius = candidate.radius / effectiveWidth.coerceAtMost(effectiveHeight),
-                    isSelected = false,
-                    nearHand = candidate.nearHand
-                )
+            // Try hybrid detection
+            val hybridResult = barbellDetectionService.detectBarbellHybrid(bitmap, handLandmarks)
+
+            when (hybridResult) {
+                is com.potato.liftinsight.video.BarbellDetectionResult.Line -> {
+                    val line = hybridResult.line
+                    onCircles(emptyList())
+                    onLines(listOf(SelectableLine(
+                        x1 = line.x1 / effectiveWidth,
+                        y1 = line.y1 / effectiveHeight,
+                        x2 = line.x2 / effectiveWidth,
+                        y2 = line.y2 / effectiveHeight,
+                        isSelected = false,
+                        nearHand = true
+                    )))
+                }
+                is com.potato.liftinsight.video.BarbellDetectionResult.Circle -> {
+                    val circle = hybridResult.circle
+                    onLines(emptyList())
+                    onCircles(listOf(SelectableCircle(
+                        x = circle.x / effectiveWidth,
+                        y = circle.y / effectiveHeight,
+                        radius = circle.radius / effectiveMinDim,
+                        isSelected = false,
+                        nearHand = true
+                    )))
+                }
+                null -> {
+                    // Fall back to weight plate candidates as circles
+                    val candidates = barbellDetectionService.detectWeightPlateCandidates(bitmap, handLandmarks)
+                    val circleResults = candidates.map { candidate ->
+                        SelectableCircle(
+                            x = candidate.x / effectiveWidth,
+                            y = candidate.y / effectiveHeight,
+                            radius = candidate.radius / effectiveMinDim,
+                            isSelected = false,
+                            nearHand = candidate.nearHand
+                        )
+                    }
+                    onCircles(circleResults)
+                    onLines(emptyList())
+                }
             }
-
-            onResult(result)
         } finally {
             bitmap.recycle()
         }
     } catch (e: Exception) {
-        onResult(emptyList())
+        onCircles(emptyList())
+        onLines(emptyList())
     } finally {
         retriever.release()
     }
@@ -1035,14 +1148,10 @@ private fun AnalysisOptionsCard(
 
             AnalysisToggleRow(
                 label = stringResource(R.string.training_analysis_barbell_detection),
-                checked = analysisState.barbellDetection,
-                enabled = analysisState.isBarbellDetectionEnabled,
-                supportingText = if (!analysisState.isBarbellDetectionEnabled) {
-                    stringResource(R.string.training_analysis_requires_pose_detection)
-                } else {
-                    null
-                },
-                onCheckedChange = { onToggleBarbellDetection() }
+                checked = false,
+                enabled = false,
+                supportingText = stringResource(R.string.training_export_barbell_coming_soon),
+                onCheckedChange = { /* disabled */ }
             )
 
             AnalysisToggleRow(

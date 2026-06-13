@@ -501,8 +501,9 @@ private fun OverlayToggleBar(
 
             OverlayToggleRow(
                 label = stringResource(R.string.training_analysis_overlay_barbell_trace),
-                checked = showBarbellTrace,
-                onCheckedChange = { onToggleBarbellTrace() }
+                checked = false,
+                enabled = false,
+                onCheckedChange = { /* disabled */ }
             )
 
             OverlayToggleRow(
@@ -518,6 +519,7 @@ private fun OverlayToggleBar(
 private fun OverlayToggleRow(
     label: String,
     checked: Boolean,
+    enabled: Boolean = true,
     onCheckedChange: () -> Unit
 ) {
     Row(
@@ -528,11 +530,17 @@ private fun OverlayToggleRow(
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            },
             modifier = Modifier.weight(1f)
         )
         Switch(
             checked = checked,
-            onCheckedChange = { onCheckedChange() }
+            onCheckedChange = { onCheckedChange() },
+            enabled = enabled
         )
     }
 }

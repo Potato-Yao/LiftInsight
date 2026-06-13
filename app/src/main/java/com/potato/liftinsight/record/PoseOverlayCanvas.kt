@@ -20,6 +20,7 @@ import com.potato.liftinsight.video.PoseOverlayLandmark
 import com.potato.liftinsight.video.PoseOverlayRenderer
 import com.potato.liftinsight.video.RdpSimplifier
 import com.potato.liftinsight.video.SelectableCircle
+import com.potato.liftinsight.video.SelectableLine
 
 private const val BARBELL_TRAIL_LENGTH = 10
 
@@ -60,47 +61,65 @@ internal fun PoseOverlayCanvas(
     barbellFrames: List<BarbellFrameSnapshot> = emptyList(),
     selectableCircles: List<SelectableCircle> = emptyList(),
     onCircleTapped: ((Int) -> Unit)? = null,
+    selectableLines: List<SelectableLine> = emptyList(),
+    onLineTapped: ((Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val hasAnyOverlay = (showSkeleton && poseFrame != null) ||
             (showAngleDisplay && currentAngles.values.any { it != null }) ||
             (showAnglePlot && angleTimeSeries.values.any { it.isNotEmpty() }) ||
             (showBarbellTrace && barbellFrames.isNotEmpty()) ||
-            selectableCircles.isNotEmpty()
+            selectableCircles.isNotEmpty() ||
+            selectableLines.isNotEmpty()
 
     if (!hasAnyOverlay) return
 
-    val effectiveModifier = if (onCircleTapped != null && selectableCircles.isNotEmpty()) {
-        modifier.pointerInput(selectableCircles) {
+    val effectiveModifier = if ((onCircleTapped != null && selectableCircles.isNotEmpty()) ||
+        (onLineTapped != null && selectableLines.isNotEmpty())) {
+        modifier.pointerInput(selectableCircles, selectableLines) {
             detectTapGestures { tapOffset ->
-                val w = size.width.toFloat()
-                val h = size.height.toFloat()
+                val wid = size.width.toFloat()
+                val hei = size.height.toFloat()
 
                 // Calculate video display area (letterboxing)
                 val videoAspect = if (videoWidth > 0 && videoHeight > 0) {
                     videoWidth.toFloat() / videoHeight.toFloat()
                 } else {
-                    w / h
+                    wid / hei
                 }
-                val canvasAspect = w / h
+                val canvasAspect = wid / hei
 
                 val videoDisplayW: Float
                 val videoDisplayH: Float
                 val offsetX: Float
                 val offsetY: Float
                 if (videoAspect > canvasAspect) {
-                    videoDisplayW = w
-                    videoDisplayH = w / videoAspect
+                    videoDisplayW = wid
+                    videoDisplayH = wid / videoAspect
                     offsetX = 0f
-                    offsetY = (h - videoDisplayH) / 2f
+                    offsetY = (hei - videoDisplayH) / 2f
                 } else {
-                    videoDisplayW = h * videoAspect
-                    videoDisplayH = h
-                    offsetX = (w - videoDisplayW) / 2f
+                    videoDisplayW = hei * videoAspect
+                    videoDisplayH = hei
+                    offsetX = (wid - videoDisplayW) / 2f
                     offsetY = 0f
                 }
 
-                // Find which circle was tapped
+                // Check line taps first (lines are more precise for barbell)
+                for ((index, line) in selectableLines.withIndex()) {
+                    val lx1 = offsetX + line.x1 * videoDisplayW
+                    val ly1 = offsetY + line.y1 * videoDisplayH
+                    val lx2 = offsetX + line.x2 * videoDisplayW
+                    val ly2 = offsetY + line.y2 * videoDisplayH
+
+                    val dist = pointToLineDistance(tapOffset.x, tapOffset.y, lx1, ly1, lx2, ly2)
+                    if (dist < 20f) {
+                        onLineTapped?.invoke(index)
+                        return@detectTapGestures
+                    }
+                }
+
+                // Then check circle taps
                 for ((index, circle) in selectableCircles.withIndex()) {
                     val circleX = offsetX + circle.x * videoDisplayW
                     val circleY = offsetY + circle.y * videoDisplayH
@@ -109,7 +128,7 @@ internal fun PoseOverlayCanvas(
                     if (tapOffset.x in (circleX - halfSize)..(circleX + halfSize) &&
                         tapOffset.y in (circleY - halfSize)..(circleY + halfSize)
                     ) {
-                        onCircleTapped(index)
+                        onCircleTapped?.invoke(index)
                         return@detectTapGestures
                     }
                 }
@@ -270,6 +289,21 @@ internal fun PoseOverlayCanvas(
             }
             BarbellOverlayRenderer.drawSelectableCircles(canvas, scaledCircles)
         }
+
+        // Draw selectable barbell line candidates
+        if (selectableLines.isNotEmpty()) {
+            val scaledLines = selectableLines.map { line ->
+                SelectableLine(
+                    x1 = offsetX + line.x1 * videoDisplayW,
+                    y1 = offsetY + line.y1 * videoDisplayH,
+                    x2 = offsetX + line.x2 * videoDisplayW,
+                    y2 = offsetY + line.y2 * videoDisplayH,
+                    isSelected = line.isSelected,
+                    nearHand = line.nearHand
+                )
+            }
+            BarbellOverlayRenderer.drawSelectableLines(canvas, scaledLines)
+        }
     }
 }
 
@@ -395,6 +429,31 @@ private fun DrawScope.drawAnglePlot(
         plotTop + plotHeight - 4f,
         labelPaint
     )
+}
+
+/**
+ * Compute the perpendicular distance from a point (px, py) to a line segment (x1,y1)-(x2,y2).
+ */
+private fun pointToLineDistance(
+    px: Float, py: Float,
+    x1: Float, y1: Float,
+    x2: Float, y2: Float
+): Float {
+    val dx = x2 - x1
+    val dy = y2 - y1
+    val lengthSq = dx * dx + dy * dy
+    if (lengthSq == 0f) {
+        // Segment is a point
+        return kotlin.math.sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1))
+    }
+
+    // Project point onto line, clamp to segment
+    var t = ((px - x1) * dx + (py - y1) * dy) / lengthSq
+    t = t.coerceIn(0f, 1f)
+
+    val projX = x1 + t * dx
+    val projY = y1 + t * dy
+    return kotlin.math.sqrt((px - projX) * (px - projX) + (py - projY) * (py - projY))
 }
 
 internal fun parseLandmarksJson(json: String): Map<Int, LandmarkPosition> {

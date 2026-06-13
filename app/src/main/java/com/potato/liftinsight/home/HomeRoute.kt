@@ -43,7 +43,9 @@ fun HomeRoute(
     videoProcessor: VideoProcessor,
     enableDebugPlanSeed: Boolean,
     currentThemeMode: AppThemeMode,
-    onThemeModeSelected: (AppThemeMode) -> Unit
+    onThemeModeSelected: (AppThemeMode) -> Unit,
+    currentCleanupThresholdDays: Int = 30,
+    onCleanupThresholdDaysChanged: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -131,6 +133,8 @@ fun HomeRoute(
         currentThemeMode = currentThemeMode,
         bottomBarItems = bottomBarItems,
         onTabSelected = { selectedTab = MainTab.fromIndex(it) },
-        onThemeModeSelected = onThemeModeSelected
+        onThemeModeSelected = onThemeModeSelected,
+        currentCleanupThresholdDays = currentCleanupThresholdDays,
+        onCleanupThresholdDaysChanged = onCleanupThresholdDaysChanged
     )
 }

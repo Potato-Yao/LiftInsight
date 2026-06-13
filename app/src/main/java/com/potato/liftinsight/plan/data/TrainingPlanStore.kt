@@ -587,6 +587,28 @@ class TrainingPlanStore private constructor(
         return count
     }
 
+    fun markVideoEdited(recordId: Int): Boolean {
+        logTrace("markVideoEdited start: recordId=$recordId")
+        val updatedRows = database.planDao().markVideoEdited(recordId)
+        logTrace("markVideoEdited result: updatedRows=$updatedRows")
+        return updatedRows > 0
+    }
+
+    fun clearVideoOnRecord(recordId: Int): Boolean {
+        logTrace("clearVideoOnRecord start: recordId=$recordId")
+        val updatedRows = database.planDao().clearVideoAndResetFlags(recordId)
+        logTrace("clearVideoOnRecord result: updatedRows=$updatedRows")
+        return updatedRows > 0
+    }
+
+    fun getRecordsWithRawVideoNotMarked(): List<MetaHistoryRecord> {
+        logTrace("getRecordsWithRawVideoNotMarked start")
+        val rows = database.planDao().getRecordsWithRawVideoNotMarked()
+        val records = rows.map { row -> row.toRecord() }
+        logTrace("getRecordsWithRawVideoNotMarked result: count=${records.size}")
+        return records
+    }
+
     fun seedPlansIfEmpty(
         plans: List<TrainingPlanState>,
         currentPlanId: Int
@@ -768,6 +790,7 @@ private fun CreateMetaHistoryRequest.toEntity(): MetaHistoryEntity {
         importedReferenceLabel = importedReferenceLabel,
         importedReferencePixelDistance = importedReferencePixelDistance,
         importedReferenceDistanceMeters = importedReferenceDistanceMeters,
+        videoEdited = false,
         historyId = historyId
     )
 }

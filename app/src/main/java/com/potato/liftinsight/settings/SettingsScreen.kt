@@ -19,20 +19,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -51,10 +55,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.BuildConfig
 import com.potato.liftinsight.R
 import com.potato.liftinsight.common.MetricCard
+import com.potato.liftinsight.settings.data.VideoCleanupStore
 import com.potato.liftinsight.settings.route.SettingsRoute
 import com.potato.liftinsight.ui.theme.AppThemeMode
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
@@ -63,6 +69,8 @@ import com.potato.liftinsight.ui.theme.LiftInsightMotion
 internal fun SettingsScreen(
     currentThemeMode: AppThemeMode,
     onThemeModeSelected: (AppThemeMode) -> Unit,
+    currentCleanupThresholdDays: Int,
+    onCleanupThresholdDaysChanged: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var route by rememberSaveable { mutableStateOf(SettingsRoute.Overview) }
@@ -74,8 +82,12 @@ internal fun SettingsScreen(
     when (route) {
         SettingsRoute.Overview -> SettingsOverviewScreen(
             currentThemeMode = currentThemeMode,
+            cleanupThresholdDays = currentCleanupThresholdDays,
             onOpenThemeSettings = {
                 route = SettingsRoute.Theme
+            },
+            onOpenVideoCleanupSettings = {
+                route = SettingsRoute.VideoCleanup
             },
             modifier = modifier
         )
@@ -88,13 +100,24 @@ internal fun SettingsScreen(
             },
             modifier = modifier
         )
+
+        SettingsRoute.VideoCleanup -> VideoCleanupSettingsScreen(
+            currentThresholdDays = currentCleanupThresholdDays,
+            onThresholdDaysChanged = onCleanupThresholdDaysChanged,
+            onBack = {
+                route = SettingsRoute.Overview
+            },
+            modifier = modifier
+        )
     }
 }
 
 @Composable
 private fun SettingsOverviewScreen(
     currentThemeMode: AppThemeMode,
+    cleanupThresholdDays: Int,
     onOpenThemeSettings: () -> Unit,
+    onOpenVideoCleanupSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showContent by remember { mutableStateOf(false) }
@@ -165,10 +188,38 @@ private fun SettingsOverviewScreen(
             }
         }
 
-        item(key = "settingsAbout") {
+        item(key = "settingsVideoCleanup") {
             AnimatedVisibility(
                 visible = showContent,
                 enter = settingsSectionEnter(delayMillis = 100),
+                exit = ExitTransition.None
+            ) {
+                MetricCard(
+                    title = stringResource(R.string.settings_video_cleanup),
+                    subtitle = stringResource(
+                        R.string.settings_video_cleanup_summary,
+                        cleanupThresholdDays
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onOpenVideoCleanupSettings,
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Rounded.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    trailingContent = {
+                        SettingsTrailingArrow()
+                    }
+                ) {}
+            }
+        }
+
+        item(key = "settingsAbout") {
+            AnimatedVisibility(
+                visible = showContent,
+                enter = settingsSectionEnter(delayMillis = 150),
                 exit = ExitTransition.None
             ) {
                 MetricCard(
@@ -311,6 +362,145 @@ private fun ThemeSettingsScreen(
                             onThemeModeSelected(AppThemeMode.Dark)
                         }
                     )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VideoCleanupSettingsScreen(
+    currentThresholdDays: Int,
+    onThresholdDaysChanged: (Int) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var thresholdDaysInput by remember(currentThresholdDays) {
+        mutableStateOf(currentThresholdDays.toString())
+    }
+    var showContent by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        showContent = true
+    }
+
+    val parsedDays = thresholdDaysInput.toIntOrNull()
+    val isValid = parsedDays != null &&
+        parsedDays >= VideoCleanupStore.MIN_CLEANUP_THRESHOLD_DAYS &&
+        parsedDays <= VideoCleanupStore.MAX_CLEANUP_THRESHOLD_DAYS
+    val hasChanged = parsedDays != null && parsedDays != currentThresholdDays
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(text = stringResource(R.string.settings_video_cleanup))
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentPadding = PaddingValues(
+                start = 24.dp,
+                top = 12.dp,
+                end = 24.dp,
+                bottom = 32.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item(key = "videoCleanupDescription") {
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = settingsSectionEnter(delayMillis = 0),
+                    exit = ExitTransition.None
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_video_cleanup_page_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Text(
+                            text = stringResource(R.string.settings_video_cleanup_page_subtitle),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            item(key = "videoCleanupInput") {
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = settingsSectionEnter(delayMillis = 50),
+                    exit = ExitTransition.None
+                ) {
+                    OutlinedTextField(
+                        value = thresholdDaysInput,
+                        onValueChange = { thresholdDaysInput = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(text = stringResource(R.string.settings_video_cleanup_days_label)) },
+                        supportingText = {
+                            if (!isValid) {
+                                Text(
+                                    text = stringResource(
+                                        R.string.settings_video_cleanup_days_error,
+                                        VideoCleanupStore.MIN_CLEANUP_THRESHOLD_DAYS,
+                                        VideoCleanupStore.MAX_CLEANUP_THRESHOLD_DAYS
+                                    ),
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            } else if (hasChanged) {
+                                Text(
+                                    text = stringResource(R.string.settings_video_cleanup_days_unsaved),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        singleLine = true
+                    )
+                }
+            }
+
+            item(key = "videoCleanupSave") {
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = settingsSectionEnter(delayMillis = 100),
+                    exit = ExitTransition.None
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(
+                            onClick = {
+                                parsedDays?.let { onThresholdDaysChanged(it) }
+                                onBack()
+                            },
+                            enabled = isValid && hasChanged
+                        ) {
+                            Text(text = stringResource(R.string.common_save))
+                        }
+                    }
                 }
             }
         }

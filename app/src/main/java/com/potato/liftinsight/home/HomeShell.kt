@@ -57,7 +57,9 @@ internal fun HomeShell(
     currentThemeMode: AppThemeMode,
     bottomBarItems: List<BottomBarItem>,
     onTabSelected: (Int) -> Unit,
-    onThemeModeSelected: (AppThemeMode) -> Unit
+    onThemeModeSelected: (AppThemeMode) -> Unit,
+    currentCleanupThresholdDays: Int = 30,
+    onCleanupThresholdDaysChanged: (Int) -> Unit = {}
 ) {
     val coroutineScope = rememberCoroutineScope()
     val isFullScreenRoute = isPlanRouteFullScreen(planState.planRoute)
@@ -183,6 +185,8 @@ internal fun HomeShell(
                     SettingsScreen(
                         currentThemeMode = currentThemeMode,
                         onThemeModeSelected = onThemeModeSelected,
+                        currentCleanupThresholdDays = currentCleanupThresholdDays,
+                        onCleanupThresholdDaysChanged = onCleanupThresholdDaysChanged,
                         modifier = Modifier.padding(innerPadding)
                     )
                 }

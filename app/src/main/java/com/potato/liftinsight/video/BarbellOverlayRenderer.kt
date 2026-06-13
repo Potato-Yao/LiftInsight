@@ -19,6 +19,13 @@ internal data class SelectableCircle(
     val nearHand: Boolean
 )
 
+internal data class SelectableLine(
+    val x1: Float, val y1: Float,
+    val x2: Float, val y2: Float,
+    val isSelected: Boolean,
+    val nearHand: Boolean
+)
+
 internal object BarbellOverlayRenderer {
 
     private val barbellPointPaint = Paint().apply {
@@ -66,6 +73,30 @@ internal object BarbellOverlayRenderer {
         style = Paint.Style.STROKE
         strokeWidth = 2f
         color = Color.argb(120, 0, 188, 212)
+    }
+
+    private val unselectedLinePaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        strokeCap = Paint.Cap.ROUND
+        color = Color.argb(200, 0, 188, 212) // Cyan
+    }
+
+    private val selectedLinePaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeWidth = 6f
+        strokeCap = Paint.Cap.ROUND
+        color = Color.argb(230, 255, 109, 0) // Orange
+    }
+
+    private val selectedLineBorderPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeWidth = 8f
+        strokeCap = Paint.Cap.ROUND
+        color = Color.WHITE
     }
 
     fun drawBarbellPosition(
@@ -146,6 +177,45 @@ internal object BarbellOverlayRenderer {
                 }
             }
         }
+    }
+
+    /**
+     * Draws detected barbell line candidates as selectable line segments on the video.
+     * Unselected lines use cyan. Selected lines use orange with white border.
+     */
+    fun drawSelectableLines(
+        canvas: Canvas,
+        lines: List<SelectableLine>
+    ) {
+        for (line in lines) {
+            if (line.isSelected) {
+                // White border (slightly wider) then orange on top
+                canvas.drawLine(line.x1, line.y1, line.x2, line.y2, selectedLineBorderPaint)
+                canvas.drawLine(line.x1, line.y1, line.x2, line.y2, selectedLinePaint)
+            } else {
+                canvas.drawLine(line.x1, line.y1, line.x2, line.y2, unselectedLinePaint)
+            }
+        }
+    }
+
+    /**
+     * Draws a tracked barbell line with confidence shading.
+     */
+    fun drawDetectedBarLine(
+        canvas: Canvas,
+        x1: Float, y1: Float,
+        x2: Float, y2: Float,
+        confidence: Float
+    ) {
+        val alpha = (180f + confidence * 75f).toInt().coerceIn(50, 255)
+        val paint = Paint().apply {
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = 5f
+            strokeCap = Paint.Cap.ROUND
+            color = Color.argb(alpha, 255, 109, 0)
+        }
+        canvas.drawLine(x1, y1, x2, y2, paint)
     }
 
     private fun computeAlpha(index: Int, startIndex: Int, endIndex: Int): Int {
