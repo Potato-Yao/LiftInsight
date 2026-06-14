@@ -6,9 +6,11 @@ import androidx.test.core.app.ApplicationProvider
 import com.potato.liftinsight.common.logging.RecordingAppLogger
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.model.DisplayMode
+import com.potato.liftinsight.record.model.VideoAvailabilityStatus
 import com.potato.liftinsight.training.data.HistoryEntity
 import com.potato.liftinsight.training.data.HistoryRecord
 import com.potato.liftinsight.training.data.LiftInsightDatabase
+import com.potato.liftinsight.training.data.MetaHistoryRecord
 import com.potato.liftinsight.video.VideoProcessor
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +61,64 @@ class TrainingHistoryControllerTest {
         controller.loadState()
 
         assertTrue(logger.entries().any { it.tag == "TrainingHistoryController" && it.level == "debug" })
+    }
+
+    @Test
+    fun getVideoAvailabilityStatus_returnsNoneWithoutVideo() {
+        val record = testRecord(videoName = null)
+
+        assertEquals(VideoAvailabilityStatus.NONE, controller.getVideoAvailabilityStatus(record))
+    }
+
+    @Test
+    fun getVideoAvailabilityStatus_returnsRawForUneditedUnprocessedVideo() {
+        val record = testRecord(videoName = "raw.mp4")
+
+        assertEquals(VideoAvailabilityStatus.RAW, controller.getVideoAvailabilityStatus(record))
+    }
+
+    @Test
+    fun getVideoAvailabilityStatus_returnsCutForEditedVideo() {
+        val record = testRecord(videoName = "cut.mp4", videoEdited = true)
+
+        assertEquals(VideoAvailabilityStatus.CUT, controller.getVideoAvailabilityStatus(record))
+    }
+
+    @Test
+    fun getVideoAvailabilityStatus_returnsProcessedForAnalyzedVideo() {
+        val record = testRecord(videoName = "processed.mp4", poseDetection = true)
+
+        assertEquals(VideoAvailabilityStatus.PROCESSED, controller.getVideoAvailabilityStatus(record))
+    }
+
+    @Test
+    fun getVideoAvailabilityStatus_prefersCutForEditedProcessedVideo() {
+        val record = testRecord(
+            videoName = "cut-processed.mp4",
+            videoEdited = true,
+            poseDetection = true
+        )
+
+        assertEquals(VideoAvailabilityStatus.CUT, controller.getVideoAvailabilityStatus(record))
+    }
+
+    private fun testRecord(
+        videoName: String?,
+        videoEdited: Boolean = false,
+        poseDetection: Boolean = false
+    ): MetaHistoryRecord {
+        return MetaHistoryRecord(
+            id = 1,
+            date = "2024-01-01 10:00:00",
+            rep = 3,
+            rpe = 8,
+            weight = 100.0,
+            motionId = 1,
+            motionName = "Snatch",
+            videoName = videoName,
+            videoEdited = videoEdited,
+            poseDetection = poseDetection
+        )
     }
 
     @Test

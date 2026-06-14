@@ -342,8 +342,9 @@
     <string name="training_mark_record">Mark</string>
     <string name="training_unmark_record">Unmark</string>
     <string name="training_card_video_status_processed">processed</string>
-    <string name="training_card_video_status_raw">raw video</string>
-    <string name="training_card_video_status_none">no video</string>
+    <string name="training_card_video_status_raw">raw</string>
+    <string name="training_card_video_status_cut">cut</string>
+    <string name="training_card_video_status_none">none</string>
 
     <!-- Training history - delete -->
     <string name="training_delete_record">Delete record</string>

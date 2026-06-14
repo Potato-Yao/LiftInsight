@@ -7,6 +7,13 @@ import com.potato.liftinsight.video.VideoProcessingStatus
 
 enum class DisplayMode { META_HISTORY, HISTORY }
 
+enum class VideoAvailabilityStatus {
+    RAW,
+    CUT,
+    PROCESSED,
+    NONE
+}
+
 data class TrainingHistoryState(
     val records: List<MetaHistoryRecord> = emptyList(),
     val selectedRecord: MetaHistoryRecord? = null,

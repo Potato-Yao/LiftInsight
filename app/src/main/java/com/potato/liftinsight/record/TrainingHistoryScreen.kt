@@ -100,6 +100,7 @@ import com.potato.liftinsight.record.controller.TrainingHistoryController
 import com.potato.liftinsight.record.model.AnalysisVideoState
 import com.potato.liftinsight.record.model.DisplayMode
 import com.potato.liftinsight.record.model.TrainingHistoryState
+import com.potato.liftinsight.record.model.VideoAvailabilityStatus
 import com.potato.liftinsight.training.data.HistoryRecord
 import com.potato.liftinsight.training.data.MetaHistoryRecord
 import com.potato.liftinsight.training.data.VideoProcessState
@@ -474,6 +475,7 @@ internal fun TrainingHistoryScreen(
                                                     ) { record ->
                                                         TrainingHistoryCard(
                                                             record = record,
+                                                            videoAvailabilityStatus = controller.getVideoAvailabilityStatus(record),
                                                             isBatchMode = state.isBatchMode,
                                                             isSelected = record.id in state.selectedRecordIds,
                                                             onClick = {
@@ -505,6 +507,7 @@ internal fun TrainingHistoryScreen(
                                     HistorySessionDetailScreen(
                                         session = state.selectedHistorySession!!,
                                         metaHistoryRecords = state.sessionMetaHistoryRecords,
+                                        getVideoAvailabilityStatus = controller::getVideoAvailabilityStatus,
                                         onSelectRecord = { record -> state = controller.selectRecord(state, record) }
                                     )
                                 } else {
@@ -897,6 +900,7 @@ internal fun TrainingHistoryScreen(
 @Composable
 private fun TrainingHistoryCard(
     record: MetaHistoryRecord,
+    videoAvailabilityStatus: VideoAvailabilityStatus,
     isBatchMode: Boolean = false,
     isSelected: Boolean = false,
     onClick: () -> Unit,
@@ -1003,7 +1007,7 @@ private fun TrainingHistoryCard(
                     )
 
                     Text(
-                        text = videoStatusLabel(record),
+                        text = videoStatusLabel(videoAvailabilityStatus),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1014,15 +1018,12 @@ private fun TrainingHistoryCard(
 }
 
 @Composable
-private fun videoStatusLabel(record: MetaHistoryRecord): String {
-    if (record.videoName.isNullOrBlank()) {
-        return stringResource(R.string.training_card_video_status_none)
-    }
-    val hasAnalysis = record.poseDetection || record.angleDisplay || record.anglePlot || record.barbellDetection || record.powerCalculation
-    return if (hasAnalysis) {
-        stringResource(R.string.training_card_video_status_processed)
-    } else {
-        stringResource(R.string.training_card_video_status_raw)
+private fun videoStatusLabel(status: VideoAvailabilityStatus): String {
+    return when (status) {
+        VideoAvailabilityStatus.RAW -> stringResource(R.string.training_card_video_status_raw)
+        VideoAvailabilityStatus.CUT -> stringResource(R.string.training_card_video_status_cut)
+        VideoAvailabilityStatus.PROCESSED -> stringResource(R.string.training_card_video_status_processed)
+        VideoAvailabilityStatus.NONE -> stringResource(R.string.training_card_video_status_none)
     }
 }
 
@@ -1584,6 +1585,7 @@ private fun BinScreen(
                         ) { record ->
                             TrainingHistoryCard(
                                 record = record,
+                                videoAvailabilityStatus = controller.getVideoAvailabilityStatus(record),
                                 isBatchMode = state.isBatchMode,
                                 isSelected = record.id in state.selectedRecordIds,
                                 onClick = {
@@ -2009,6 +2011,7 @@ private fun HistorySessionCard(
 private fun HistorySessionDetailScreen(
     session: HistoryRecord,
     metaHistoryRecords: List<MetaHistoryRecord>,
+    getVideoAvailabilityStatus: (MetaHistoryRecord) -> VideoAvailabilityStatus,
     onSelectRecord: (MetaHistoryRecord) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -2088,6 +2091,7 @@ private fun HistorySessionDetailScreen(
                 items(metaHistoryRecords, key = { it.id }) { record ->
                     TrainingHistoryCard(
                         record = record,
+                        videoAvailabilityStatus = getVideoAvailabilityStatus(record),
                         onClick = { onSelectRecord(record) }
                     )
                 }

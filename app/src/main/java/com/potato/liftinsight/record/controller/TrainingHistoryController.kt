@@ -9,6 +9,7 @@ import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.model.AnalysisVideoState
 import com.potato.liftinsight.record.model.DisplayMode
 import com.potato.liftinsight.record.model.TrainingHistoryState
+import com.potato.liftinsight.record.model.VideoAvailabilityStatus
 import com.potato.liftinsight.training.data.HistoryRecord
 import com.potato.liftinsight.training.data.MetaHistoryRecord
 import com.potato.liftinsight.training.data.UpdateImportedVideoMetadataRequest
@@ -40,6 +41,28 @@ class TrainingHistoryController(
 ) {
     fun emptyState(): TrainingHistoryState {
         return TrainingHistoryState()
+    }
+
+    fun getVideoAvailabilityStatus(record: MetaHistoryRecord): VideoAvailabilityStatus {
+        if (record.videoName.isNullOrBlank()) {
+            return VideoAvailabilityStatus.NONE
+        }
+
+        if (record.videoEdited) {
+            return VideoAvailabilityStatus.CUT
+        }
+
+        val hasAnalysis = record.poseDetection ||
+            record.angleDisplay ||
+            record.anglePlot ||
+            record.barbellDetection ||
+            record.powerCalculation
+
+        if (hasAnalysis) {
+            return VideoAvailabilityStatus.PROCESSED
+        }
+
+        return VideoAvailabilityStatus.RAW
     }
 
     private fun logDebug(message: String) {
