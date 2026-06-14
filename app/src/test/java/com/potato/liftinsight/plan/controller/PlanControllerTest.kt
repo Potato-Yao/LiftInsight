@@ -398,6 +398,79 @@ class PlanControllerTest {
     }
 
     @Test
+    fun movePlanMotion_reordersDraftPlanMotionsForSelectedDay() = runBlocking {
+        val controller = controller()
+        val draftState = controller.createPlan(initialState(controller))
+        val titledState = controller.updatePlanEditorTitle(draftState, "Draft Plan")
+        val configuredState = controller.selectPlanEditorDay(
+            controller.updatePlanEditorCyclePeriod(titledState, 7),
+            1
+        )
+        val snatchState = controller.addMotionToPlan(
+            configuredState,
+            configuredState.availableMotions.first { motion -> motion.title == "Snatch" }
+        )
+        val twoMotionState = controller.addMotionToPlan(
+            snatchState,
+            snatchState.availableMotions.first { motion -> motion.title == "Clean & Jerk" }
+        )
+        val cleanAndJerkEntryId = twoMotionState.planEditor
+            ?.motions
+            ?.first { motion -> motion.title == "Clean & Jerk" }
+            ?.entryId
+            ?: -1
+
+        val updatedState = controller.movePlanMotion(twoMotionState, cleanAndJerkEntryId, -1)
+
+        assertEquals(
+            listOf("Clean & Jerk", "Snatch"),
+            updatedState.planEditor?.motions?.map { motion -> motion.title }
+        )
+        assertEquals(
+            listOf(1, 2),
+            updatedState.planEditor?.motions?.map { motion -> motion.orderIndex }
+        )
+    }
+
+    @Test
+    fun movePlanMotion_reordersAndPersistsExistingPlanMotions() = runBlocking {
+        val controller = controller()
+        val draftState = controller.createPlan(initialState(controller))
+        val titledState = controller.updatePlanEditorTitle(draftState, "Persisted Plan")
+        val configuredState = controller.selectPlanEditorDay(
+            controller.updatePlanEditorCyclePeriod(titledState, 7),
+            1
+        )
+        val snatchState = controller.addMotionToPlan(
+            configuredState,
+            configuredState.availableMotions.first { motion -> motion.title == "Snatch" }
+        )
+        val twoMotionState = controller.addMotionToPlan(
+            snatchState,
+            snatchState.availableMotions.first { motion -> motion.title == "Clean & Jerk" }
+        )
+        val persistedState = controller.submitPlanEditor(twoMotionState)
+        val cleanAndJerkEntryId = persistedState.planEditor
+            ?.motions
+            ?.first { motion -> motion.title == "Clean & Jerk" }
+            ?.entryId
+            ?: -1
+
+        val updatedState = controller.movePlanMotion(persistedState, cleanAndJerkEntryId, -1)
+        val updatedPlan = updatedState.trainingPlans.first { plan -> plan.name == "Persisted Plan" }
+
+        assertEquals(
+            listOf("Clean & Jerk", "Snatch"),
+            updatedState.planEditor?.motions?.map { motion -> motion.title }
+        )
+        assertEquals(
+            listOf("Clean & Jerk", "Snatch"),
+            updatedPlan.motions.map { motion -> motion.title }
+        )
+        assertEquals(listOf(1, 2), updatedPlan.motions.map { motion -> motion.orderIndex })
+    }
+
+    @Test
     fun updateMotionWeight_persistsWeightAndClampsNegativeValues() = runBlocking {
         val controller = controller()
         val detailState = controller.showPlanDetail(initialState(controller), 1)
@@ -614,4 +687,3 @@ private class FakeVideoProcessor : VideoProcessor {
         onProgress: (Int) -> Unit
     ): List<BarbellFrameEntity> = emptyList()
 }
-

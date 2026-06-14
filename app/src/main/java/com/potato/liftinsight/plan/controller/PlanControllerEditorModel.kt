@@ -87,12 +87,16 @@ internal fun reorderEditorMotions(
     val reorderedDayMotions = dayMotions.toMutableList()
     val removedMotion = reorderedDayMotions.removeAt(currentIndex)
     reorderedDayMotions.add(targetIndex, removedMotion)
-    val reorderedByEntryId = normalizeEditorMotions(reorderedDayMotions, cyclePeriod = null)
+    val reorderedByEntryId = reorderedDayMotions
+        .mapIndexed { index, motion -> motion.copy(orderIndex = index + 1) }
         .associateBy { motion -> motion.entryId }
 
-    return motions.map { motion ->
-        reorderedByEntryId[motion.entryId] ?: motion
-    }
+    return normalizeEditorMotions(
+        motions = motions.map { motion ->
+            reorderedByEntryId[motion.entryId] ?: motion
+        },
+        cyclePeriod = null
+    )
 }
 
 internal fun sanitizePlanEditor(
