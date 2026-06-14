@@ -28,6 +28,7 @@ import com.potato.liftinsight.video.VideoProcessor
 internal fun RecordTabHost(
     bodyState: BodyState,
     onBodyStateChange: (BodyState) -> Unit,
+    onBodyMetricValueChange: (Int, String) -> Unit,
     bodyController: BodyController,
     trainingPlanStore: TrainingPlanStore,
     videoProcessor: VideoProcessor,
@@ -106,9 +107,7 @@ internal fun RecordTabHost(
             BodyRoute.Body -> {
                 BodyScreen(
                     metrics = bodyState.bodyMetrics,
-                    onMetricValueChange = { metricId, newValue ->
-                        onBodyStateChange(bodyController.updateBodyMetric(bodyState, metricId, newValue))
-                    },
+                    onMetricValueChange = onBodyMetricValueChange,
                     onBack = {
                         onBodyStateChange(bodyController.closeBodyDetail(bodyState))
                     }

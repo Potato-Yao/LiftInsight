@@ -46,7 +46,7 @@ class BodyController(
         }
     }
 
-    fun saveBodyMetrics(state: BodyState): BodyState {
+    suspend fun saveBodyMetrics(state: BodyState): BodyState {
         val entities = state.bodyMetrics.map { metric ->
             BodyMetricEntity(
                 id = metric.id,
@@ -74,7 +74,7 @@ class BodyController(
             )
         )
 
-        return saveBodyMetrics(updatedState)
+        return updatedState
     }
 
     fun showBodyDetail(state: BodyState): BodyState {

@@ -21,9 +21,11 @@ class BodyMetricStore private constructor(
         }
     }
 
-    fun saveMetrics(metrics: List<BodyMetricEntity>) {
-        logDebug("saveMetrics: count=${metrics.size}")
-        bodyMetricDao.upsertAll(metrics)
+    suspend fun saveMetrics(metrics: List<BodyMetricEntity>) {
+        withContext(Dispatchers.IO) {
+            logDebug("saveMetrics: count=${metrics.size}")
+            bodyMetricDao.upsertAll(metrics)
+        }
     }
 
     private fun logDebug(message: String) {

@@ -45,6 +45,7 @@ internal fun HomeShell(
     planController: PlanController,
     bodyState: BodyState,
     onBodyStateChange: (BodyState) -> Unit,
+    onBodyMetricValueChange: (Int, String) -> Unit,
     bodyController: BodyController,
     trainingPlanStore: TrainingPlanStore,
     videoProcessor: VideoProcessor,
@@ -149,6 +150,7 @@ internal fun HomeShell(
                     RecordTabHost(
                         bodyState = bodyState,
                         onBodyStateChange = onBodyStateChange,
+                        onBodyMetricValueChange = onBodyMetricValueChange,
                         bodyController = bodyController,
                         trainingPlanStore = trainingPlanStore,
                         videoProcessor = videoProcessor,

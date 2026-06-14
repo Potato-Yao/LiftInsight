@@ -2,10 +2,16 @@ package com.potato.liftinsight.body.data
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.potato.liftinsight.R
+import com.potato.liftinsight.body.controller.BodyController
+import com.potato.liftinsight.body.controller.BodyMetricSaveQueue
 import com.potato.liftinsight.common.logging.RecordingAppLogger
 import com.potato.liftinsight.training.data.BodyMetricEntity
 import com.potato.liftinsight.training.data.LiftInsightDatabase
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
@@ -51,9 +57,7 @@ class BodyMetricStoreTest {
             BodyMetricEntity(id = 2, value = "male", updatedAt = 2000L)
         )
 
-        withContext(Dispatchers.IO) {
-            store.saveMetrics(metrics)
-        }
+        store.saveMetrics(metrics)
 
         val results = withContext(Dispatchers.IO) {
             store.loadMetrics()
@@ -64,10 +68,8 @@ class BodyMetricStoreTest {
 
     @Test
     fun saveMetrics_replacesExistingMetrics() = runBlocking {
-        withContext(Dispatchers.IO) {
-            store.saveMetrics(listOf(BodyMetricEntity(id = 1, value = "old", updatedAt = 100L)))
-            store.saveMetrics(listOf(BodyMetricEntity(id = 1, value = "new", updatedAt = 200L)))
-        }
+        store.saveMetrics(listOf(BodyMetricEntity(id = 1, value = "old", updatedAt = 100L)))
+        store.saveMetrics(listOf(BodyMetricEntity(id = 1, value = "new", updatedAt = 200L)))
 
         val results = withContext(Dispatchers.IO) {
             store.loadMetrics()
@@ -75,5 +77,34 @@ class BodyMetricStoreTest {
 
         assertEquals(1, results.size)
         assertEquals("new", results[0].value)
+    }
+
+    @Test
+    fun rapidQueuedSaves_persistLatestBodyState() = runBlocking {
+        val ownerScope = CoroutineScope(Dispatchers.Default + Job())
+        val controller = BodyController(store, logger)
+        val queue = BodyMetricSaveQueue(
+            scope = ownerScope,
+            saveBodyMetrics = controller::saveBodyMetrics,
+            onSaveFailure = { throw it }
+        )
+        val oldState = controller.updateBodyMetric(
+            controller.emptyState(),
+            R.string.body_age,
+            "20"
+        )
+        val latestState = controller.updateBodyMetric(
+            oldState,
+            R.string.body_age,
+            "21"
+        )
+
+        queue.enqueue(oldState)
+        queue.enqueue(latestState)
+        queue.awaitIdle()
+
+        val age = store.loadMetrics().single { metric -> metric.id == R.string.body_age }
+        assertEquals("21", age.value)
+        ownerScope.cancel()
     }
 }
