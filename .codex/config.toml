@@ -1,0 +1,26 @@
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+
+[agents]
+max_threads = 6
+max_depth = 2
+
+[agents.devloop]
+description = "Orchestrates the full plan, implement, review, and summarize workflow."
+config_file = "./agents/devloop.toml"
+
+[agents.planner]
+description = "Analyzes requirements and produces a detailed implementation plan."
+config_file = "./agents/planner.toml"
+
+[agents.engineer]
+description = "Implements an approved plan, applies review feedback, and verifies changes."
+config_file = "./agents/engineer.toml"
+
+[agents.reviewer]
+description = "Reviews implementation correctness, architecture, and verification before approval."
+config_file = "./agents/reviewer.toml"
+
+[agents.summarizer]
+description = "Summarizes approved implementation work and verification."
+config_file = "./agents/summarizer.toml"
