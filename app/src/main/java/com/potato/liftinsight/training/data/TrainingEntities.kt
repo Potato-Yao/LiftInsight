@@ -221,7 +221,11 @@ data class MetaHistoryEntity(
     @ColumnInfo(name = "video_edited", defaultValue = "0")
     val videoEdited: Boolean = false,
     @ColumnInfo(name = "history_id")
-    val historyId: Int? = null
+    val historyId: Int? = null,
+    @ColumnInfo(name = "active_range_start_ms")
+    val activeRangeStartMs: Long? = null,
+    @ColumnInfo(name = "active_range_end_ms")
+    val activeRangeEndMs: Long? = null
 )
 
 @Entity(
@@ -298,7 +302,11 @@ data class MetaHistoryRow(
     @ColumnInfo(name = "video_edited")
     val videoEdited: Boolean = false,
     @ColumnInfo(name = "history_id")
-    val historyId: Int? = null
+    val historyId: Int? = null,
+    @ColumnInfo(name = "active_range_start_ms")
+    val activeRangeStartMs: Long? = null,
+    @ColumnInfo(name = "active_range_end_ms")
+    val activeRangeEndMs: Long? = null
 )
 
 data class HistoryRow(
@@ -359,7 +367,11 @@ data class MetaHistoryBinEntity(
     @ColumnInfo(name = "video_edited", defaultValue = "0")
     val videoEdited: Boolean = false,
     @ColumnInfo(name = "history_id")
-    val historyId: Int? = null
+    val historyId: Int? = null,
+    @ColumnInfo(name = "active_range_start_ms")
+    val activeRangeStartMs: Long? = null,
+    @ColumnInfo(name = "active_range_end_ms")
+    val activeRangeEndMs: Long? = null
 )
 
 data class MetaHistoryBinRow(
@@ -403,7 +415,11 @@ data class MetaHistoryBinRow(
     @ColumnInfo(name = "video_edited")
     val videoEdited: Boolean = false,
     @ColumnInfo(name = "history_id")
-    val historyId: Int? = null
+    val historyId: Int? = null,
+    @ColumnInfo(name = "active_range_start_ms")
+    val activeRangeStartMs: Long? = null,
+    @ColumnInfo(name = "active_range_end_ms")
+    val activeRangeEndMs: Long? = null
 )
 
 @Entity(
@@ -589,7 +605,9 @@ internal fun MetaHistoryRow.toRecord(): MetaHistoryRecord {
         rdpEpsilon = rdpEpsilon,
         rdpSmoothSkeleton = rdpSmoothSkeleton,
         videoEdited = videoEdited,
-        historyId = historyId
+        historyId = historyId,
+        activeRangeStartMs = activeRangeStartMs,
+        activeRangeEndMs = activeRangeEndMs
     )
 }
 
@@ -628,7 +646,9 @@ internal fun MetaHistoryBinRow.toRecord(): MetaHistoryRecord {
         rdpEpsilon = rdpEpsilon,
         rdpSmoothSkeleton = rdpSmoothSkeleton,
         videoEdited = videoEdited,
-        historyId = historyId
+        historyId = historyId,
+        activeRangeStartMs = activeRangeStartMs,
+        activeRangeEndMs = activeRangeEndMs
     )
 }
 

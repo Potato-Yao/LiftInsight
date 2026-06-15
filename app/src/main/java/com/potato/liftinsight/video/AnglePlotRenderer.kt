@@ -2,6 +2,7 @@ package com.potato.liftinsight.video
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import com.potato.liftinsight.training.data.TimeseriesPoint
@@ -50,6 +51,22 @@ object AnglePlotRenderer {
         alpha = 180
     }
 
+    private val peakMarkerPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeWidth = 1f
+        color = 0xFFFFD54F.toInt() // Amber
+        pathEffect = DashPathEffect(floatArrayOf(8f, 4f), 0f)
+    }
+
+    private val troughMarkerPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeWidth = 1f
+        color = 0xFF80DEEA.toInt() // Teal
+        pathEffect = DashPathEffect(floatArrayOf(8f, 4f), 0f)
+    }
+
     fun drawAnglePlotOnCanvas(
         canvas: Canvas,
         angleTimeSeries: Map<String, List<TimeseriesPoint>>,
@@ -57,13 +74,36 @@ object AnglePlotRenderer {
         totalDurationMs: Long,
         canvasWidth: Float,
         canvasHeight: Float,
-        rdpEpsilon: Double = 1.5
+        rdpEpsilon: Double = 1.5,
+        activeRange: ActiveRange? = null,
+        periods: List<PeriodBoundary>? = null
     ) {
         if (totalDurationMs <= 0L) return
 
         // Apply RDP simplification for each metric
         val simplifiedSeries = angleTimeSeries.mapValues { (_, points) ->
             RdpSimplifier.simplify(points, rdpEpsilon)
+        }
+
+        // Determine effective time range for X-axis scaling
+        val effectiveStartMs: Long
+        val effectiveEndMs: Long
+        if (activeRange != null) {
+            effectiveStartMs = activeRange.startTimestampMs
+            effectiveEndMs = activeRange.endTimestampMs
+        } else {
+            effectiveStartMs = 0L
+            effectiveEndMs = totalDurationMs
+        }
+        val effectiveDurationMs = effectiveEndMs - effectiveStartMs
+        if (effectiveDurationMs <= 0L) return
+
+        // Map a timestamp to an X coordinate based on the effective range
+        fun timestampToX(tsMs: Long): Float {
+            val fraction = ((tsMs - effectiveStartMs).toFloat() / effectiveDurationMs).coerceIn(0f, 1f)
+            val plotWidth = canvasWidth * 0.45f
+            val plotLeft = canvasWidth - plotWidth - 16f
+            return plotLeft + fraction * plotWidth
         }
 
         // Define plot area (bottom-right corner, compact)
@@ -108,7 +148,7 @@ object AnglePlotRenderer {
             val path = Path()
             var first = true
             points.forEach { pt ->
-                val x = plotLeft + (pt.timestampMs.toFloat() / totalDurationMs) * plotWidth
+                val x = timestampToX(pt.timestampMs)
                 val normalizedY = (pt.value.toFloat() - paddedMin) / paddedRange
                 val y = plotTop + plotHeight - normalizedY * plotHeight
 
@@ -122,8 +162,25 @@ object AnglePlotRenderer {
             canvas.drawPath(path, linePaint)
         }
 
+        // Draw period boundary markers (vertical dashed lines)
+        if (periods != null && periods.isNotEmpty()) {
+            val plotLeftVal = plotLeft
+            val plotRightVal = plotLeft + plotWidth
+            for (period in periods) {
+                val x = timestampToX(period.timestampMs)
+                // Only draw if within plot bounds
+                if (x >= plotLeftVal && x <= plotRightVal) {
+                    val paint = when (period.type) {
+                        PeriodBoundaryType.PEAK -> peakMarkerPaint
+                        PeriodBoundaryType.TROUGH -> troughMarkerPaint
+                    }
+                    canvas.drawLine(x, plotTop, x, plotTop + plotHeight, paint)
+                }
+            }
+        }
+
         // Draw current position line
-        val currentX = plotLeft + (currentPositionMs.toFloat() / totalDurationMs) * plotWidth
+        val currentX = timestampToX(currentPositionMs)
         canvas.drawLine(currentX, plotTop, currentX, plotTop + plotHeight, currentLinePaint)
 
         // Draw min/max labels

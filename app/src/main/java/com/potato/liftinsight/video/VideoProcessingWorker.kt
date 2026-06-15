@@ -10,6 +10,7 @@ import com.potato.liftinsight.training.data.BarbellFrameEntity
 import com.potato.liftinsight.training.data.MetahistoryTimeseriesEntity
 import com.potato.liftinsight.training.data.PoseFrameEntity
 import com.potato.liftinsight.training.data.TimeseriesMetric
+import com.potato.liftinsight.training.data.TimeseriesPoint
 import com.potato.liftinsight.training.data.VideoProcessState
 import com.potato.liftinsight.training.data.VideoProcessStateEntity
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +62,14 @@ internal class VideoProcessingWorker(
             if (metahistoryId != null && result.timeseriesEntries.isNotEmpty()) {
                 videoProcessStore.replaceTimeseries(metahistoryId, result.timeseriesEntries)
                 logger.info(TAG, "Persisted ${result.timeseriesEntries.size} timeseries data points: videoName=$videoName, metahistoryId=$metahistoryId")
+
+                // Run active range detection on the angle-time series data
+                detectAndStoreActiveRange(
+                    metahistoryId = metahistoryId,
+                    timeseriesEntries = result.timeseriesEntries,
+                    videoProcessStore = videoProcessStore,
+                    logger = logger
+                )
             } else if (metahistoryId == null) {
                 logger.warn(TAG, "No metahistory record found for videoName=$videoName, skipping timeseries persistence")
             }
@@ -403,6 +412,50 @@ internal class VideoProcessingWorker(
 
     private companion object {
         private const val TAG = "VideoProcessingWorker"
+
+        private fun detectAndStoreActiveRange(
+            metahistoryId: Int,
+            timeseriesEntries: List<MetahistoryTimeseriesEntity>,
+            videoProcessStore: VideoProcessStore,
+            logger: AppLogger
+        ) {
+            try {
+                // Group entries by metric name
+                val grouped = timeseriesEntries.groupBy { it.metricName }
+
+                // Prefer spine_angle, fall back to left_knee_angle, then right_knee_angle
+                val primaryMetric = grouped.keys.firstOrNull {
+                    it == TimeseriesMetric.SPINE_ANGLE
+                } ?: grouped.keys.firstOrNull {
+                    it == TimeseriesMetric.LEFT_KNEE_ANGLE
+                } ?: grouped.keys.firstOrNull {
+                    it == TimeseriesMetric.RIGHT_KNEE_ANGLE
+                }
+
+                if (primaryMetric == null) {
+                    logger.warn(TAG, "No suitable metric for active range detection: metahistoryId=$metahistoryId")
+                    return
+                }
+
+                val points = grouped[primaryMetric]?.map { entry ->
+                    TimeseriesPoint(timestampMs = entry.timestampMs, value = entry.value)
+                }?.sortedBy { it.timestampMs } ?: return
+
+                val activeRange = ActiveRangeDetector.detect(points)
+                if (activeRange != null) {
+                    videoProcessStore.updateActiveRange(
+                        metahistoryId = metahistoryId,
+                        startMs = activeRange.startTimestampMs,
+                        endMs = activeRange.endTimestampMs
+                    )
+                    logger.info(TAG, "Active range detected: metahistoryId=$metahistoryId, start=${activeRange.startTimestampMs}ms, end=${activeRange.endTimestampMs}ms, duration=${activeRange.durationMs}ms, metric=$primaryMetric")
+                } else {
+                    logger.info(TAG, "No active range detected (all idle or too short): metahistoryId=$metahistoryId")
+                }
+            } catch (e: Exception) {
+                logger.warn(TAG, "Active range detection failed for metahistoryId=$metahistoryId: ${e.message}")
+            }
+        }
     }
 }
 

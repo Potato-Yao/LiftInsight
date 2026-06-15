@@ -69,6 +69,9 @@ internal class VideoExportRenderWorker(
         val timeseriesByMetric = loadTimeseries(metahistoryId)
         logger.info(TAG, "Timeseries loaded: metrics=${timeseriesByMetric.keys}, counts=${timeseriesByMetric.mapValues { it.value.size }}")
 
+        // Compute period boundaries for angle plot
+        val periods = PeriodDetector.detect(timeseriesByMetric, activeRange = null)
+
         // 5. Get video dimensions
         val retriever = MediaMetadataRetriever()
         var width: Int
@@ -196,7 +199,9 @@ internal class VideoExportRenderWorker(
                         totalDurationMs = totalDurationMs,
                         canvasWidth = width.toFloat(),
                         canvasHeight = height.toFloat(),
-                        rdpEpsilon = options.rdpEpsilon
+                        rdpEpsilon = options.rdpEpsilon,
+                        activeRange = null,
+                        periods = periods
                     )
                 }
 

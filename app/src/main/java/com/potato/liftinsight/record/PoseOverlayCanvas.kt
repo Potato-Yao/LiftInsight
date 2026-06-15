@@ -14,8 +14,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import com.potato.liftinsight.training.data.TimeseriesPoint
+import com.potato.liftinsight.video.ActiveRange
 import com.potato.liftinsight.video.BarbellOverlayRenderer
 import com.potato.liftinsight.video.BarbellPosition
+import com.potato.liftinsight.video.PeriodBoundary
+import com.potato.liftinsight.video.PeriodBoundaryType
 import com.potato.liftinsight.video.PoseOverlayLandmark
 import com.potato.liftinsight.video.PoseOverlayRenderer
 import com.potato.liftinsight.video.RdpSimplifier
@@ -63,7 +66,9 @@ internal fun PoseOverlayCanvas(
     onCircleTapped: ((Int) -> Unit)? = null,
     selectableLines: List<SelectableLine> = emptyList(),
     onLineTapped: ((Int) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    activeRange: ActiveRange? = null,
+    periods: List<PeriodBoundary>? = null
 ) {
     val hasAnyOverlay = (showSkeleton && poseFrame != null) ||
             (showAngleDisplay && currentAngles.values.any { it != null }) ||
@@ -242,7 +247,7 @@ internal fun PoseOverlayCanvas(
             val simplifiedAngleTimeSeries = angleTimeSeries.mapValues { (_, points) ->
                 RdpSimplifier.simplify(points, rdpEpsilon)
             }
-            drawAnglePlot(simplifiedAngleTimeSeries, currentPositionMs, totalDurationMs)
+            drawAnglePlot(simplifiedAngleTimeSeries, currentPositionMs, totalDurationMs, activeRange, periods)
         }
 
         if (showBarbellTrace && barbellFrames.isNotEmpty()) {
@@ -320,9 +325,32 @@ private fun buildAngleTextLines(angles: Map<String, Double?>): List<String> {
 private fun DrawScope.drawAnglePlot(
     angleTimeSeries: Map<String, List<TimeseriesPoint>>,
     currentPositionMs: Long,
-    totalDurationMs: Long
+    totalDurationMs: Long,
+    activeRange: ActiveRange? = null,
+    periods: List<PeriodBoundary>? = null
 ) {
     if (totalDurationMs <= 0L) return
+
+    // Determine effective time range for X-axis scaling
+    val effectiveStartMs: Long
+    val effectiveEndMs: Long
+    if (activeRange != null) {
+        effectiveStartMs = activeRange.startTimestampMs
+        effectiveEndMs = activeRange.endTimestampMs
+    } else {
+        effectiveStartMs = 0L
+        effectiveEndMs = totalDurationMs
+    }
+    val effectiveDurationMs = effectiveEndMs - effectiveStartMs
+    if (effectiveDurationMs <= 0L) return
+
+    // Map a timestamp to an X coordinate based on the effective range
+    fun timestampToX(tsMs: Long): Float {
+        val fraction = ((tsMs - effectiveStartMs).toFloat() / effectiveDurationMs).coerceIn(0f, 1f)
+        val plotWidth = size.width * 0.45f
+        val plotLeft = size.width - plotWidth - 16f
+        return plotLeft + fraction * plotWidth
+    }
 
     // Define plot area (bottom-right corner, compact)
     val plotPadding = 16f
@@ -382,7 +410,7 @@ private fun DrawScope.drawAnglePlot(
         val path = Path()
         var first = true
         points.forEach { pt ->
-            val x = plotLeft + (pt.timestampMs.toFloat() / totalDurationMs) * plotWidth
+            val x = timestampToX(pt.timestampMs)
             val normalizedY = (pt.value.toFloat() - paddedMin) / paddedRange
             val y = plotTop + plotHeight - normalizedY * plotHeight
 
@@ -401,8 +429,31 @@ private fun DrawScope.drawAnglePlot(
         )
     }
 
+    // Draw period boundary markers (vertical dashed lines)
+    if (periods != null && periods.isNotEmpty()) {
+        val plotLeftPx = plotLeft
+        val plotRightPx = plotLeft + plotWidth
+        for (period in periods) {
+            val x = timestampToX(period.timestampMs)
+            // Only draw if within plot bounds
+            if (x >= plotLeftPx && x <= plotRightPx) {
+                val color = when (period.type) {
+                    PeriodBoundaryType.PEAK -> Color(0xFFFFD54F) // Amber
+                    PeriodBoundaryType.TROUGH -> Color(0xFF80DEEA) // Teal
+                }
+                drawLine(
+                    color = color,
+                    start = Offset(x, plotTop),
+                    end = Offset(x, plotTop + plotHeight),
+                    strokeWidth = 1f,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 4f), 0f)
+                )
+            }
+        }
+    }
+
     // Draw current position line
-    val currentX = plotLeft + (currentPositionMs.toFloat() / totalDurationMs) * plotWidth
+    val currentX = timestampToX(currentPositionMs)
     drawLine(
         color = Color.White,
         start = Offset(currentX, plotTop),

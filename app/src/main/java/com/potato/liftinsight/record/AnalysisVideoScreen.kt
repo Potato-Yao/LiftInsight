@@ -51,6 +51,8 @@ import com.potato.liftinsight.training.data.TimeseriesMetric
 import com.potato.liftinsight.training.data.TimeseriesPoint
 import com.potato.liftinsight.motion.MotionVideoPlayer
 import com.potato.liftinsight.ui.component.VideoPreviewCard
+import com.potato.liftinsight.video.ActiveRange
+import com.potato.liftinsight.video.PeriodDetector
 import com.potato.liftinsight.video.VideoProcessor
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -94,6 +96,7 @@ internal fun AnalysisVideoScreen(
     var poseFrames by remember { mutableStateOf<List<PoseFrameSnapshot>>(emptyList()) }
     var angleData by remember { mutableStateOf<Map<String, List<TimeseriesPoint>>>(emptyMap()) }
     var barbellFrames by remember { mutableStateOf<List<BarbellFrameSnapshot>>(emptyList()) }
+    var activeRange by remember { mutableStateOf<ActiveRange?>(null) }
 
     val scope = rememberCoroutineScope()
 
@@ -226,6 +229,17 @@ internal fun AnalysisVideoScreen(
                 rdpEpsilon = settings.rdpEpsilon
                 rdpSmoothSkeleton = settings.rdpSmoothSkeleton
             }
+
+            // Load active range
+            val rangeData = database.planDao().getActiveRange(metahistoryId)
+            if (rangeData != null && rangeData.startMs != null && rangeData.endMs != null) {
+                activeRange = ActiveRange(
+                    startTimestampMs = rangeData.startMs,
+                    endTimestampMs = rangeData.endMs
+                )
+            } else {
+                activeRange = null
+            }
         }
     }
 
@@ -273,6 +287,11 @@ internal fun AnalysisVideoScreen(
             )
             candidates.minByOrNull { kotlin.math.abs(it.timestampMs - currentPositionMs) }?.value
         }
+    }
+
+    // Compute period boundaries for angle plot
+    val periods = remember(angleData, activeRange) {
+        PeriodDetector.detect(angleData, activeRange)
     }
 
     // Save settings when they change
@@ -365,7 +384,9 @@ internal fun AnalysisVideoScreen(
                             barbellFrames = barbellFrames,
                             selectableCircles = emptyList(),
                             onCircleTapped = null,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            activeRange = activeRange,
+                            periods = periods
                         )
                     }
             )
@@ -444,7 +465,9 @@ internal fun AnalysisVideoScreen(
                         barbellFrames = barbellFrames,
                         selectableCircles = emptyList(),
                         onCircleTapped = null,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        activeRange = activeRange,
+                        periods = periods
                     )
                 }
             )

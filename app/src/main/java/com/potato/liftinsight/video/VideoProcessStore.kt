@@ -5,6 +5,7 @@ import com.potato.liftinsight.common.logging.AndroidAppLogger
 import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.training.data.BarbellFrameDao
 import com.potato.liftinsight.training.data.BarbellFrameEntity
+import com.potato.liftinsight.training.data.ActiveRangeData
 import com.potato.liftinsight.training.data.LiftInsightDatabase
 import com.potato.liftinsight.training.data.MetahistoryTimeseriesEntity
 import com.potato.liftinsight.training.data.PlanDao
@@ -106,6 +107,14 @@ class VideoProcessStore private constructor(
     fun upsertVideoExportState(state: VideoExportStateEntity) = planDao.upsertVideoExportState(state)
 
     fun deleteVideoExportState(videoName: String) = planDao.deleteVideoExportState(videoName)
+
+    fun updateActiveRange(metahistoryId: Int, startMs: Long?, endMs: Long?) {
+        planDao.updateActiveRange(metahistoryId, startMs, endMs)
+    }
+
+    fun getActiveRange(metahistoryId: Int): ActiveRangeData? {
+        return planDao.getActiveRange(metahistoryId)
+    }
 
     fun updateVideoExportProgress(videoName: String, state: String, progress: Int) =
         planDao.updateVideoExportProgress(videoName, state, progress)

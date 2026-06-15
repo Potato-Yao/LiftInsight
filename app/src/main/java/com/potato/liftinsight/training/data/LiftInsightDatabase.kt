@@ -28,7 +28,7 @@ import com.potato.liftinsight.common.logging.AndroidAppLogger
         BarbellFrameEntity::class,
         VideoExportStateEntity::class
     ],
-    version = 31,
+    version = 32,
     exportSchema = true
 )
 abstract class LiftInsightDatabase : RoomDatabase() {
@@ -532,6 +532,16 @@ abstract class LiftInsightDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_31_32 = object : Migration(31, 32) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                AndroidAppLogger.info(TAG, "Running migration 31 -> 32")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN active_range_start_ms INTEGER")
+                db.execSQL("ALTER TABLE metahistory ADD COLUMN active_range_end_ms INTEGER")
+                db.execSQL("ALTER TABLE metahistory_bin ADD COLUMN active_range_start_ms INTEGER")
+                db.execSQL("ALTER TABLE metahistory_bin ADD COLUMN active_range_end_ms INTEGER")
+            }
+        }
+
         fun from(context: Context): LiftInsightDatabase {
             val existingInstance = instance
             if (existingInstance != null) {
@@ -588,7 +598,8 @@ abstract class LiftInsightDatabase : RoomDatabase() {
                         MIGRATION_27_28,
                         MIGRATION_28_29,
                         MIGRATION_29_30,
-                        MIGRATION_30_31
+                        MIGRATION_30_31,
+                        MIGRATION_31_32
                     )
                         .build()
 

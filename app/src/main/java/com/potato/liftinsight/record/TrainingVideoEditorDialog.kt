@@ -608,7 +608,8 @@ internal fun TrainingVideoEditorDialog(
                         onLineTapped = if (analysisState.barbellDetection && !isTracking) { { index ->
                             selectedLineIndex = index
                         } } else null,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        activeRange = null
                     )
                 }
             )

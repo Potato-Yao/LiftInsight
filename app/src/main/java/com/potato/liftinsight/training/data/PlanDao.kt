@@ -18,6 +18,11 @@ data class AnalysisSettings(
     @ColumnInfo(name = "rdp_smooth_skeleton") val rdpSmoothSkeleton: Boolean
 )
 
+data class ActiveRangeData(
+    @ColumnInfo(name = "active_range_start_ms") val startMs: Long?,
+    @ColumnInfo(name = "active_range_end_ms") val endMs: Long?
+)
+
 @Dao
 abstract class PlanDao {
     @Insert
@@ -98,6 +103,12 @@ abstract class PlanDao {
 
     @Query("UPDATE metahistory SET marked = :marked WHERE id = :id")
     abstract fun updateMetaHistoryMarked(id: Int, marked: Boolean): Int
+
+    @Query("UPDATE metahistory SET active_range_start_ms = :startMs, active_range_end_ms = :endMs WHERE id = :metahistoryId")
+    abstract fun updateActiveRange(metahistoryId: Int, startMs: Long?, endMs: Long?): Int
+
+    @Query("SELECT active_range_start_ms, active_range_end_ms FROM metahistory WHERE id = :metahistoryId")
+    abstract fun getActiveRange(metahistoryId: Int): ActiveRangeData?
 
     @Query("UPDATE metahistory SET video_name = :videoName WHERE id = :historyId")
     abstract fun updateMetaHistoryVideoName(historyId: Int, videoName: String?): Int
@@ -215,7 +226,9 @@ abstract class PlanDao {
             metahistory.marked,
             metahistory.rdp_epsilon,
             metahistory.rdp_smooth_skeleton,
-            metahistory.video_edited
+            metahistory.video_edited,
+            metahistory.active_range_start_ms,
+            metahistory.active_range_end_ms
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         ORDER BY metahistory.date DESC, metahistory.id DESC
@@ -248,7 +261,9 @@ abstract class PlanDao {
             metahistory.marked,
             metahistory.rdp_epsilon,
             metahistory.rdp_smooth_skeleton,
-            metahistory.video_edited
+            metahistory.video_edited,
+            metahistory.active_range_start_ms,
+            metahistory.active_range_end_ms
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.history_id = :historyId
@@ -413,7 +428,9 @@ abstract class PlanDao {
             marked,
             rdp_epsilon,
             rdp_smooth_skeleton,
-            video_edited
+            video_edited,
+            active_range_start_ms,
+            active_range_end_ms
         FROM metahistory_bin
         ORDER BY date DESC, id DESC
         """
@@ -451,7 +468,9 @@ abstract class PlanDao {
             metahistory.marked,
             metahistory.rdp_epsilon,
             metahistory.rdp_smooth_skeleton,
-            metahistory.video_edited
+            metahistory.video_edited,
+            metahistory.active_range_start_ms,
+            metahistory.active_range_end_ms
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.id = :id
@@ -484,7 +503,9 @@ abstract class PlanDao {
             marked,
             rdp_epsilon,
             rdp_smooth_skeleton,
-            video_edited
+            video_edited,
+            active_range_start_ms,
+            active_range_end_ms
         FROM metahistory_bin
         WHERE id = :id
         """
@@ -517,7 +538,9 @@ abstract class PlanDao {
             rdpEpsilon = row.rdpEpsilon,
             rdpSmoothSkeleton = row.rdpSmoothSkeleton,
             videoEdited = row.videoEdited,
-            historyId = row.historyId
+            historyId = row.historyId,
+            activeRangeStartMs = row.activeRangeStartMs,
+            activeRangeEndMs = row.activeRangeEndMs
         )
 
         val binId = insertMetaHistoryBin(binEntity).toInt()
@@ -579,7 +602,9 @@ abstract class PlanDao {
             rdpEpsilon = row.rdpEpsilon,
             rdpSmoothSkeleton = row.rdpSmoothSkeleton,
             videoEdited = row.videoEdited,
-            historyId = row.historyId
+            historyId = row.historyId,
+            activeRangeStartMs = row.activeRangeStartMs,
+            activeRangeEndMs = row.activeRangeEndMs
         )
 
         val newMetaHistoryId = insertMetaHistory(historyEntity).toInt()
@@ -648,7 +673,9 @@ abstract class PlanDao {
             metahistory.marked,
             metahistory.rdp_epsilon,
             metahistory.rdp_smooth_skeleton,
-            metahistory.video_edited
+            metahistory.video_edited,
+            metahistory.active_range_start_ms,
+            metahistory.active_range_end_ms
         FROM metahistory
         INNER JOIN motion ON motion.id = metahistory.motion_id
         WHERE metahistory.video_name IS NOT NULL

@@ -106,7 +106,9 @@ data class MetaHistoryRecord(
     val rdpEpsilon: Double = 1.5,
     val rdpSmoothSkeleton: Boolean = false,
     val videoEdited: Boolean = false,
-    val historyId: Int? = null
+    val historyId: Int? = null,
+    val activeRangeStartMs: Long? = null,
+    val activeRangeEndMs: Long? = null
 )
 
 data class HistoryRecord(
