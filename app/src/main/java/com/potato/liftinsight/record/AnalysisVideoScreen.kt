@@ -54,6 +54,7 @@ import com.potato.liftinsight.ui.component.VideoPreviewCard
 import com.potato.liftinsight.video.ActiveRange
 import com.potato.liftinsight.video.PeriodDetector
 import com.potato.liftinsight.video.VideoProcessor
+import com.potato.liftinsight.video.VideoTimeline
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +77,7 @@ internal fun AnalysisVideoScreen(
     var isLoading by remember { mutableStateOf(true) }
     var videoFile by remember { mutableStateOf<File?>(null) }
     var currentPositionMs by remember { mutableStateOf(0L) }
+    var firstSampleOffsetMs by remember { mutableStateOf(0L) }
     var videoWidth by remember { mutableStateOf(0) }
     var videoHeight by remember { mutableStateOf(0) }
 
@@ -148,6 +150,14 @@ internal fun AnalysisVideoScreen(
             videoProcessor.getPlaybackVideoFile(videoFileName)
         }
         videoFile = file
+
+        // Read the first video sample timestamp so we can map ExoPlayer
+        // playback time into the normalized analysis-data timeline.
+        if (file != null) {
+            withContext(Dispatchers.IO) {
+                firstSampleOffsetMs = VideoTimeline.readFirstVideoSampleTimeMs(file)
+            }
+        }
 
         // Get video dimensions from file (same method as processing pipeline)
         if (file != null) {
@@ -263,29 +273,35 @@ internal fun AnalysisVideoScreen(
         }
     }
 
+    // Map ExoPlayer playback position into the normalized analysis-data timeline.
+    val analysisPositionMs = VideoTimeline.analysisPositionForPlayback(currentPositionMs, firstSampleOffsetMs)
+    val analysisDurationMs = VideoTimeline.analysisDurationForPlayback(durationMs, firstSampleOffsetMs)
+
     // Find nearest pose frame (must be before LaunchedEffects that reference it)
-    val nearestFrame = remember(currentPositionMs, poseFrames) {
+    val nearestFrame = remember(analysisPositionMs, poseFrames) {
+        val pos = analysisPositionMs ?: return@remember null
         if (poseFrames.isEmpty()) return@remember null
-        val idx = poseFrames.binarySearchBy(currentPositionMs) { it.timestampMs }
+        val idx = poseFrames.binarySearchBy(pos) { it.timestampMs }
         val insertionPoint = if (idx >= 0) idx else -(idx + 1)
         val candidates = listOfNotNull(
             poseFrames.getOrNull(insertionPoint - 1),
             poseFrames.getOrNull(insertionPoint)
         )
-        candidates.minByOrNull { kotlin.math.abs(it.timestampMs - currentPositionMs) }
+        candidates.minByOrNull { kotlin.math.abs(it.timestampMs - pos) }
     }
 
     // Find nearest angle values
-    val currentAngles = remember(currentPositionMs, angleData) {
+    val currentAngles = remember(analysisPositionMs, angleData) {
+        val pos = analysisPositionMs ?: return@remember emptyMap()
         angleData.mapValues { (_, points) ->
             if (points.isEmpty()) return@mapValues null
-            val idx = points.binarySearchBy(currentPositionMs) { it.timestampMs }
+            val idx = points.binarySearchBy(pos) { it.timestampMs }
             val insertionPoint = if (idx >= 0) idx else -(idx + 1)
             val candidates = listOfNotNull(
                 points.getOrNull(insertionPoint - 1),
                 points.getOrNull(insertionPoint)
             )
-            candidates.minByOrNull { kotlin.math.abs(it.timestampMs - currentPositionMs) }?.value
+            candidates.minByOrNull { kotlin.math.abs(it.timestampMs - pos) }?.value
         }
     }
 
@@ -370,8 +386,8 @@ internal fun AnalysisVideoScreen(
                             poseFrame = nearestFrame,
                             currentAngles = currentAngles,
                             angleTimeSeries = angleData,
-                            currentPositionMs = currentPositionMs,
-                            totalDurationMs = durationMs,
+                            currentPositionMs = analysisPositionMs ?: 0L,
+                            totalDurationMs = analysisDurationMs,
                             videoWidth = videoWidth,
                             videoHeight = videoHeight,
                             showSkeleton = showSkeleton,
@@ -422,37 +438,45 @@ internal fun AnalysisVideoScreen(
                 videoUri = Uri.fromFile(fullscreenFile),
                 onDismiss = { isFullscreen = false },
                 overlayContent = { fsCurrentPositionMs, fsDurationMs ->
+                    // Map fullscreen player position into analysis-data timeline
+                    val fsAnalysisPos = VideoTimeline.analysisPositionForPlayback(fsCurrentPositionMs, firstSampleOffsetMs)
+                    val fsAnalysisDuration = VideoTimeline.analysisDurationForPlayback(fsDurationMs, firstSampleOffsetMs)
+
                     // Find nearest pose frame for fullscreen player position
-                    val fsNearestFrame = if (poseFrames.isEmpty()) {
+                    val fsNearestFrame = if (poseFrames.isEmpty() || fsAnalysisPos == null) {
                         null
                     } else {
-                        val idx = poseFrames.binarySearchBy(fsCurrentPositionMs) { it.timestampMs }
+                        val idx = poseFrames.binarySearchBy(fsAnalysisPos) { it.timestampMs }
                         val insertionPoint = if (idx >= 0) idx else -(idx + 1)
                         val candidates = listOfNotNull(
                             poseFrames.getOrNull(insertionPoint - 1),
                             poseFrames.getOrNull(insertionPoint)
                         )
-                        candidates.minByOrNull { kotlin.math.abs(it.timestampMs - fsCurrentPositionMs) }
+                        candidates.minByOrNull { kotlin.math.abs(it.timestampMs - fsAnalysisPos) }
                     }
 
                     // Find nearest angle values for fullscreen player position
-                    val fsCurrentAngles = angleData.mapValues { (_, points) ->
-                        if (points.isEmpty()) return@mapValues null
-                        val idx = points.binarySearchBy(fsCurrentPositionMs) { it.timestampMs }
-                        val insertionPoint = if (idx >= 0) idx else -(idx + 1)
-                        val candidates = listOfNotNull(
-                            points.getOrNull(insertionPoint - 1),
-                            points.getOrNull(insertionPoint)
-                        )
-                        candidates.minByOrNull { kotlin.math.abs(it.timestampMs - fsCurrentPositionMs) }?.value
+                    val fsCurrentAngles = if (fsAnalysisPos == null) {
+                        emptyMap()
+                    } else {
+                        angleData.mapValues { (_, points) ->
+                            if (points.isEmpty()) return@mapValues null
+                            val idx = points.binarySearchBy(fsAnalysisPos) { it.timestampMs }
+                            val insertionPoint = if (idx >= 0) idx else -(idx + 1)
+                            val candidates = listOfNotNull(
+                                points.getOrNull(insertionPoint - 1),
+                                points.getOrNull(insertionPoint)
+                            )
+                            candidates.minByOrNull { kotlin.math.abs(it.timestampMs - fsAnalysisPos) }?.value
+                        }
                     }
 
                     PoseOverlayCanvas(
                         poseFrame = fsNearestFrame,
                         currentAngles = fsCurrentAngles,
                         angleTimeSeries = angleData,
-                        currentPositionMs = fsCurrentPositionMs,
-                        totalDurationMs = fsDurationMs,
+                        currentPositionMs = fsAnalysisPos ?: 0L,
+                        totalDurationMs = fsAnalysisDuration,
                         videoWidth = videoWidth,
                         videoHeight = videoHeight,
                         showSkeleton = showSkeleton,
