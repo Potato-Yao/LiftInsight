@@ -744,10 +744,6 @@ internal fun TrainingHistoryScreen(
                 motionTitle = record.motionName,
                 motionId = record.motionId,
                 setIndex = 1,
-                setsInMotion = 1,
-                expectedReps = record.rep,
-                expectedWeight = record.weight,
-                expectedIntensity = record.rpe.toDouble(),
                 onRecordingFinished = { videoName ->
                     val targetRecord = cameraTargetRecord
                     cameraTargetRecord = null

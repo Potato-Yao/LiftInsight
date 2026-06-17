@@ -29,10 +29,6 @@ class CameraController(
         return result
     }
 
-    fun fileProviderAuthority(context: Context): String {
-        return "${context.packageName}.fileprovider"
-    }
-
     fun videoOutputDirectory(context: Context): File {
         return context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
             ?: context.filesDir

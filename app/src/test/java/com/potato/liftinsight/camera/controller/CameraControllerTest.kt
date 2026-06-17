@@ -40,13 +40,4 @@ class CameraControllerTest {
             directory.absolutePath
         )
     }
-
-    @Test
-    fun fileProviderAuthority_returnsPackageNameBasedAuthority() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-
-        val authority = controller.fileProviderAuthority(context)
-
-        assertEquals("${context.packageName}.fileprovider", authority)
-    }
 }

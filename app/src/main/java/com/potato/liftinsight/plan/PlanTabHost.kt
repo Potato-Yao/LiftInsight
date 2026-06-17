@@ -399,10 +399,6 @@ internal fun PlanTabHost(
                     motionTitle = route.motionTitle,
                     motionId = route.motionId,
                     setIndex = route.setIndex,
-                    setsInMotion = route.setsInMotion,
-                    expectedReps = route.expectedReps,
-                    expectedWeight = route.expectedWeight,
-                    expectedIntensity = route.expectedIntensity,
                     onRecordingFinished = { videoName ->
                         coroutineScope.launch {
                             onPlanStateChange(

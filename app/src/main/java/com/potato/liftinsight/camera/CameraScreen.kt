@@ -37,29 +37,33 @@ fun CameraScreen(
     motionTitle: String,
     motionId: Int,
     setIndex: Int,
-    setsInMotion: Int,
-    expectedReps: Int,
-    expectedWeight: Double,
-    expectedIntensity: Double,
     onRecordingFinished: (videoName: String?) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var hasCameraPermission by remember {
+
+    val requiredPermissions = arrayOf(
+        Manifest.permission.CAMERA,
+        Manifest.permission.RECORD_AUDIO
+    )
+
+    var hasPermissions by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-                PackageManager.PERMISSION_GRANTED
+            requiredPermissions.all { perm ->
+                ContextCompat.checkSelfPermission(context, perm) ==
+                    PackageManager.PERMISSION_GRANTED
+            }
         )
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasCameraPermission = granted
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        hasPermissions = results.values.all { granted -> granted }
     }
 
-    if (!hasCameraPermission) {
+    if (!hasPermissions) {
         Column(
             modifier = modifier
                 .fillMaxSize()
@@ -83,7 +87,7 @@ fun CameraScreen(
             Spacer(modifier = Modifier.height(12.dp))
             Surface(
                 onClick = {
-                    permissionLauncher.launch(Manifest.permission.CAMERA)
+                    permissionLauncher.launch(requiredPermissions)
                 },
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.primary
@@ -99,7 +103,7 @@ fun CameraScreen(
         return
     }
 
-    NativeCameraScreen(
+    CameraRecordingScreen(
         motionTitle = motionTitle,
         motionId = motionId,
         setIndex = setIndex,
