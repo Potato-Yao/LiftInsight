@@ -1197,4 +1197,242 @@ class TrainingHistoryControllerTest {
         assertNotNull(updatedSelected)
         assertTrue(updatedSelected!!.marked)
     }
+
+    // --- submitAnalysisProcessing regression tests ---
+
+    @Test
+    fun submitAnalysisProcessing_disablingPoseDetection_persistsFalseFlagsAndClearsAllAnalysisData() = runBlocking {
+        insertTestMotion()
+        val videoFile = createVideoFile("analysis-pose-off-test.mp4")
+        val recordId = insertTestHistoryRecordWithVideo(
+            videoName = videoFile.name,
+            poseDetection = true,
+            barbellDetection = true,
+            powerCalculation = true
+        ).toInt()
+
+        // Insert test analysis data
+        withContext(Dispatchers.IO) {
+            database.poseFrameDao().insertAll(listOf(
+                com.potato.liftinsight.training.data.PoseFrameEntity(
+                    metahistoryId = recordId,
+                    timestampMs = 100L,
+                    landmarksJson = "[]"
+                )
+            ))
+            database.barbellFrameDao().insertAll(listOf(
+                com.potato.liftinsight.training.data.BarbellFrameEntity(
+                    metahistoryId = recordId,
+                    timestampMs = 100L,
+                    x = 0.5f,
+                    y = 0.5f,
+                    radius = 0.1f,
+                    confidence = 0.9f
+                )
+            ))
+            database.timeseriesDao().insertAll(listOf(
+                com.potato.liftinsight.training.data.MetahistoryTimeseriesEntity(
+                    metahistoryId = recordId,
+                    timestampMs = 100L,
+                    metricName = "power",
+                    value = 500.0
+                )
+            ))
+        }
+
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+
+        val analysisState = com.potato.liftinsight.record.model.AnalysisVideoState(
+            poseDetection = false,
+            angleDisplay = false,
+            anglePlot = false,
+            barbellDetection = false,
+            powerCalculation = false
+        )
+
+        controller.submitAnalysisProcessing(
+            state = state,
+            videoName = videoFile.name,
+            analysisState = analysisState,
+            record = record
+        )
+
+        // Verify flags persisted as false in DB
+        val refreshedState = controller.loadState()
+        val refreshedRecord = refreshedState.records.first { it.id == recordId }
+        assertFalse(refreshedRecord.poseDetection)
+        assertFalse(refreshedRecord.barbellDetection)
+        assertFalse(refreshedRecord.powerCalculation)
+
+        // Verify analysis data was cleared
+        withContext(Dispatchers.IO) {
+            val poseFrames = database.poseFrameDao().getPoseFrames(recordId)
+            assertTrue(poseFrames.isEmpty())
+
+            val barbellFrames = database.barbellFrameDao().getBarbellFrames(recordId)
+            assertTrue(barbellFrames.isEmpty())
+
+            val timeseriesCount = database.timeseriesDao().countByMetaHistoryId(recordId)
+            assertEquals(0, timeseriesCount)
+        }
+    }
+
+    @Test
+    fun submitAnalysisProcessing_disablingBarbellDetection_persistsFalseFlagAndClearsBarbellAndTimeseries() = runBlocking {
+        insertTestMotion()
+        val videoFile = createVideoFile("analysis-barbell-off-test.mp4")
+        val recordId = insertTestHistoryRecordWithVideo(
+            videoName = videoFile.name,
+            poseDetection = true,
+            barbellDetection = true,
+            powerCalculation = true
+        ).toInt()
+
+        // Insert test analysis data
+        withContext(Dispatchers.IO) {
+            database.poseFrameDao().insertAll(listOf(
+                com.potato.liftinsight.training.data.PoseFrameEntity(
+                    metahistoryId = recordId,
+                    timestampMs = 100L,
+                    landmarksJson = "[]"
+                )
+            ))
+            database.barbellFrameDao().insertAll(listOf(
+                com.potato.liftinsight.training.data.BarbellFrameEntity(
+                    metahistoryId = recordId,
+                    timestampMs = 100L,
+                    x = 0.5f,
+                    y = 0.5f,
+                    radius = 0.1f,
+                    confidence = 0.9f
+                )
+            ))
+            database.timeseriesDao().insertAll(listOf(
+                com.potato.liftinsight.training.data.MetahistoryTimeseriesEntity(
+                    metahistoryId = recordId,
+                    timestampMs = 100L,
+                    metricName = "power",
+                    value = 500.0
+                )
+            ))
+        }
+
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+
+        // Toggle barbell off, but keep pose on
+        val analysisState = com.potato.liftinsight.record.model.AnalysisVideoState(
+            poseDetection = true,
+            angleDisplay = false,
+            anglePlot = false,
+            barbellDetection = false,
+            powerCalculation = false
+        )
+
+        controller.submitAnalysisProcessing(
+            state = state,
+            videoName = videoFile.name,
+            analysisState = analysisState,
+            record = record
+        )
+
+        // Verify flags persisted correctly
+        val refreshedState = controller.loadState()
+        val refreshedRecord = refreshedState.records.first { it.id == recordId }
+        assertTrue(refreshedRecord.poseDetection)
+        assertFalse(refreshedRecord.barbellDetection)
+        assertFalse(refreshedRecord.powerCalculation)
+
+        // Verify pose frames are preserved, barbell and timeseries are cleared
+        withContext(Dispatchers.IO) {
+            val poseFrames = database.poseFrameDao().getPoseFrames(recordId)
+            assertEquals(1, poseFrames.size)
+
+            val barbellFrames = database.barbellFrameDao().getBarbellFrames(recordId)
+            assertTrue(barbellFrames.isEmpty())
+
+            val timeseriesCount = database.timeseriesDao().countByMetaHistoryId(recordId)
+            assertEquals(0, timeseriesCount)
+        }
+    }
+
+    @Test
+    fun submitAnalysisProcessing_disablingPowerCalculation_persistsFalseFlagAndClearsTimeseries() = runBlocking {
+        insertTestMotion()
+        val videoFile = createVideoFile("analysis-power-off-test.mp4")
+        val recordId = insertTestHistoryRecordWithVideo(
+            videoName = videoFile.name,
+            poseDetection = true,
+            barbellDetection = true,
+            powerCalculation = true
+        ).toInt()
+
+        // Insert test analysis data
+        withContext(Dispatchers.IO) {
+            database.poseFrameDao().insertAll(listOf(
+                com.potato.liftinsight.training.data.PoseFrameEntity(
+                    metahistoryId = recordId,
+                    timestampMs = 100L,
+                    landmarksJson = "[]"
+                )
+            ))
+            database.barbellFrameDao().insertAll(listOf(
+                com.potato.liftinsight.training.data.BarbellFrameEntity(
+                    metahistoryId = recordId,
+                    timestampMs = 100L,
+                    x = 0.5f,
+                    y = 0.5f,
+                    radius = 0.1f,
+                    confidence = 0.9f
+                )
+            ))
+            database.timeseriesDao().insertAll(listOf(
+                com.potato.liftinsight.training.data.MetahistoryTimeseriesEntity(
+                    metahistoryId = recordId,
+                    timestampMs = 100L,
+                    metricName = "power",
+                    value = 500.0
+                )
+            ))
+        }
+
+        val state = controller.loadState()
+        val record = state.records.first { it.id == recordId }
+
+        // Toggle power off, keep pose and barbell on
+        val analysisState = com.potato.liftinsight.record.model.AnalysisVideoState(
+            poseDetection = true,
+            angleDisplay = false,
+            anglePlot = false,
+            barbellDetection = true,
+            powerCalculation = false
+        )
+
+        controller.submitAnalysisProcessing(
+            state = state,
+            videoName = videoFile.name,
+            analysisState = analysisState,
+            record = record
+        )
+
+        // Verify flags persisted correctly
+        val refreshedState = controller.loadState()
+        val refreshedRecord = refreshedState.records.first { it.id == recordId }
+        assertTrue(refreshedRecord.poseDetection)
+        assertTrue(refreshedRecord.barbellDetection)
+        assertFalse(refreshedRecord.powerCalculation)
+
+        // Verify pose and barbell frames preserved, timeseries cleared
+        withContext(Dispatchers.IO) {
+            val poseFrames = database.poseFrameDao().getPoseFrames(recordId)
+            assertEquals(1, poseFrames.size)
+
+            val barbellFrames = database.barbellFrameDao().getBarbellFrames(recordId)
+            assertEquals(1, barbellFrames.size)
+
+            val timeseriesCount = database.timeseriesDao().countByMetaHistoryId(recordId)
+            assertEquals(0, timeseriesCount)
+        }
+    }
 }

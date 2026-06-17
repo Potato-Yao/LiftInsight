@@ -833,15 +833,23 @@ internal fun TrainingHistoryScreen(
                     videoEditorRecord = null
                     videoEditorHasProcessedCopy = false
                 },
-                onSaved = {
+                onSaved = { analysisState ->
                     videoEditorRecord = null
                     videoEditorHasProcessedCopy = false
                     coroutineScope.launch {
+                        if (analysisState != null) {
+                            state = controller.submitAnalysisProcessing(
+                                state = state,
+                                videoName = videoName,
+                                analysisState = analysisState,
+                                record = record
+                            )
+                        }
                         state = controller.markVideoEdited(state, record.id)
+                        state = controller.requestVideoStatusRefresh(
+                            controller.selectRecord(state, record)
+                        )
                     }
-                    state = controller.requestVideoStatusRefresh(
-                        controller.selectRecord(state, record)
-                    )
                 },
                 initialAnalysisState = AnalysisVideoState(
                     poseDetection = record.poseDetection,
@@ -849,17 +857,7 @@ internal fun TrainingHistoryScreen(
                     anglePlot = record.anglePlot,
                     barbellDetection = record.barbellDetection,
                     powerCalculation = record.powerCalculation
-                ),
-                onAnalysisSaved = { analysisState ->
-                    coroutineScope.launch {
-                        state = controller.submitAnalysisProcessing(
-                            state = state,
-                            videoName = videoName,
-                            analysisState = analysisState,
-                            record = record
-                        )
-                    }
-                }
+                )
             )
         }
     }

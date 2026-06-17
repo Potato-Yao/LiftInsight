@@ -168,8 +168,7 @@ internal fun VideoEditorOverlay(
     videoProcessor: VideoProcessor,
     hasProcessedCopy: Boolean,
     onDismiss: () -> Unit,
-    onSaved: () -> Unit,
-    onAnalysisSaved: (AnalysisVideoState) -> Unit = {},
+    onSaved: (AnalysisVideoState?) -> Unit,
     initialAnalysisState: AnalysisVideoState = AnalysisVideoState()
 ) {
     Dialog(
@@ -183,7 +182,6 @@ internal fun VideoEditorOverlay(
             hasProcessedCopy = hasProcessedCopy,
             onDismiss = onDismiss,
             onSaved = onSaved,
-            onAnalysisSaved = onAnalysisSaved,
             initialAnalysisState = initialAnalysisState,
             modifier = Modifier.fillMaxSize()
         )

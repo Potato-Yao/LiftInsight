@@ -94,8 +94,7 @@ internal fun TrainingVideoEditorDialog(
     videoProcessor: VideoProcessor,
     hasProcessedCopy: Boolean,
     onDismiss: () -> Unit,
-    onSaved: () -> Unit,
-    onAnalysisSaved: (AnalysisVideoState) -> Unit = {},
+    onSaved: (AnalysisVideoState?) -> Unit,
     initialAnalysisState: AnalysisVideoState = AnalysisVideoState(),
     modifier: Modifier = Modifier
 ) {
@@ -337,7 +336,7 @@ internal fun TrainingVideoEditorDialog(
                 )
             }
         } else if (!analysisState.barbellDetection) {
-            // Clear detection state
+            // Clear detection UI state immediately; DB cleanup happens on save
             detectedCircles = emptyList()
             detectedLines = emptyList()
             selectedCircleIndex = -1
@@ -346,13 +345,6 @@ internal fun TrainingVideoEditorDialog(
             trackingProgress = 0
             hasTracked = false
             barbellFrames = emptyList()
-
-            // Clear barbell frames from DB
-            if (metahistoryId != null) {
-                withContext(Dispatchers.IO) {
-                    videoProcessor.clearBarbellFrames(metahistoryId)
-                }
-            }
         }
     }
 
@@ -733,19 +725,13 @@ internal fun TrainingVideoEditorDialog(
             )
 
             if (didSave) {
-                if (analysisChanged) {
-                    onAnalysisSaved(analysisState)
-                }
-                onSaved()
+                onSaved(if (analysisChanged) analysisState else null)
             } else {
                 isSaving = false
                 errorMessage = context.getString(R.string.training_video_editor_save_error)
             }
         } else {
-            if (analysisChanged) {
-                onAnalysisSaved(analysisState)
-            }
-            onSaved()
+            onSaved(if (analysisChanged) analysisState else null)
         }
     }
 }
@@ -1149,10 +1135,14 @@ private fun AnalysisOptionsCard(
 
             AnalysisToggleRow(
                 label = stringResource(R.string.training_analysis_barbell_detection),
-                checked = false,
-                enabled = false,
-                supportingText = stringResource(R.string.training_export_barbell_coming_soon),
-                onCheckedChange = { /* disabled */ }
+                checked = analysisState.barbellDetection,
+                enabled = analysisState.isBarbellDetectionEnabled,
+                supportingText = if (!analysisState.isBarbellDetectionEnabled) {
+                    stringResource(R.string.training_analysis_requires_pose_detection)
+                } else {
+                    null
+                },
+                onCheckedChange = { onToggleBarbellDetection() }
             )
 
             AnalysisToggleRow(
