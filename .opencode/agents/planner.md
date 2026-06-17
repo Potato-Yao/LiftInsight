@@ -1,9 +1,9 @@
 ---
 description: Plans user requirements into constraints, questions, and ordered implementation tasks.
 mode: subagent
-model: xiaomi-token-plan-cn/mimo-v2.5-pro
+# model: xiaomi-token-plan-cn/mimo-v2.5-pro
 # model: deepseek/deepseek-v4-pro
-# model: codexcn/gpt-5.5
+model: codexcn/gpt-5.5
 permission:
   read: allow
   glob: allow
@@ -24,6 +24,7 @@ Your responsibilities:
 * Analyze architectural implications
 * Create a clear, highly detailed implementation plan
 * Break work into specific, executable tasks with file paths and approach details
+* For debug, bug-fix, regression, failing-test, or broken-behavior tasks: use available read/glob/grep context to investigate the repository and identify the likely root cause before writing tasks. The engineer must receive concrete files, logic, and changes to make — not a request to investigate or diagnose the bug from scratch
 
 You MUST:
 
@@ -73,6 +74,7 @@ Rules:
 * Keep `constraints` limited to user-stated limits, repository rules, and platform constraints
 * Keep `plan` concise and implementation-oriented (2-5 bullet points covering the overall approach)
 * Keep `tasks` concrete and executable
+* For bug/debug tasks, do not create tasks whose main work is "find the bug" or "diagnose the issue"; investigate first, then make tasks describe the specific fix with concrete files and logic to change
 
 ## Task Writing Guidelines
 

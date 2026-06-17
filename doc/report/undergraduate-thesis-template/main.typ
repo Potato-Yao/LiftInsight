@@ -25,7 +25,6 @@
 #include "chapters/ch2.typ"
 #include "chapters/ch3.typ"
 #include "chapters/ch4.typ"
-#include "chapters/ch5.typ"
 
 = 一级题目
 == 二级题目

@@ -1,151 +1,419 @@
 #import "../image_scale.typ": big_image_scale, image_scale, small_image_scale
 
-= 程序需求分析
+= App架构设计与技术实现方案
 
-== 动因描述
+== 总体技术方案
 
-寒假时我接触到了举重这项运动。由于没有教练、全靠自学，我必须录制很多自己动作的视频以供分析问题，大量视频占据了我手机的储存空间。而这些视频中，准备动作和动作间调整时间占据了很大篇幅，可能录制的一分半视频有七十秒是在准备，只有二十秒是真的在做动作，因此实际上占据储存空间大部分的都是无用的片段。因此我想，如果能开发一个程序自动剪辑掉水平中的非动作部分，一定能节省出很多空间。
+作为一个面向体育相关的项目，本项目技术方案的种地啊主要在运动生理学在计算机程序的实现上。此外也有一些属于软件开发本身的技术方案。
 
-另外，一次训练往往会包含很多个动作，有时候练到头脑发昏的时候就会忘记剩余的组数和应使用的重量。这些东西手动记录更新非常不便，而且不好进行回顾从而制定后续的训练动作和强度。因此如果能让程序承担这个“计数器”的功能想必是很好的。
+=== 训练强度评估
 
-综合种种举重训练的实际需求，我希望能做出一个除了训练视频的归纳外，还有运动参数分析、训练计划安排等功能的APP，名字就叫“LiftInsight”。中文名是deepseek起的，叫“举重明析”。既然是面向举重相关的应用，设计的重点也会围绕各种杠铃动作，后文“运动”也主要指代杠铃相关的运动。
+本项目采用了若干成熟的运动生理学指标来衡量训练强度、估算恢复时长等。为此我阅读了大量运动生理学相关论文，得到了以下的计算公式。
 
-有一种叫作力量举的运动与举重相似，二者都主要使用杠铃这种轨迹不固定的器械进行大负重的训练，训练目的都是获得灵活、协调、实用的肌肉而非练成孤立、单位肌力低下的“死肌肉”。无非举重的主项是挺举和抓举，主要锻炼肌肉能爆发出的最大功率，而力量举的主项是卧推、深蹲和硬拉，主要锻炼肌肉能表现出的最大力量。因此，力量举也在本项目设计的考虑范围内。
+首先是训练强度。单次动作的训练强度一般使用RPE系数（Rating of Perceived Exertion，主观疲劳感觉评分）来衡量。
 
-== 竞品分析
+#set table(stroke: (top: 0.5pt, bottom: 0.5pt, left: none, right: none))
+#table(
+  columns: (auto, auto, auto),
+  align: (left, left, left),
 
-安卓平台上有运动记录、分析功能是主要有两款软件：VBTgo和WL Analysis。
+  table.header([RPE分值], [主观描述], [补充说明]),
 
-WL Analysis功能比较简单——导入或录制视频，它会识别杠铃轨迹、计算瞬时速度，除此以外并无其它功能。另外这个软件是闭源的，软件内广告不少。
+  [10], [最大努力，无法再完成一次], [做完该组后，完全力竭，即使再加1次也绝对无法完成],
+  [9], [非常困难], [做完后感觉还能严格完成1次],
+  [8], [困难], [做完后感觉还能再做2次],
+  [7], [有些困难], [],
+  [6], [中等偏上], [],
+  [5], [中等], [],
+  [4], [轻到中等], [],
+  [3], [轻松], [做完后感觉还能再做7次以上，但仍有明显费力感],
+  [2], [很轻松], [几乎不费力，可以做很多次],
+  [1], [极轻松], [如热身或技术练习，基本无疲劳感],
+  [0], [无任何感受], [静止状态，无运动],
+)
+
+一次完整训练的训练强度一般使用sRPE（session RPE）来衡量。
+
+#table(
+  columns: (auto, auto, auto),
+  align: (left, left, left),
+  //   stroke: (x, y) => (
+  //     if y == 0 and x == 0 { (top: 0.5pt, left: none, right: none, bottom: 0.5pt) }
+  //     else if y == 0 { (bottom: 0.5pt, left: none, right: none) }
+  //     else if y == 10 { (bottom: 0.5pt, left: none, right: none) }
+  //     else { (left: none, right: none) }
+  //   ),
+  table.header([sRPE分值], [主观描述], [对应整节训练课的疲劳/负荷说明]),
+  [10], [最大努力，极度疲劳], [彻底力竭，无法再做任何一组或多加一次动作；通常只出现在比赛或极限测试后],
+  [9], [非常困难], [整节课极其吃力，结束时有明显想停止的感觉；适合赛前模拟或极限周],
+  [8], [困难], [很累但能完成计划所有内容，课后需要充分恢复；常用于高强度周期],
+  [7], [有些困难], [强度较高但可坚持，结束时有明显疲劳感但不至于崩溃；常见于增力期主课],
+  [6], [中等偏上], [有一定挑战性，但能稳定完成计划，课后感觉“练到位了”],
+  [5], [中等], [普通训练课，不轻松也不特别累，能较好完成所有内容],
+  [4], [轻到中等], [感觉较为轻松，仍有训练效果，但疲劳感较低；适用于恢复日或技术日],
+  [3], [轻松], [低强度训练，基本无累积疲劳；例如纯热身、灵活性训练或轻技术课],
+  [2], [很轻松], [几乎无负担，可以连续多天进行相同训练],
+  [1], [极轻松], [活动量极小，等同于日常活动或极短时间低强度练习],
+  [0], [无任何感受], [没有训练，或训练完全无感（通常不会用于实际评分）],
+)
+
+借助sRPE就可以计算一次训练的训练强度：
+
+$ "work load" = "sRPE" times "Duration time(in minute)" $
+
+在项目中，每个单次训练和每一次完整训练都持久化记录了上述的各类数据。
+
+=== 人体、杠铃与动作建模
+
+为了对动作进行分析，首先需要将视频中的人物转化为数学模型。一个很自然的方法是记录下若干重要部位、关节的坐标。通过这些数据即可计算各个关节的夹角等数据。对于举重来说，比较重要的有躯干角（脊椎-地面夹角）、臀位角（脊椎-股骨夹角）、膝角（股骨-胫骨夹角）和踝角（胫骨-足弓夹角）。
+
+只要记录下各个坐标和时间的函数关系，就对动作做出了建模。但是在实际情况中，由于模型的识别精度和准确度偏差，这样得到的数据是带有噪声的，不便于后续的数据分析。
+
+因此，我引入了Ramer–Douglas–Peucker算法来减少曲线上的数据点，从而避免出现过多特征干扰数据分析算法的正常工作。
+
+```c
+int DouglasPeucker(Point points[], int start, int end, double epsilon, Point result[]) {
+    // Find point with maximum distance
+    double dmax = 0;
+    int index = start;
+
+    for (int i = start + 1; i < end; i++) {
+        double d = PerpendicularDistance(points[i], points[start], points[end]);
+        if (d > dmax) {
+            index = i;
+            dmax = d;
+        }
+    }
+
+    int resultCount = 0;
+
+    // If max distance exceeds epsilon, recursively simplify
+    if (dmax > epsilon) {
+        int leftCount = DouglasPeucker(points, start, index, epsilon, result);
+        int rightCount = DouglasPeucker(points, index, end, epsilon, result + leftCount);
+        resultCount = leftCount + rightCount - 1;  // Remove duplicate point
+    } else {
+        result[resultCount++] = points[start];
+        result[resultCount++] = points[end];
+    }
+
+    return resultCount;
+}
+```
+
+其效果如图（背景浅色的是带噪声的原始数据）。
 
 #figure(
-  [
-    #grid(
-      columns: 2,
-      // gutter: 1em,
-      stack(image("../assets/WL 2.jpg", width: image_scale)),
-      stack(image("../assets/WL annlysis.jpg", width: image_scale)),
+  image("../assets/pcode.png", width: big_image_scale),
+)
+
+在实际代码中，我采用了Google的Pose Landmark模型#footnote[https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker]来识别人体。Pose Landmark有Lite、Heavy和Full三个模型。经过实际测试，我采用Full模型作为默认分析的模型，它同时保证了足够的精度和处理速度。
+
+Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z$坐标（$z$是推算得到的，手机相机本身不具备深度感知能力），以及每个节点的confidence。
+
+```text
+0 - nose
+...
+11 - left shoulder
+12 - right shoulder
+13 - left elbow
+14 - right elbow
+15 - left wrist
+16 - right wrist
+...
+23 - left hip
+24 - right hip
+25 - left knee
+26 - right knee
+27 - left ankle
+28 - right ankle
+29 - left heel
+30 - right heel
+31 - left foot index
+32 - right foot index
+```
+
+#figure(
+  image("../assets/poselandmark.jpg", width: small_image_scale),
+  caption: "Pose Landmark识别实例",
+)
+
+关于杠铃会复杂一些。追踪杠铃（实际上是杠铃片）主要是为了根据杠铃片和人体在视频里的比例关系，来求得杠铃运行的实际位移和瞬时速度。
+
+我最初选取的方案是使用opencv识别圆形来定位杠铃片，但是效果不佳。一方面是因为透视原理，圆在相机角度改变的视频中会变成椭圆，导致常有识别不到杠铃片的情况；另一方面是因为有时黑色的杠铃片会和背景融为一体，也极大降低了识别精确度。
+
+而且由于是需要持续追踪杠铃片的轨迹，我不能采用人工标注的办法，只能是优化算法来实现自动识别。
+
+考虑到目前pose landmark人体识别的准确度很高，并且杠铃肯定是固定在手上的，所以我制定了一套混合策略，来帮助提升识别的精度。
+
+首先，找到手的位置。由于杠铃是由手抓着的，因此可以借助opencv识别手部附近的直线来识别杠铃本身。而杠铃片又是固定在杠铃上的，因此只需要识别与杠铃直线相连的圆或椭圆，就能识别到杠铃片。
+
+当从侧面录制视频时手会被杠铃片遮挡而无法识别，上面的策略就不生效了。然而，在侧面录制时杠铃片一般位于视频的中间，且不会有很严重的透视变形，因此直接套用识别圆或者椭圆的策略即可。
+
+=== 视频分段和截断
+
+
+
+=== 持久化数据储存
+
+本项目借助Room框架，使用Sqlite进行数据的持久化存储，包括运动动作、训练计划、训练记录，以及应用内信息的存储。数据表都是由我设计、ChatGPT优化改进得到的。各个表的结构如下所示。
+
+```sql
+-- 1. motion
+CREATE TABLE motion (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    name TEXT NOT NULL
+);
+CREATE UNIQUE INDEX index_motion_name ON motion (name);
+-- 2. plan
+CREATE TABLE plan (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    name TEXT NOT NULL,
+    cycle_period INTEGER NOT NULL,
+    current_index INTEGER NOT NULL DEFAULT 0,
+    last_applied_at INTEGER NOT NULL DEFAULT 0
+);
+-- 3. plan_selection
+CREATE TABLE plan_selection (
+    id INTEGER NOT NULL,
+    current_plan_id INTEGER,
+    current_day_epoch INTEGER,
+    PRIMARY KEY(id),
+    FOREIGN KEY(current_plan_id) REFERENCES plan(id) ON DELETE SET NULL
+);
+CREATE INDEX index_plan_selection_current_plan_id ON plan_selection (current_plan_id);
+-- 4. workout_session
+CREATE TABLE workout_session (
+    id INTEGER NOT NULL,
+    is_workout_going INTEGER NOT NULL DEFAULT 0,
+    is_paused INTEGER NOT NULL DEFAULT 0,
+    started_at INTEGER NOT NULL DEFAULT 0,
+    last_resumed_at INTEGER NOT NULL DEFAULT 0,
+    elapsed_before_pause_ms INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(id)
+);
+-- 5. workout_progress
+CREATE TABLE workout_progress (
+    id INTEGER NOT NULL,
+    plan_id INTEGER NOT NULL,
+    plan_day_index INTEGER NOT NULL,
+    next_set_index INTEGER NOT NULL DEFAULT 0,
+    active_set_index INTEGER,
+    total_set_count INTEGER NOT NULL,
+    break_ends_at INTEGER NOT NULL DEFAULT 0,
+    is_finished INTEGER NOT NULL DEFAULT 0,
+    completed_elapsed_time_ms INTEGER NOT NULL DEFAULT 0,
+    active_history_id INTEGER,
+    workout_intensity INTEGER,
+    PRIMARY KEY(id)
+);
+-- 6. metaplan
+CREATE TABLE metaplan (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    plan_id INTEGER NOT NULL,
+    motion_id INTEGER NOT NULL,
+    day_index INTEGER NOT NULL,
+    sets INTEGER NOT NULL,
+    reps INTEGER NOT NULL,
+    intensity REAL NOT NULL DEFAULT 0.0,
+    weight REAL NOT NULL,
+    order_index INTEGER NOT NULL,
+    FOREIGN KEY(plan_id) REFERENCES plan(id) ON DELETE CASCADE,
+    FOREIGN KEY(motion_id) REFERENCES motion(id) ON DELETE RESTRICT
+);
+CREATE INDEX index_metaplan_plan_id ON metaplan (plan_id);
+CREATE INDEX index_metaplan_motion_id ON metaplan (motion_id);
+CREATE UNIQUE INDEX index_metaplan_plan_id_day_index_order_index ON metaplan (plan_id, day_index, order_index);
+-- 7. history
+CREATE TABLE history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    plan_id INTEGER NOT NULL,
+    start_time INTEGER NOT NULL,
+    end_time INTEGER NOT NULL,
+    intensity INTEGER NOT NULL DEFAULT 0,
+    day_index INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(plan_id) REFERENCES plan(id) ON DELETE RESTRICT
+);
+CREATE INDEX index_history_plan_id ON history (plan_id);
+-- 8. metahistory
+CREATE TABLE metahistory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    date TEXT NOT NULL,
+    rep INTEGER NOT NULL,
+    rpe INTEGER NOT NULL,
+    weight REAL NOT NULL,
+    motion_id INTEGER NOT NULL,
+    video_name TEXT,
+    video_source TEXT NOT NULL DEFAULT 'CAMERA_CAPTURE',
+    imported_video_analysis_mode TEXT NOT NULL DEFAULT 'ESTIMATED',
+    imported_reference_label TEXT NOT NULL DEFAULT '',
+    imported_reference_pixel_distance REAL,
+    imported_reference_distance_meters REAL,
+    history_id INTEGER,
+    FOREIGN KEY(motion_id) REFERENCES motion(id) ON DELETE RESTRICT,
+    FOREIGN KEY(history_id) REFERENCES history(id) ON DELETE SET NULL
+);
+CREATE INDEX index_metahistory_motion_id ON metahistory (motion_id);
+CREATE INDEX index_metahistory_history_id ON metahistory (history_id);
+-- 9. video_process_state
+CREATE TABLE video_process_state (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    video_name TEXT NOT NULL,
+    state TEXT NOT NULL,
+    progress INTEGER NOT NULL,
+    processed_video_name TEXT
+);
+CREATE UNIQUE INDEX index_video_process_state_video_name ON video_process_state (video_name);
+-- 10. metahistory_bin
+CREATE TABLE metahistory_bin (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    date TEXT NOT NULL,
+    rep INTEGER NOT NULL,
+    rpe INTEGER NOT NULL,
+    weight REAL NOT NULL,
+    motion_id INTEGER NOT NULL,
+    motion_name TEXT NOT NULL,
+    video_name TEXT,
+    video_source TEXT NOT NULL DEFAULT 'CAMERA_CAPTURE',
+    imported_video_analysis_mode TEXT NOT NULL DEFAULT 'ESTIMATED',
+    imported_reference_label TEXT NOT NULL DEFAULT '',
+    imported_reference_pixel_distance REAL,
+    imported_reference_distance_meters REAL,
+    history_id INTEGER
+);
+```
+
+本项目还设计了配套的DAO和Entity模型，以实现对数据增删查改的接口。
+
+```text
+├── training
+│   └── data
+│       ├── BodyMetricDao.kt
+│       ├── HistoryDao.kt
+│       ├── ImportedVideoRecords.kt
+│       ├── LiftInsightDatabase.kt
+│       ├── MotionDao.kt
+│       ├── MotionStore.kt
+│       ├── PlanDao.kt
+│       ├── PlanStore.kt
+│       ├── TrainingEntities.kt
+│       └── TrainingRecords.kt
+```
+
+=== Multi-Agent Workflow
+
+本项目的代码是全部由AI完成的。项目的前期使用的是简单的单一agent工作模式。但是这就引入了需求描述不清导致最后生成的代码有误、反复测试或调整导致token消耗过多等问题。并且由于生成代码量太大，我难以全部人工审查，因此留下了很多不良或不规范的代码设计。
+
+因此，在项目的中后期，我在opencode中引入了multi-agent workflow以提升工作效率、减少因描述不够详细造成AI的误解、降低token用量，我称之为devloop。
+
+#figure(
+  block(width: 100%, inset: 10pt, {
+    set text(font: "Inter", size: 9pt)
+    set align(center)
+    text(size: 12pt, weight: "bold")[Devloop Multi-Agent Workflow]
+    v(8pt)
+    let node(label, color, body) = box(stroke: 1.2pt + color, radius: 6pt, inset: 6pt, fill: color.lighten(90%))[
+      #text(weight: "bold")[#label] #h(4pt) #text(size: 8pt)[#body]
+    ]
+    node("User", rgb("#2563eb"), "Requirement")
+    v(2pt)
+    text(size: 11pt)[↓]
+    v(2pt)
+    node("Devloop", rgb("#0d9488"), "Orchestrator · Routes to agents")
+    v(2pt)
+    text(size: 11pt)[↓]
+    v(2pt)
+    node("1 · Planner", rgb("#16a34a"), "Questions · Constraints · Tasks")
+    v(1pt)
+    text(size: 7pt, style: "italic")[clarify with user if needed]
+    v(1pt)
+    text(size: 11pt)[↓]
+    v(2pt)
+    node("2 · Engineer", rgb("#9333ea"), "Implement · Verify · Test")
+    v(2pt)
+    text(size: 11pt)[↓]
+    v(2pt)
+    node("3 · Reviewer", rgb("#dc2626"), "Quality · Architecture · Fit")
+    v(2pt)
+    text(size: 11pt)[↓]
+    v(4pt)
+    grid(
+      columns: (1fr, 1fr),
+      column-gutter: 16pt,
+      align(center, {
+        box(stroke: 1pt + rgb("#ca8a04"), radius: 4pt, inset: 5pt, fill: rgb("#fefce8"))[
+          #text(size: 8pt)[✗ Not approved]
+        ]
+        v(2pt)
+        text(size: 7pt)[→ Devloop sends feedback \
+          back to Engineer (max 3×)]
+      }),
+      align(center, {
+        box(stroke: 1pt + rgb("#16a34a"), radius: 4pt, inset: 5pt, fill: rgb("#f0fdf4"))[
+          #text(size: 8pt)[✓ Approved]
+        ]
+        v(2pt)
+        text(size: 11pt)[↓]
+        v(2pt)
+        node("4 · Summarizer", rgb("#ea580c"), "Summary · Tradeoffs")
+        v(2pt)
+        text(size: 11pt)[↓]
+        v(2pt)
+        box(stroke: 1pt + gray, radius: 4pt, inset: 5pt)[
+          #text(size: 8pt)[Final Response → User]
+        ]
+      }),
     )
-  ],
-  caption: "WL Analysis",
-)
+  }),
+  caption: [Devloop工作原理],
+) <fig-workflow>
 
-VBTgo也有杠铃轨迹识别和瞬时速度、功率计算功能，它还可以按照录制的日期对视频进行分组。除此以外它还有身体某些指标的测试功能，但是需要收费，我并没有体验过。因此这款软件的不足也在于一方面功能太少，一方面闭源且收费。
+需要注意的是，除了图中的几个模型，实际上还有一个用于指挥的agent，我也称之为devloop。
 
-#figure(
-  [
-    #grid(
-      columns: 2,
-      // gutter: 1em,
-      stack(image("../assets/VBT.jpg", width: image_scale)), stack(image("../assets/VBT2.jpg", width: image_scale)),
-    )
-  ],
-  caption: "VBTgo",
-)
+agent的模型选择经历了多次变化。在最开始，我可用的模型是来自GitHub copilot的GPT5.4和deepseek v4，于是选择了GPT作为devloop、planner和engineer，deepseek pro作为reviewer和summarizer。
 
-安卓平台上有训练动作收集、规划功能的最流行的应用是“训记”，它的功能比较丰富，主要是饮食管理和训练次数、重量的记录，不提供运动视频的记录和分析功能。它的预置训练动作库里有一些动作，每个动作有一定的讲解，但是更详细的讲解需要充会员。另外，这些动作大多是健美，也就是常说的“死肌肉”相关的，并不适用于举重。
+后来GPT的额度耗尽，同时我发现reviewer和summarizer的工作较为简单，于是为了降低成本、加快速度，改成了deepseek pro作为devloop、planner和engineer，deepseek flash作为reviewer和summarizer。
 
-#figure(
-  [
-    #grid(
-      columns: 2,
-      // gutter: 1em,
-      stack(image("../assets/syn0.jpg", width: image_scale)), stack(image("../assets/syn1.jpg", width: image_scale)),
-    )
-  ],
-  caption: "训记",
-)
+但是deepseek速度实在太慢，并且它作为planner对模糊需求的猜测和计划制定的能力并不足。因此我又购入了Xiaomi mimo 2.5，使用mimo2.5 pro作为devloop和planner，deepseek pro作为engineer，deepseek flash作为reviewer和summarizer。这样效率和工作正确度就高了很多。之所以不用更聪明和便宜的mimo作为engineer，是因为engineer是token用量最大的地方，而当planner的计划描述足够清晰时，不同模型在代码质量上的差异就会很小，因此选用了deepseek进行这项工作。
 
-== 功能描述
+== 程序架构与实现方案
 
-本项目是举重及相关运动（如力量举）的动作分析、训练规划等的APP，软件采用Material Design主题，清晰分明地分为“首页”、“记录”、“动作”、“计划”和“设置”五个部分。
+本项目并未采用严格的前后端分离架构，而是根据页面把代码分成多个模块，每个模块内通过MVC架构来分离UI代码和业务逻辑代码。
 
-“首页”是APP的首页，提供了今日训练计划速览、快速开始今日训练以及身体恢复情况和今日训练强度等信息的报告。
+```text
+├── body
+├── camera
+├── common
+├── home
+├── MainActivity.kt
+├── motion
+├── plan
+├── record
+├── settings
+├── training
+├── ui
+└── video
+```
 
-#figure(
-  image("../assets/home.jpg", width: small_image_scale),
-  caption: "首页界面",
-)
+一个典型的例子是计划界面的组织架构。
 
-“记录”分为“人体”和“训练”。“人体”记录了体重、身高、最大功率和各项动作的最大重量等各项指标。“训练”记录了每次训练的容量、重量、RPE等，还记录了本次训练的视频。
-
-#figure(
-  [
-    #grid(
-      columns: 3,
-      // gutter: 1em,
-      stack(image("../assets/record.jpg", width: big_image_scale)),
-      stack(image("../assets/training0.jpg", width: big_image_scale)),
-      stack(image("../assets/training1.jpg", width: big_image_scale)),
-    )
-  ],
-  caption: "记录界面",
-)
-
-每个记录的详情页都提供了视频的预览、编辑和分析功能。本项目的运动分析功能主要是在这部分承载的。
-
-#figure(
-  [
-    #grid(
-      columns: 2,
-      // gutter: 1em,
-      stack(image("../assets/video0.jpg", width: image_scale)),
-      stack(image("../assets/video1.jpg", width: image_scale)),
-    )
-  ],
-  caption: "视频剪辑和分析界面",
-)
-
-“动作”记录了数据库中全部的运动动作和相关信息，也为每个动作动作提供了修改和删除功能。
-
-#figure(
-  image("../assets/motion.jpg", width: small_image_scale),
-  caption: "动作界面",
-)
-
-“计划”界面一方面列出了可用计划、每个计划的动作列表，提供对应的新建、删除和编辑等管理功能。
-
-#figure(
-  [
-    #grid(
-      columns: 3,
-      // gutter: 1em,
-      stack(image("../assets/plan.jpg", width: big_image_scale)),
-      stack(image("../assets/plan1.jpg", width: big_image_scale)),
-      stack(image("../assets/plan2.jpg", width: big_image_scale)),
-    )
-  ],
-  caption: "计划界面",
-)
-
-实时进行的训练也在这里显示。这里会显示下一个进行的训练的重量和次数等信息，可以招出相机录制运动视频。在一组结束后会出现一个弹窗要求你输入本组训练的一些信息，用于记录情况、对本次训练进行评估。
-
-#figure(
-  [
-    #grid(
-      columns: 2,
-      // gutter: 1em,
-      stack(image("../assets/motion0.jpg", width: image_scale)),
-      stack(image("../assets/motion1.jpg", width: image_scale)),
-    )
-  ],
-  caption: "实时训练界面",
-)
-
-“设置”界面是APP的各种设置，如主题、语言等，也可以在这里查看项目的相关信息，如版本和编译时间。
-
-#figure(
-  image("../assets/settings.jpg", width: small_image_scale),
-  caption: "设置界面",
-)
-
-== UI 界面与交互设计
-
-我个人一直很喜欢Material Design 3风格，因此本项目的设计风格来源于谷歌原生安卓系统上的各个系统应用，特别是系统时钟程序的设计，是本项目UI界面与交互逻辑设计的主要启发和参考源。
-
-#figure(
-  image("../assets/clock.png", width: small_image_scale),
-  caption: "Material Design 3风格的系统时钟",
-)
-
-在UX方面，本项目的主要功能：记录训练和分析训练分别集中在“计划”和“记录”两个模块。训练记录主要是在训练时使用，因此相关的UX设计以简明易用为目标。其它部分主要在训练结束后的回顾、复盘时使用，因此设计上尽可能在一个界面不失易用性地铺满更多功能。
+```text
+├── controller
+│   ├── PlanControllerEditorModel.kt
+│   ├── PlanControllerEditorSupport.kt
+│   ├── PlanController.kt
+│   ├── PlanControllerStateSupport.kt
+│   └── PlanControllerWorkoutSupport.kt
+├── data
+│   ├── TrainingPlanSeedData.kt
+│   └── TrainingPlanStore.kt
+├── model
+│   ├── PlanState.kt
+│   ├── TrainingPlanState.kt
+│   └── WorkoutProgressState.kt
+├── PlanEditorScreen.kt
+├── PlanScreen.kt
+├── PlanTabHost.kt
+└── route
+    └── PlanRoute.kt
+```
