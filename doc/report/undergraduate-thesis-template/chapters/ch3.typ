@@ -1,4 +1,15 @@
+#import math.op
+
+#import "@preview/algorithmic:1.0.7"
+#import algorithmic: algorithm-figure, style-algorithm
+#show: style-algorithm
+
 #import "../image_scale.typ": big_image_scale, image_scale, small_image_scale
+#let avg = op("avg")
+#let med = op("median")
+#let center_down_arrow = align(center)[
+  #sym.arrow.b
+]
 
 = App架构设计与技术实现方案
 
@@ -158,7 +169,185 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
 
 首先是重复动作的分段。比如说深蹲，深蹲从站立、下蹲到最低点、再次站起的整个过程中，膝角近似从$180 degree$到$45 degree$再回到$180 degree$。理论上这个过程是连续的，所以它就像一个波的正半部分一样。那一次进行了多次动作的训练的关节与时间的图像就是多个这样的峰。另外一般每两次动作之间是有一段短暂的间歇的，波之间并不是连着的。
 
-所以，抽象出来说，我们面临的问题是：给定一个函数$f(x) >= 0$，其有若干段波的正半部分组成，每段波之间存在间隔，间隔基本是一段常数，每段波的波长不定。要求精确地分割出每一段波，即找出每一段的起始和结束点。
+为此，我首先设计了针对单个曲线进行分段的算法。
+
+#show figure: set block(breakable: true)
+#figure(
+  kind: "algorithm",
+  supplement: [算法],
+  caption: [曲线分段算法],
+  [
+    #align(left)[
+      输入：曲线$S_0 = [(t, theta)]$，曲线分组宽度阈值$lambda$，合并数据点宽度阈值$epsilon$. 输出：该曲线的分割点$R = [(t, theta)]$.
+
+      使用Ramer–Douglas–Peucker算法得到简化曲线$S = [(x, y)]$.
+
+      #center_down_arrow
+
+      找到数组
+
+      $
+        italic("minima") = [p_i in S | p_(i - 1).y >= p_i.y and p_(i + 1).y >= p_i.y ]\
+        italic("maxima") = [p_i in S | p_(i - 1).y <= p_i.y and p_(i + 1).y <= p_i.y ]
+      $
+
+      #center_down_arrow
+
+      根据纵坐标将上述两个数组划分成若干个数组$G_i$和$H_i$，每个数组内部元素的纵坐标相近。即满足
+
+      $
+        cases(
+          forall x in X_i (| x - avg(X_i) | <= lambda),
+          union X_i = Y,
+          inter X_i = emptyset
+        )
+      $
+
+      其中$X$为$G$时$Y$为$italic("minima")$，$X$为$H$时$Y$为$italic("maxima")$.
+
+      #center_down_arrow
+
+      在上述数组中，分别找到平均值最大和最小的.即
+
+      $
+        cases(
+          italic("min_group") = arg limits(min)_i avg(G_i),
+          italic("max_group") = arg limits(max)_i avg(H_i)
+        )
+      $
+
+      #center_down_arrow
+
+      对这两个数组进行合并邻近的点为一个点，即对于$forall x_i in X$，$X$为$italic("min_group")$或$italic("max_group")$，令集合$P_i ={x_j in X | |x_i - x_j| <= epsilon}$，若$|P_i| >= 2$，赋值$X = X - P_i union [med(P_i)]$.
+
+      #center_down_arrow
+
+      找出两个集合中集合元素数量最多的一个.若元素数量一致，则选择覆盖范围更广的，即最大横坐标与最小横坐标差值最大的一个.设为集合$italic("selected")$.
+
+      #center_down_arrow
+
+      输出$italic("selected")$.
+    ]
+  ],
+)
+
+在实际录制的视频中，可能有些关节被遮挡，导致对应的数据可信度低。在一些动作中，有些关节的运动幅度是极小的，如杠铃划船中的膝关节和髋关节基本不动，无法产生显著用于分段的特征。因此仅选取某一个关节的数据来进行视频分段是不合理的。因此，项目实际上采用了八个关节的数据，分别是左右股骨与脊椎所在直线的夹角（髋角）、左右股骨与胫骨的夹角（膝角）、左右胫骨与足底平面的夹角（踝角）和左右肱骨与尺骨的夹角（臂角），通过算法筛选中三组最优的，并将其合并作为最终的分段依据。
+
+为了选择最优的三组数据，我们需要设计算法量化一组数据的可信度。这基于四个因素。第一是数据点的个数，数据越多偏差就越小；第二是每个分隔之间的时间，一般做组时每次动作花费的时间是相近的，因此时间彼此越相近越好；第三是关节变化的幅度，越大越好，这是为了避免错误使用了在运动过程中保持固定的关节的数据；第四是选取来做分割的各个值之间相差多大，也就是标准差，这是因为同一动作动作进行得到的最大或最小角度应当是近似的，因此这个因素越小越好。将其归一化后加权就得到了最后量化的指标。
+
+#figure(
+  kind: "algorithm",
+  supplement: [算法],
+  caption: [分割可信度评分算法],
+  [
+    #align(left)[
+      输入：曲线的分割点$R = [(t, theta)]$，曲线分组宽度阈值$lambda$. 输出：该分割策略的可信度$italic("score")$.
+
+      计算数据点个数评分
+
+      $
+        italic("count_score") = max((|R|)/5, 1)
+      $
+
+      #center_down_arrow
+
+      得到间隔时间数组$I = {|p_(i - 1).x - p_i.x|}, i = 1 dots |R|$.
+
+      计算其标准差$sigma_I$.
+
+      计算间隔稳定度评分
+      $
+        italic("interval_score") = 1/(1 + sigma_I / avg(I) ) = avg(I) / (avg(I) + sigma_I)
+      $
+
+      #center_down_arrow
+
+      计算运动幅度评分
+      $
+        italic("motion_range_score") = max((theta_95 - theta_5)/(60 degree), 1)
+      $
+
+      #center_down_arrow
+
+      计算分割点的标准差$sigma_R$.
+      计算极值稳定度评分
+      $
+        italic("extrema_score") = 1 / (1 + sigma_R / lambda) = lambda / (lambda + sigma_R)
+      $
+
+      #center_down_arrow
+
+      加权得到分割可信度评分
+      $
+        italic("score") = & 0.25 times italic("count_score") +0.35 times italic("interval_score") \
+                          & + 0.25 times italic("extrema_score") +0.15 times italic("motion_range_score")
+      $
+
+      #center_down_arrow
+
+      输出$italic("score")$.
+    ]
+  ],
+)
+
+#figure(
+  kind: "algorithm",
+  supplement: [算法],
+  caption: [曲线分段算法],
+  [
+    #align(left)[
+      输入：曲线$S_0 = {(x, y)}$. 输出：该曲线的分割点$R = {(x, y)}$.
+
+      使用Ramer–Douglas–Peucker算法得到简化曲线$S = {(x, y)}$.
+
+      #center_down_arrow
+
+      找到集合
+
+      $
+        italic("minima") = {p_i in S | p_(i - 1).y >= p_i.y and p_(i + 1).y >= p_i.y }\
+        italic("maxima") = {p_i in S | p_(i - 1).y <= p_i.y and p_(i + 1).y <= p_i.y }
+      $
+
+      #center_down_arrow
+
+      根据纵坐标将上述两个集合划分成若干个集合$G_i$和$H_i$，每个集合内部元素的纵坐标相近。即满足
+
+      $
+        cases(
+          forall x in X_i (| x - avg(X_i) | <= lambda),
+          union X_i = Y,
+          inter X_i = emptyset
+        )
+      $
+
+      其中$X$为$G$时$Y$为$italic("minima")$，$X$为$H$时$Y$为$italic("maxima")$.
+
+      #center_down_arrow
+
+      在上述集合中，分别找到平均值最大和最小的.即
+
+      $
+        cases(
+          italic("min_group") = arg limits(min)_i avg(G_i),
+          italic("max_group") = arg limits(max)_i avg(H_i)
+        )
+      $
+
+      #center_down_arrow
+
+      对两个集合进行合并邻近的点为一个点，即对于$forall x_i in X$，$X$为$italic("min_group")$或$italic("max_group")$，令集合$P_i ={x_j in X | |x_i - x_j| <= epsilon}$，若$|P_i| >= 2$，赋值$X = X - P_i union {med(P_i)}$.
+
+      #center_down_arrow
+
+      找出两个集合中集合元素数量最多的一个.若元素数量一致，则选择覆盖范围更广的，即最大横坐标与最小横坐标差值最大的一个.设为集合$italic("selected")$.
+
+      #center_down_arrow
+
+      输出$italic("selected")$.
+    ]
+  ],
+)
 
 === 持久化数据储存
 
