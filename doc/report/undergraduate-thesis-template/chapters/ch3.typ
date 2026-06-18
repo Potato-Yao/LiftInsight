@@ -7,66 +7,83 @@
 #import "../image_scale.typ": big_image_scale, image_scale, small_image_scale
 #let avg = op("avg")
 #let med = op("median")
+#let score = op("score_of")
 #let center_down_arrow = align(center)[
   #sym.arrow.b
 ]
+
+#show figure: set block(breakable: true)
 
 = App架构设计与技术实现方案
 
 == 总体技术方案
 
-作为一个面向体育相关的项目，本项目技术方案的种地啊主要在运动生理学在计算机程序的实现上。此外也有一些属于软件开发本身的技术方案。
+作为一个面向体育相关的项目，本项目技术方案的重点集中在运动生理学在计算机程序的实现上。此外也有一些属于软件开发本身的技术方案。
 
 === 训练强度评估
 
-本项目采用了若干成熟的运动生理学指标来衡量训练强度、估算恢复时长等。为此我阅读了大量运动生理学相关论文，得到了以下的计算公式。
+本项目采用了若干成熟的运动生理学指标来衡量训练强度。
 
-首先是训练强度。单次动作的训练强度一般使用RPE系数（Rating of Perceived Exertion，主观疲劳感觉评分）来衡量。
+单次动作的训练强度一般使用RPE系数（Rating of Perceived Exertion，主观疲劳感觉评分）来衡量。
+
 
 #set table(stroke: (top: 0.5pt, bottom: 0.5pt, left: none, right: none))
-#table(
-  columns: (auto, auto, auto),
-  align: (left, left, left),
+#figure(
+  [
+    #table(
+      columns: (auto, auto, auto),
+      align: (left, left, left),
 
-  table.header([RPE分值], [主观描述], [补充说明]),
+      table.header([RPE分值], [主观描述], [补充说明]),
 
-  [10], [最大努力，无法再完成一次], [做完该组后，完全力竭，即使再加1次也绝对无法完成],
-  [9], [非常困难], [做完后感觉还能严格完成1次],
-  [8], [困难], [做完后感觉还能再做2次],
-  [7], [有些困难], [],
-  [6], [中等偏上], [],
-  [5], [中等], [],
-  [4], [轻到中等], [],
-  [3], [轻松], [做完后感觉还能再做7次以上，但仍有明显费力感],
-  [2], [很轻松], [几乎不费力，可以做很多次],
-  [1], [极轻松], [如热身或技术练习，基本无疲劳感],
-  [0], [无任何感受], [静止状态，无运动],
+      [10], [最大努力，无法再完成一次], [做完该组后，完全力竭，即使再加1次也绝对无法完成],
+      [9], [非常困难], [做完后感觉还能严格完成1次],
+      [8], [困难], [做完后感觉还能再做2次],
+      [7], [有些困难], [],
+      [6], [中等偏上], [],
+      [5], [中等], [],
+      [4], [轻到中等], [],
+      [3], [轻松], [做完后感觉还能再做7次以上，但仍有明显费力感],
+      [2], [很轻松], [几乎不费力，可以做很多次],
+      [1], [极轻松], [如热身或技术练习，基本无疲劳感],
+      [0], [无任何感受], [静止状态，无运动],
+    )
+  ],
+  caption: "RPE系数",
 )
+
 
 一次完整训练的训练强度一般使用sRPE（session RPE）来衡量。
 
-#table(
-  columns: (auto, auto, auto),
-  align: (left, left, left),
-  //   stroke: (x, y) => (
-  //     if y == 0 and x == 0 { (top: 0.5pt, left: none, right: none, bottom: 0.5pt) }
-  //     else if y == 0 { (bottom: 0.5pt, left: none, right: none) }
-  //     else if y == 10 { (bottom: 0.5pt, left: none, right: none) }
-  //     else { (left: none, right: none) }
-  //   ),
-  table.header([sRPE分值], [主观描述], [对应整节训练课的疲劳/负荷说明]),
-  [10], [最大努力，极度疲劳], [彻底力竭，无法再做任何一组或多加一次动作；通常只出现在比赛或极限测试后],
-  [9], [非常困难], [整节课极其吃力，结束时有明显想停止的感觉；适合赛前模拟或极限周],
-  [8], [困难], [很累但能完成计划所有内容，课后需要充分恢复；常用于高强度周期],
-  [7], [有些困难], [强度较高但可坚持，结束时有明显疲劳感但不至于崩溃；常见于增力期主课],
-  [6], [中等偏上], [有一定挑战性，但能稳定完成计划，课后感觉“练到位了”],
-  [5], [中等], [普通训练课，不轻松也不特别累，能较好完成所有内容],
-  [4], [轻到中等], [感觉较为轻松，仍有训练效果，但疲劳感较低；适用于恢复日或技术日],
-  [3], [轻松], [低强度训练，基本无累积疲劳；例如纯热身、灵活性训练或轻技术课],
-  [2], [很轻松], [几乎无负担，可以连续多天进行相同训练],
-  [1], [极轻松], [活动量极小，等同于日常活动或极短时间低强度练习],
-  [0], [无任何感受], [没有训练，或训练完全无感（通常不会用于实际评分）],
+#figure(
+  [
+    #table(
+      columns: (auto, auto, auto),
+      align: (left, left, left),
+      //   stroke: (x, y) => (
+      //     if y == 0 and x == 0 { (top: 0.5pt, left: none, right: none, bottom: 0.5pt) }
+      //     else if y == 0 { (bottom: 0.5pt, left: none, right: none) }
+      //     else if y == 10 { (bottom: 0.5pt, left: none, right: none) }
+      //     else { (left: none, right: none) }
+      //   ),
+      table.header([sRPE分值], [主观描述], [对应整节训练课的疲劳/负荷说明]),
+      [10], [最大努力，极度疲劳], [彻底力竭，无法再做任何一组或多加一次动作；通常只出现在比赛或极限测试后],
+      [9], [非常困难], [整节课极其吃力，结束时有明显想停止的感觉；适合赛前模拟或极限周],
+      [8], [困难], [很累但能完成计划所有内容，课后需要充分恢复；常用于高强度周期],
+      [7], [有些困难], [强度较高但可坚持，结束时有明显疲劳感但不至于崩溃；常见于增力期主课],
+      [6], [中等偏上], [有一定挑战性，但能稳定完成计划，课后感觉“练到位了”],
+      [5], [中等], [普通训练课，不轻松也不特别累，能较好完成所有内容],
+      [4], [轻到中等], [感觉较为轻松，仍有训练效果，但疲劳感较低；适用于恢复日或技术日],
+      [3], [轻松], [低强度训练，基本无累积疲劳；例如纯热身、灵活性训练或轻技术课],
+      [2], [很轻松], [几乎无负担，可以连续多天进行相同训练],
+      [1], [极轻松], [活动量极小，等同于日常活动或极短时间低强度练习],
+      [0], [无任何感受], [没有训练，或训练完全无感（通常不会用于实际评分）],
+    )
+  ],
+  caption: "sRPE系数",
 )
+
+
 
 借助sRPE就可以计算一次训练的训练强度：
 
@@ -82,103 +99,115 @@ $ "work load" = "sRPE" times "Duration time(in minute)" $
 
 因此，我引入了Ramer–Douglas–Peucker算法来减少曲线上的数据点，从而避免出现过多特征干扰数据分析算法的正常工作。
 
-```c
-int DouglasPeucker(Point points[], int start, int end, double epsilon, Point result[]) {
-    // Find point with maximum distance
-    double dmax = 0;
-    int index = start;
+#figure(
+  [
+    ```c
+    int DouglasPeucker(Point points[], int start, int end, double epsilon, Point result[]) {
+        // Find point with maximum distance
+        double dmax = 0;
+        int index = start;
 
-    for (int i = start + 1; i < end; i++) {
-        double d = PerpendicularDistance(points[i], points[start], points[end]);
-        if (d > dmax) {
-            index = i;
-            dmax = d;
+        for (int i = start + 1; i < end; i++) {
+            double d = PerpendicularDistance(points[i], points[start], points[end]);
+            if (d > dmax) {
+                index = i;
+                dmax = d;
+            }
         }
+
+        int resultCount = 0;
+
+        // If max distance exceeds epsilon, recursively simplify
+        if (dmax > epsilon) {
+            int leftCount = DouglasPeucker(points, start, index, epsilon, result);
+            int rightCount = DouglasPeucker(points, index, end, epsilon, result + leftCount);
+            resultCount = leftCount + rightCount - 1;  // Remove duplicate point
+        } else {
+            result[resultCount++] = points[start];
+            result[resultCount++] = points[end];
+        }
+
+        return resultCount;
     }
-
-    int resultCount = 0;
-
-    // If max distance exceeds epsilon, recursively simplify
-    if (dmax > epsilon) {
-        int leftCount = DouglasPeucker(points, start, index, epsilon, result);
-        int rightCount = DouglasPeucker(points, index, end, epsilon, result + leftCount);
-        resultCount = leftCount + rightCount - 1;  // Remove duplicate point
-    } else {
-        result[resultCount++] = points[start];
-        result[resultCount++] = points[end];
-    }
-
-    return resultCount;
-}
-```
+    ```
+  ],
+  caption: "Ramer–Douglas–Peucker算法的C实现",
+  supplement: [算法],
+)
 
 在编写生产代码前，我首先编写了一个python程序来进行算法和模型效果的模拟，便于快速验证算法、找出问题。比如上述算法的效果如图（背景浅色的是带噪声的原始数据）。
 
 #figure(
   image("../assets/pcode.png", width: big_image_scale),
+  caption: "Ramer–Douglas–Peucker算法处理效果",
 )
 
 在实际代码中，我采用了Google的Pose Landmark模型#footnote[https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker]来识别人体。Pose Landmark有Lite、Heavy和Full三个模型。经过实际测试，我采用Full模型作为默认分析的模型，它同时保证了足够的精度和处理速度。
 
 Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z$坐标（$z$是推算得到的，手机相机本身不具备深度感知能力），以及每个节点的confidence。
 
-```text
-0 - nose
-...
-11 - left shoulder
-12 - right shoulder
-13 - left elbow
-14 - right elbow
-15 - left wrist
-16 - right wrist
-...
-23 - left hip
-24 - right hip
-25 - left knee
-26 - right knee
-27 - left ankle
-28 - right ankle
-29 - left heel
-30 - right heel
-31 - left foot index
-32 - right foot index
-```
+#figure(
+  [
+    ```text
+    0 - nose
+    ...
+    11 - left shoulder
+    12 - right shoulder
+    13 - left elbow
+    14 - right elbow
+    15 - left wrist
+    16 - right wrist
+    ...
+    23 - left hip
+    24 - right hip
+    25 - left knee
+    26 - right knee
+    27 - left ankle
+    28 - right ankle
+    29 - left heel
+    30 - right heel
+    31 - left foot index
+    32 - right foot index
+    ```
+  ],
+  caption: "Pose Landmark支持节点列表",
+  supplement: [算法],
+)
+
+
 
 #figure(
-  image("../assets/poselandmark.jpg", width: small_image_scale),
+  image("../assets/poselandmark.jpg", width: image_scale),
   caption: "Pose Landmark识别实例",
 )
 
-关于杠铃会复杂一些。追踪杠铃（实际上是杠铃片）主要是为了根据杠铃片和人体在视频里的比例关系，来求得杠铃运行的实际位移和瞬时速度。
+关于杠铃会复杂一些。追踪杠铃（实际上是杠铃片，二者同心）主要是为了根据杠铃片和人体在视频里的比例关系，来求得杠铃运行的实际位移和瞬时速度。
 
-我最初选取的方案是使用opencv识别圆形来定位杠铃片，但是效果不佳。一方面是因为透视原理，圆在相机角度改变的视频中会变成椭圆，导致常有识别不到杠铃片的情况；另一方面是因为有时黑色的杠铃片会和背景融为一体，也极大降低了识别精确度。
+由于透视原理，圆在相机角度改变的视频中会变成椭圆。加之有时黑色的杠铃片会和背景融为一体，简单的物体识别无法胜任杠铃片的自动识别。
 
-而且由于是需要持续追踪杠铃片的轨迹，我不能采用人工标注的办法，只能是优化算法来实现自动识别。
+考虑到pose landmark人体识别的准确度很高，并且杠铃往往固定在手上，因此我制定了混合策略以识别杠铃片。
 
-考虑到目前pose landmark人体识别的准确度很高，并且杠铃肯定是固定在手上的，所以我制定了一套混合策略，来帮助提升识别的精度。
+首先，找到手的位置。由于杠铃是由手抓着的，可以借助opencv识别手部附近的直线来找到杠铃杆。而杠铃片又固定于杠铃杆，只需要识别与杠铃直线相连的圆或椭圆，就能实现对杠铃片的识别。
 
-首先，找到手的位置。由于杠铃是由手抓着的，因此可以借助opencv识别手部附近的直线来识别杠铃本身。而杠铃片又是固定在杠铃上的，因此只需要识别与杠铃直线相连的圆或椭圆，就能识别到杠铃片。
-
-当从侧面录制视频时手会被杠铃片遮挡而无法识别，上面的策略就不生效了。然而，在侧面录制时杠铃片一般位于视频的中间，且不会有很严重的透视变形，因此直接套用识别圆或者椭圆的策略即可。
+当从侧面录制视频时，手会被杠铃片遮挡而使用上述策略。但是考虑到侧面录制时，杠铃片一般位于视频的中间，不会有很严重的透视变形，因此直接套用识别圆或者椭圆的策略即可。
 
 === 视频分段与截断
 
-在一个训练视频中，往往占据有较长的准备动作（比如抓举往往需要三十秒去调整站位、预设身体张力，而抓举本身只需要十秒左右），极大浪费了储存空间，因此将非动作部分视频删去是必要的。对于一个有多次重复动作的视频，对其自动分段，就可以实现预览视频时快捷地在动作之间跳转（因为每两次动作间可能会有短暂的间歇），便于快速分析动作。而要想做到分段，也依赖预先对视频前后无关部分的截断。
+在一个训练视频中，准备动作往往占据较长时间（比如抓举往往需要三十秒去调整站位、预设身体张力，而抓举本身只需要十秒左右），极大浪费了储存空间，因此将非动作部分视频删去是必要的。对于一个有多次重复动作的视频，对其自动分段，就可以实现预览视频时快捷地在动作之间跳转（因为每两次动作间可能会有短暂的间歇），便于快速分析动作。而要想做到分段，也依赖预先对视频前后无关部分的截断。
 
 上述操作的自动化算法都依赖于对关节与时间函数关系的分析。
 
 首先是重复动作的分段。比如说深蹲，深蹲从站立、下蹲到最低点、再次站起的整个过程中，膝角近似从$180 degree$到$45 degree$再回到$180 degree$。理论上这个过程是连续的，所以它就像一个波的正半部分一样。那一次进行了多次动作的训练的关节与时间的图像就是多个这样的峰。另外一般每两次动作之间是有一段短暂的间歇的，波之间并不是连着的。
 
-为此，我首先设计了针对单个曲线进行分段的算法。
+为此，我首先设计了针对单个曲线进行分段的算法（下文中曲线均使用点的数组而非集合表示）。
 
-#show figure: set block(breakable: true)
 #figure(
   kind: "algorithm",
   supplement: [算法],
   caption: [曲线分段算法],
   [
     #align(left)[
-      输入：曲线$S_0 = [(t, theta)]$，曲线分组宽度阈值$lambda$，合并数据点宽度阈值$epsilon$. 输出：该曲线的分割点$R = [(t, theta)]$.
+      输入：曲线$S_0 = [(t, theta)]$，曲线分组宽度阈值$lambda$，合并数据点宽度阈值$epsilon$. 输出：该曲线的分割策略$R = [(t, theta)]$.
 
       使用Ramer–Douglas–Peucker算法得到简化曲线$S = [(x, y)]$.
 
@@ -218,7 +247,12 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
 
       #center_down_arrow
 
-      对这两个数组进行合并邻近的点为一个点，即对于$forall x_i in X$，$X$为$italic("min_group")$或$italic("max_group")$，令集合$P_i ={x_j in X | |x_i - x_j| <= epsilon}$，若$|P_i| >= 2$，赋值$X = X - P_i union [med(P_i)]$.
+      对这两个数组进行合并邻近的点为一个点.
+
+      即对于$forall x_i in X$，$X$为$italic("min_group")$或$italic("max_group")$，令集合$P_i ={x_j in X | |x_i - x_j| <= epsilon}$，若$|P_i| >= 2$，赋值
+      $
+        X = X - P_i union {med(P_i)}
+      $
 
       #center_down_arrow
 
@@ -290,64 +324,47 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
   ],
 )
 
+基于上述算法就可以选出最优的若干个分段策略，并合并为最终的策略。
+
 #figure(
   kind: "algorithm",
   supplement: [算法],
-  caption: [曲线分段算法],
+  caption: [合并分段算法],
   [
     #align(left)[
-      输入：曲线$S_0 = {(x, y)}$. 输出：该曲线的分割点$R = {(x, y)}$.
+      输入：曲线的分割点策略集合$S_0 = {[(t, theta)]}$，取最优分割策略的数量$n$，分割点聚类阈值$epsilon$. 输出：曲线合并后的分割策略$R = [(x, y)]$.
 
-      使用Ramer–Douglas–Peucker算法得到简化曲线$S = {(x, y)}$.
-
-      #center_down_arrow
-
-      找到集合
-
-      $
-        italic("minima") = {p_i in S | p_(i - 1).y >= p_i.y and p_(i + 1).y >= p_i.y }\
-        italic("maxima") = {p_i in S | p_(i - 1).y <= p_i.y and p_(i + 1).y <= p_i.y }
-      $
+      从$S_0$取$italic("score")$前$n$大的分割点策略$S = {[(t, theta)]}$.
 
       #center_down_arrow
 
-      根据纵坐标将上述两个集合划分成若干个集合$G_i$和$H_i$，每个集合内部元素的纵坐标相近。即满足
+      展开集合$S$并排序，得到分割点数组$C = [c in A in S]$.
 
+      定义$score(x)$表示点$x$所属分割点策略的$italic("score")$.
+
+      #center_down_arrow
+
+      对这个数组进行合并邻近的点为一个点，此点的值应为被合并点的加权平均.对于只出现在一个分割策略的点，则应当视为噪声舍去.
+
+      即对于$forall c_i in C$，令集合$P_i ={c_j in C | |c_i.x - c_j.x| <= epsilon}$，赋值
       $
-        cases(
-          forall x in X_i (| x - avg(X_i) | <= lambda),
-          union X_i = Y,
-          inter X_i = emptyset
+        C = cases(
+          & C - P_i union {1/(|P_i|)sum_(p in P_i) p_i.x dot score(p_i)} text(", if") |P_i| > 1,
+          & C - P_i text(", if") |P_i| = 1
         )
       $
 
-      其中$X$为$G$时$Y$为$italic("minima")$，$X$为$H$时$Y$为$italic("maxima")$.
-
-      #center_down_arrow
-
-      在上述集合中，分别找到平均值最大和最小的.即
-
-      $
-        cases(
-          italic("min_group") = arg limits(min)_i avg(G_i),
-          italic("max_group") = arg limits(max)_i avg(H_i)
-        )
-      $
-
-      #center_down_arrow
-
-      对两个集合进行合并邻近的点为一个点，即对于$forall x_i in X$，$X$为$italic("min_group")$或$italic("max_group")$，令集合$P_i ={x_j in X | |x_i - x_j| <= epsilon}$，若$|P_i| >= 2$，赋值$X = X - P_i union {med(P_i)}$.
-
-      #center_down_arrow
-
-      找出两个集合中集合元素数量最多的一个.若元素数量一致，则选择覆盖范围更广的，即最大横坐标与最小横坐标差值最大的一个.设为集合$italic("selected")$.
-
-      #center_down_arrow
-
-      输出$italic("selected")$.
+      输出$C$.
     ]
   ],
 )
+
+这套算法仍有改进空间，#ref(<img_period>)所示是其应用于杠铃划船上的效果。
+
+#figure(
+  image("../assets/period_pure_angle_plots.png", width: big_image_scale),
+  caption: "分段算法实际效果",
+) <img_period>
 
 === 持久化数据储存
 
