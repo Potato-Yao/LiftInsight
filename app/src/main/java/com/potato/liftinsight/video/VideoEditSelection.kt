@@ -171,4 +171,53 @@ internal object VideoEditSelections {
 
         return VideoEditSelection(keptRanges = updatedRanges)
     }
+
+    /**
+     * Build a [VideoEditSelection] from source split timestamps that define
+     * the boundaries between kept segments. Each split time is a cut point in
+     * the original source timeline.
+     *
+     * Example: durationMs=10000, splitTimesMs=[3000, 7000]
+     *   → kept ranges: [0..3000), [3000..7000), [7000..10000)
+     *
+     * @param durationMs Total video duration in ms.
+     * @param splitTimesMs Source timestamps (ms) where cuts should occur.
+     * @param minGapMs Minimum segment duration; splits that would create
+     *        shorter segments are discarded.
+     * @return A selection with segments between the given split points,
+     *         or a whole selection if not enough valid splits remain.
+     */
+    fun fromSourceSplitTimes(
+        durationMs: Long,
+        splitTimesMs: List<Long>,
+        minGapMs: Long = MIN_DURATION_MS
+    ): VideoEditSelection {
+        if (durationMs <= 0L) return whole(durationMs)
+
+        val effectiveDurationMs = durationMs.coerceAtLeast(minGapMs)
+
+        // Sort and filter split times: must be > minGapMs from 0 and
+        // < durationMs - minGapMs from the end
+        val validSplits = splitTimesMs
+            .distinct()
+            .sorted()
+            .filter { split ->
+                split > minGapMs && split < effectiveDurationMs - minGapMs
+            }
+
+        if (validSplits.size < 1) return whole(effectiveDurationMs)
+
+        // Build ranges between consecutive split points
+        val boundaries = listOf(0L) + validSplits + listOf(effectiveDurationMs)
+        val ranges = boundaries.zipWithNext { start, end ->
+            VideoEditRange(startMs = start, endMs = end)
+        }
+
+        // Remove any ranges that are too short
+        val filteredRanges = ranges.filter { it.durationMs >= minGapMs }
+
+        if (filteredRanges.isEmpty()) return whole(effectiveDurationMs)
+
+        return VideoEditSelection(keptRanges = filteredRanges)
+    }
 }

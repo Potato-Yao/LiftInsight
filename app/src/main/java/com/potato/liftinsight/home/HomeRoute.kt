@@ -25,6 +25,7 @@ import com.potato.liftinsight.body.controller.BodyController
 import com.potato.liftinsight.body.controller.BodyMetricSaveQueue
 import com.potato.liftinsight.body.data.BodyMetricStore
 import com.potato.liftinsight.body.model.BodyState
+import com.potato.liftinsight.camera.CameraCaptureMode
 import com.potato.liftinsight.common.BottomBarItem
 import com.potato.liftinsight.common.logging.AndroidAppLogger
 import com.potato.liftinsight.home.route.MainTab
@@ -48,7 +49,9 @@ fun HomeRoute(
     currentThemeMode: AppThemeMode,
     onThemeModeSelected: (AppThemeMode) -> Unit,
     currentCleanupThresholdDays: Int = 30,
-    onCleanupThresholdDaysChanged: (Int) -> Unit = {}
+    onCleanupThresholdDaysChanged: (Int) -> Unit = {},
+    currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native,
+    onCameraCaptureModeChanged: (CameraCaptureMode) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -153,6 +156,8 @@ fun HomeRoute(
         onTabSelected = { selectedTab = MainTab.fromIndex(it) },
         onThemeModeSelected = onThemeModeSelected,
         currentCleanupThresholdDays = currentCleanupThresholdDays,
-        onCleanupThresholdDaysChanged = onCleanupThresholdDaysChanged
+        onCleanupThresholdDaysChanged = onCleanupThresholdDaysChanged,
+        currentCameraCaptureMode = currentCameraCaptureMode,
+        onCameraCaptureModeChanged = onCameraCaptureModeChanged
     )
 }

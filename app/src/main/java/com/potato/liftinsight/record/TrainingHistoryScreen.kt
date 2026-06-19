@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.potato.liftinsight.R
+import com.potato.liftinsight.camera.CameraCaptureMode
 import com.potato.liftinsight.camera.CameraScreen
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.controller.TrainingHistoryController
@@ -126,7 +127,8 @@ internal fun TrainingHistoryScreen(
     videoProcessor: VideoProcessor,
     videoExporter: VideoExporter = NoOpVideoExporter,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native
 ) {
     val context = LocalContext.current
     var state by remember(controller) { mutableStateOf<TrainingHistoryState>(controller.emptyState()) }
@@ -755,7 +757,8 @@ internal fun TrainingHistoryScreen(
                     }
                 },
                 onBack = { cameraTargetRecord = null },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                captureMode = cameraCaptureMode
             )
         }
     }

@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import com.potato.liftinsight.body.controller.BodyController
 import com.potato.liftinsight.body.model.BodyState
+import com.potato.liftinsight.camera.CameraCaptureMode
 import com.potato.liftinsight.common.BottomBarItem
 import com.potato.liftinsight.common.LiftInsightBottomBar
 import com.potato.liftinsight.home.route.MainTab
@@ -60,7 +61,9 @@ internal fun HomeShell(
     onTabSelected: (Int) -> Unit,
     onThemeModeSelected: (AppThemeMode) -> Unit,
     currentCleanupThresholdDays: Int = 30,
-    onCleanupThresholdDaysChanged: (Int) -> Unit = {}
+    onCleanupThresholdDaysChanged: (Int) -> Unit = {},
+    currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native,
+    onCameraCaptureModeChanged: (CameraCaptureMode) -> Unit = {}
 ) {
     val coroutineScope = rememberCoroutineScope()
     val isFullScreenRoute = isPlanRouteFullScreen(planState.planRoute)
@@ -155,7 +158,8 @@ internal fun HomeShell(
                         trainingPlanStore = trainingPlanStore,
                         videoProcessor = videoProcessor,
                         trainingHistoryController = trainingHistoryController,
-                        contentPadding = innerPadding
+                        contentPadding = innerPadding,
+                        cameraCaptureMode = currentCameraCaptureMode
                     )
                 }
 
@@ -179,7 +183,8 @@ internal fun HomeShell(
                         motionState = motionState,
                         onMotionStateChange = onMotionStateChange,
                         motionController = motionController,
-                        contentPadding = innerPadding
+                        contentPadding = innerPadding,
+                        cameraCaptureMode = currentCameraCaptureMode
                     )
                 }
 
@@ -189,6 +194,8 @@ internal fun HomeShell(
                         onThemeModeSelected = onThemeModeSelected,
                         currentCleanupThresholdDays = currentCleanupThresholdDays,
                         onCleanupThresholdDaysChanged = onCleanupThresholdDaysChanged,
+                        currentCameraCaptureMode = currentCameraCaptureMode,
+                        onCameraCaptureModeChanged = onCameraCaptureModeChanged,
                         modifier = Modifier.padding(innerPadding)
                     )
                 }

@@ -1299,6 +1299,207 @@ def rdp_simplify(points, epsilon):
         return np.array([start, end])
 
 
+def group_horizontal_levels(points, tolerance=8.0, min_points=2):
+    """
+    Group simplified plot points that sit near the same horizontal angle level.
+
+    Args:
+        points: iterable of (time, angle) points
+        tolerance: maximum angle gap, in degrees, to stay in the same group
+        min_points: minimum points required to draw a level
+
+    Returns:
+        List of dicts containing the average level and covered time span.
+    """
+    if not points:
+        return []
+
+    sorted_points = sorted(points, key=lambda p: p[1])
+    groups = [[sorted_points[0]]]
+    for point in sorted_points[1:]:
+        group_mean = np.mean([p[1] for p in groups[-1]])
+        if abs(point[1] - group_mean) <= tolerance:
+            groups[-1].append(point)
+        else:
+            groups.append([point])
+
+    levels = []
+    for group in groups:
+        if len(group) < min_points:
+            continue
+        xs = [p[0] for p in group]
+        ys = [p[1] for p in group]
+        levels.append({
+            'y': float(np.mean(ys)),
+            'x_min': min(xs),
+            'x_max': max(xs),
+            'count': len(group),
+        })
+    return levels
+
+
+def grouped_angle_points(points, tolerance=8.0, min_points=2):
+    """
+    Group points by nearby angle values and keep the original points for split detection.
+    """
+    if len(points) == 0:
+        return []
+
+    sorted_points = sorted(points, key=lambda p: p[1])
+    groups = [[sorted_points[0]]]
+    for point in sorted_points[1:]:
+        group_mean = np.mean([p[1] for p in groups[-1]])
+        if abs(point[1] - group_mean) <= tolerance:
+            groups[-1].append(point)
+        else:
+            groups.append([point])
+
+    result = []
+    for group in groups:
+        if len(group) < min_points:
+            continue
+        xs = [p[0] for p in group]
+        ys = [p[1] for p in group]
+        result.append({
+            'y': float(np.mean(ys)),
+            'x_min': min(xs),
+            'x_max': max(xs),
+            'count': len(group),
+            'points': sorted(group, key=lambda p: p[0]),
+        })
+    return result
+
+
+def filter_split_times_by_gap(times, min_gap_seconds=0.6):
+    filtered = []
+    for t in sorted(times):
+        if not filtered or t - filtered[-1] >= min_gap_seconds:
+            filtered.append(t)
+    return filtered
+
+
+def split_times_from_curve(simplified, level_tolerance=8.0, min_gap_seconds=0.6):
+    """
+    Detect repetition split points for one curve using its own extrema.
+
+    The curve is simplified first by the caller. We only consider local extrema,
+    group minima/maxima by angle level, then pick the more repeatable extreme
+    level as that curve's split markers.
+    """
+    result = analyze_curve_splits(simplified, level_tolerance=level_tolerance,
+                                  min_gap_seconds=min_gap_seconds)
+    return result['split_times'] if result else []
+
+
+def analyze_curve_splits(simplified, level_tolerance=8.0, min_gap_seconds=0.6):
+    """
+    Detect split candidates for one curve and score how reliable they look.
+    """
+    if simplified is None or len(simplified) < 3:
+        return None
+
+    minima = []
+    maxima = []
+    for i in range(1, len(simplified) - 1):
+        prev_angle = simplified[i - 1][1]
+        angle = simplified[i][1]
+        next_angle = simplified[i + 1][1]
+        point = tuple(simplified[i])
+        if angle <= prev_angle and angle <= next_angle:
+            minima.append(point)
+        if angle >= prev_angle and angle >= next_angle:
+            maxima.append(point)
+
+    min_groups = grouped_angle_points(minima, tolerance=level_tolerance, min_points=2)
+    max_groups = grouped_angle_points(maxima, tolerance=level_tolerance, min_points=2)
+    candidates = []
+    if min_groups:
+        group = min(min_groups, key=lambda g: g['y'])
+        group['kind'] = 'min'
+        candidates.append(group)
+    if max_groups:
+        group = max(max_groups, key=lambda g: g['y'])
+        group['kind'] = 'max'
+        candidates.append(group)
+    if not candidates:
+        return None
+
+    selected = max(candidates, key=lambda group: (group['count'], group['x_max'] - group['x_min']))
+    split_times = filter_split_times_by_gap([point[0] for point in selected['points']],
+                                            min_gap_seconds=min_gap_seconds)
+    if len(split_times) < 2:
+        return None
+
+    intervals = np.diff(split_times)
+    interval_mean = float(np.mean(intervals)) if len(intervals) else 0.0
+    interval_cv = float(np.std(intervals) / (interval_mean + 1e-6)) if len(intervals) else 1.0
+    selected_angles = [point[1] for point in selected['points']]
+    level_std = float(np.std(selected_angles)) if selected_angles else level_tolerance
+    angle_range = float(np.percentile(simplified[:, 1], 95) - np.percentile(simplified[:, 1], 5))
+
+    count_score = min(len(split_times) / 5.0, 1.0)
+    regularity_score = 1.0 / (1.0 + interval_cv)
+    level_score = 1.0 / (1.0 + level_std / max(level_tolerance, 1e-6))
+    amplitude_score = min(angle_range / 60.0, 1.0)
+    score = count_score * 0.25 + regularity_score * 0.35 + level_score * 0.25 + amplitude_score * 0.15
+
+    return {
+        'split_times': split_times,
+        'score': score,
+        'kind': selected['kind'],
+        'level': selected['y'],
+        'level_std': level_std,
+        'angle_range': angle_range,
+        'interval_cv': interval_cv,
+        'count': len(split_times),
+    }
+
+
+def consensus_split_times(curve_results, max_curves=3, merge_window_seconds=0.5):
+    valid_results = [result for result in curve_results if result and result['split_times']]
+    if not valid_results:
+        return [], []
+
+    selected_results = sorted(valid_results, key=lambda result: result['score'], reverse=True)[:max_curves]
+    events = []
+    for curve in selected_results:
+        for split_time in curve['split_times']:
+            events.append((split_time, curve['score'], curve['name']))
+    if not events:
+        return [], selected_results
+
+    clusters = []
+    for split_time, score, name in sorted(events, key=lambda event: event[0]):
+        if not clusters or split_time - clusters[-1]['times'][-1] > merge_window_seconds:
+            clusters.append({'times': [split_time], 'weights': [score], 'names': {name}})
+        else:
+            clusters[-1]['times'].append(split_time)
+            clusters[-1]['weights'].append(score)
+            clusters[-1]['names'].add(name)
+
+    min_votes = 1 if len(selected_results) == 1 else 2
+    consensus = []
+    for cluster in clusters:
+        if len(cluster['names']) < min_votes:
+            continue
+        consensus.append(float(np.average(cluster['times'], weights=cluster['weights'])))
+
+    if not consensus and selected_results:
+        consensus = selected_results[0]['split_times']
+
+    return filter_split_times_by_gap(consensus), selected_results
+
+
+def mark_horizontal_levels(ax, points, color='purple', tolerance=8.0):
+    levels = group_horizontal_levels(points, tolerance=tolerance)
+    for idx, level in enumerate(levels):
+        label = 'Grouped horizon levels' if idx == 0 else ''
+        ax.hlines(level['y'], level['x_min'], level['x_max'], colors=color,
+                  linestyles=':', linewidth=1.4, alpha=0.8, label=label)
+        ax.text(level['x_max'], level['y'], f" {level['y']:.1f}\u00b0 ({level['count']})",
+                color=color, fontsize=7, va='center', ha='left')
+
+
 def auto_template_split(signal):
     """
     Automatically split a signal into repetitions using the first detected
@@ -1371,40 +1572,26 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
     valid_left_knee = [(t, a) for t, a in zip(time_data, left_knee_angles) if a is not None]
     valid_right_knee = [(t, a) for t, a in zip(time_data, right_knee_angles) if a is not None]
 
-    # --- Auto-split repetitions using the best available angle signal ---
-    # Pick the longest valid signal among knee / leg-spine angles for splitting
-    split_times = []
-    candidate_signals = [
-        ('left_knee', valid_left_knee),
-        ('right_knee', valid_right_knee),
-        ('left_leg_spine', valid_left_leg_spine),
-        ('right_leg_spine', valid_right_leg_spine),
-    ]
-    best_signal_name = None
-    best_signal_data = None
-    for name, data in candidate_signals:
-        if data and (best_signal_data is None or len(data) > len(best_signal_data)):
-            best_signal_data = data
-            best_signal_name = name
-
-    if best_signal_data and len(best_signal_data) > 20:
-        split_signal_times, split_signal_angles = zip(*best_signal_data)
-        split_indices, _ = auto_template_split(np.array(split_signal_angles))
-        if len(split_indices) > 0:
-            split_times = [split_signal_times[i] for i in split_indices
-                           if i < len(split_signal_times)]
-            print(f"Auto-split: detected {len(split_times)} repetition(s) "
-                  f"using '{best_signal_name}' signal")
+    curve_results = []
 
     # Create figure with subplots
-    fig, axes = plt.subplots(3, 1, figsize=(14, 12))
+    fig, axes = plt.subplots(4, 1, figsize=(14, 14), sharex=True,
+                             gridspec_kw={'height_ratios': [1, 1, 1, 0.45]})
     fig.suptitle(f'Angle Analysis: {video_path.split("/")[-1]}', fontsize=14, fontweight='bold')
 
     # Plot 1: Left & Right Spine-Leg Angle vs Time
+    leg_spine_level_points = []
     if valid_left_leg_spine:
         times, angles = zip(*valid_left_leg_spine)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
+        split_result = analyze_curve_splits(simplified)
+        if split_result:
+            split_result.update({'name': 'Left spine-leg', 'color': 'blue', 'axis': 0})
+            curve_results.append(split_result)
+            print(f"Auto-split: scored {len(split_result['split_times'])} left spine-leg split(s) "
+                  f"at {split_result['score']:.2f}")
+        leg_spine_level_points.extend(simplified.tolist())
         axes[0].plot(times, angles, 'b-', linewidth=0.5, alpha=0.3, label='Left raw')
         axes[0].plot(simplified[:, 0], simplified[:, 1], 'b-', linewidth=2,
                      label=f'Left RDP (eps={rdp_epsilon})')
@@ -1413,10 +1600,18 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
         times, angles = zip(*valid_right_leg_spine)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
+        split_result = analyze_curve_splits(simplified)
+        if split_result:
+            split_result.update({'name': 'Right spine-leg', 'color': 'cyan', 'axis': 0})
+            curve_results.append(split_result)
+            print(f"Auto-split: scored {len(split_result['split_times'])} right spine-leg split(s) "
+                  f"at {split_result['score']:.2f}")
+        leg_spine_level_points.extend(simplified.tolist())
         axes[0].plot(times, angles, color='cyan', linewidth=0.5, alpha=0.3, label='Right raw')
         axes[0].plot(simplified[:, 0], simplified[:, 1], color='cyan', linewidth=2,
                      label=f'Right RDP (eps={rdp_epsilon})')
         axes[0].scatter(simplified[:, 0], simplified[:, 1], c='cyan', s=15, zorder=5)
+    mark_horizontal_levels(axes[0], leg_spine_level_points)
     axes[0].axhline(y=180, color='g', linestyle='--', alpha=0.5, label='Straight (180\u00b0)')
     axes[0].axhline(y=90, color='r', linestyle='--', alpha=0.5, label='Right angle (90\u00b0)')
     all_leg_spine_times = ([t for t, _ in valid_left_leg_spine] +
@@ -1432,10 +1627,18 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
     axes[0].set_ylim([0, 200])
 
     # Plot 2: Left & Right Foot-Leg Angle vs Time
+    foot_level_points = []
     if valid_left_foot:
         times, angles = zip(*valid_left_foot)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
+        split_result = analyze_curve_splits(simplified)
+        if split_result:
+            split_result.update({'name': 'Left foot-leg', 'color': 'red', 'axis': 1})
+            curve_results.append(split_result)
+            print(f"Auto-split: scored {len(split_result['split_times'])} left foot-leg split(s) "
+                  f"at {split_result['score']:.2f}")
+        foot_level_points.extend(simplified.tolist())
         axes[1].plot(times, angles, 'r-', linewidth=0.5, alpha=0.3, label='Left raw')
         axes[1].plot(simplified[:, 0], simplified[:, 1], 'r-', linewidth=2,
                      label=f'Left RDP (eps={rdp_epsilon})')
@@ -1444,10 +1647,18 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
         times, angles = zip(*valid_right_foot)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
+        split_result = analyze_curve_splits(simplified)
+        if split_result:
+            split_result.update({'name': 'Right foot-leg', 'color': 'orange', 'axis': 1})
+            curve_results.append(split_result)
+            print(f"Auto-split: scored {len(split_result['split_times'])} right foot-leg split(s) "
+                  f"at {split_result['score']:.2f}")
+        foot_level_points.extend(simplified.tolist())
         axes[1].plot(times, angles, color='orange', linewidth=0.5, alpha=0.3, label='Right raw')
         axes[1].plot(simplified[:, 0], simplified[:, 1], color='orange', linewidth=2,
                      label=f'Right RDP (eps={rdp_epsilon})')
         axes[1].scatter(simplified[:, 0], simplified[:, 1], c='orange', s=15, zorder=5)
+    mark_horizontal_levels(axes[1], foot_level_points)
     axes[1].axhline(y=90, color='g', linestyle='--', alpha=0.5, label='Neutral (90\u00b0)')
     axes[1].set_xlabel('Time (seconds)')
     axes[1].set_ylabel('Angle (degrees)')
@@ -1456,10 +1667,18 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
     axes[1].grid(True, alpha=0.3)
 
     # Plot 3: Left & Right Knee Angle vs Time
+    knee_level_points = []
     if valid_left_knee:
         times, angles = zip(*valid_left_knee)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
+        split_result = analyze_curve_splits(simplified)
+        if split_result:
+            split_result.update({'name': 'Left knee', 'color': 'green', 'axis': 2})
+            curve_results.append(split_result)
+            print(f"Auto-split: scored {len(split_result['split_times'])} left knee split(s) "
+                  f"at {split_result['score']:.2f}")
+        knee_level_points.extend(simplified.tolist())
         axes[2].plot(times, angles, 'g-', linewidth=0.5, alpha=0.3, label='Left raw')
         axes[2].plot(simplified[:, 0], simplified[:, 1], 'g-', linewidth=2,
                      label=f'Left RDP (eps={rdp_epsilon})')
@@ -1468,10 +1687,18 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
         times, angles = zip(*valid_right_knee)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
+        split_result = analyze_curve_splits(simplified)
+        if split_result:
+            split_result.update({'name': 'Right knee', 'color': 'lime', 'axis': 2})
+            curve_results.append(split_result)
+            print(f"Auto-split: scored {len(split_result['split_times'])} right knee split(s) "
+                  f"at {split_result['score']:.2f}")
+        knee_level_points.extend(simplified.tolist())
         axes[2].plot(times, angles, color='lime', linewidth=0.5, alpha=0.3, label='Right raw')
         axes[2].plot(simplified[:, 0], simplified[:, 1], color='lime', linewidth=2,
                      label=f'Right RDP (eps={rdp_epsilon})')
         axes[2].scatter(simplified[:, 0], simplified[:, 1], c='lime', s=15, zorder=5)
+    mark_horizontal_levels(axes[2], knee_level_points)
     axes[2].axhline(y=180, color='b', linestyle='--', alpha=0.5, label='Straight (180°)')
     axes[2].axhline(y=90, color='r', linestyle='--', alpha=0.5, label='Bent 90°')
     axes[2].set_xlabel('Time (seconds)')
@@ -1481,17 +1708,55 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
     axes[2].grid(True, alpha=0.3)
     axes[2].set_ylim([0, 200])
 
-    # --- Draw split lines on all subplots ---
-    for i, ax in enumerate(axes):
-        for si, st in enumerate(split_times):
-            ax.axvline(x=st, color='red', linestyle='--', linewidth=1.2, alpha=0.7,
-                       label='Rep split' if (si == 0 and i == 0) else '')
-            if i == 0:  # label only on top subplot
-                ax.text(st, ax.get_ylim()[1] * 0.97, f'R{si + 1}',
-                        ha='center', va='top', fontsize=8, color='red',
-                        fontweight='bold')
-    if split_times:
-        axes[0].legend(loc='upper right')
+    # --- Select best curves and draw final consensus split lines ---
+    final_split_times, selected_curves = consensus_split_times(curve_results)
+    if selected_curves:
+        selected_names = ', '.join([f"{curve['name']} ({curve['score']:.2f})"
+                                    for curve in selected_curves])
+        print(f"Final split: selected curve(s): {selected_names}")
+    if final_split_times:
+        print(f"Final split: detected {len(final_split_times)} repetition split(s)")
+
+    for axis_index in range(3):
+        ax = axes[axis_index]
+        for si, st in enumerate(final_split_times):
+            ax.axvline(x=st, color='black', linestyle='--', linewidth=1.6, alpha=0.85,
+                       label='Final rep split' if si == 0 else '')
+            ax.text(st, ax.get_ylim()[1] * 0.97, f'R{si + 1}',
+                    ha='center', va='top', fontsize=8, color='black',
+                    fontweight='bold')
+        if final_split_times:
+            ax.legend(loc='upper right')
+
+    split_ax = axes[3]
+    if selected_curves:
+        y_ticks = []
+        y_labels = []
+        for row, curve in enumerate(selected_curves, start=1):
+            y_ticks.append(row)
+            y_labels.append(f"{curve['name']} {curve['score']:.2f}")
+            split_ax.scatter(curve['split_times'], [row] * len(curve['split_times']),
+                             color=curve['color'], s=28, alpha=0.8, label=curve['name'])
+        final_row = len(selected_curves) + 1
+        y_ticks.append(final_row)
+        y_labels.append('Final')
+        split_ax.scatter(final_split_times, [final_row] * len(final_split_times),
+                         color='black', s=38, marker='x', linewidths=1.6,
+                         label='Final')
+        for si, st in enumerate(final_split_times):
+            split_ax.axvline(x=st, color='black', linestyle='--', linewidth=1.0, alpha=0.55)
+            split_ax.text(st, final_row + 0.18, f'R{si + 1}', ha='center', va='bottom',
+                          fontsize=8, color='black')
+        split_ax.set_yticks(y_ticks)
+        split_ax.set_yticklabels(y_labels)
+        split_ax.set_ylim(0.5, len(y_ticks) + 0.6)
+    else:
+        split_ax.text(0.5, 0.5, 'No reliable split curves detected',
+                      ha='center', va='center', transform=split_ax.transAxes)
+        split_ax.set_yticks([])
+    split_ax.set_xlabel('Time (seconds)')
+    split_ax.set_title('Final Rep Split Consensus')
+    split_ax.grid(True, axis='x', alpha=0.3)
 
     plt.tight_layout()
 
@@ -1825,6 +2090,7 @@ def main():
     videos = ["2026-03-15 00-20-26.mp4"]
     videos = ["petal_20260313_140005.mp4"]
     videos = ["petal_20260320_194209.mp4", "petal_20260320_200055.mp4"]
+    videos = ["period_pure.mp4"]
 
     # Use the full model for good balance of speed/accuracy
     selected_model = model_full

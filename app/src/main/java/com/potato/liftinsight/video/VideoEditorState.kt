@@ -88,6 +88,22 @@ internal class VideoEditorState(
         return true
     }
 
+    /**
+     * Apply an automatically-generated selection (e.g. from rep split detection)
+     * with undo support so the user can revert to the previous state.
+     *
+     * @param updatedSelection The new selection to apply.
+     * @param preferredEditedPositionMs Where to place the cursor after applying.
+     */
+    fun applyAutomaticSelection(
+        updatedSelection: VideoEditSelection,
+        preferredEditedPositionMs: Long = 0L
+    ) {
+        pushHistory()
+        selection = updatedSelection
+        selectSegmentAtEditedPosition(preferredEditedPositionMs)
+    }
+
     fun undo(): Boolean {
         val previousSnapshot = history.lastOrNull() ?: return false
 

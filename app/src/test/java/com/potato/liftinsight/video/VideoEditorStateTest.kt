@@ -75,4 +75,41 @@ class VideoEditorStateTest {
         assertNull(state.selectedSegmentIndex)
         assertFalse(state.canUndo)
     }
+
+    @Test
+    fun applyAutomaticSelectionAddsHistoryAndCanUndo() {
+        val state = VideoEditorState(VideoEditSelections.whole(12_000L))
+
+        val autoSelection = VideoEditSelections.fromSourceSplitTimes(
+            durationMs = 12_000L,
+            splitTimesMs = listOf(4_000L, 8_000L)
+        )
+
+        state.applyAutomaticSelection(autoSelection, preferredEditedPositionMs = 0L)
+
+        assertEquals(autoSelection, state.selection)
+        assertEquals(0, state.selectedSegmentIndex)
+        assertTrue(state.canUndo)
+
+        // Undo should restore the original whole selection
+        assertTrue(state.undo())
+        assertEquals(VideoEditSelections.whole(12_000L), state.selection)
+        assertNull(state.selectedSegmentIndex)
+        assertFalse(state.canUndo)
+    }
+
+    @Test
+    fun applyAutomaticSelectionWithZeroSegmentsPreservesUndo() {
+        val state = VideoEditorState(VideoEditSelections.whole(10_000L))
+
+        val autoSelection = VideoEditSelections.fromSourceSplitTimes(
+            durationMs = 10_000L,
+            splitTimesMs = listOf(500L) // too close to start, returns whole
+        )
+
+        state.applyAutomaticSelection(autoSelection, preferredEditedPositionMs = 0L)
+
+        assertEquals(VideoEditSelections.whole(10_000L), state.selection)
+        assertTrue(state.canUndo)
+    }
 }

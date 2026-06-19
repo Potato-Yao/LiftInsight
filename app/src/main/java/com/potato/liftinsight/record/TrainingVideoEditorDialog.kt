@@ -74,6 +74,9 @@ import com.potato.liftinsight.video.BarbellDetectionService
 import com.potato.liftinsight.video.PoseOverlayLandmark
 import com.potato.liftinsight.video.SelectableCircle
 import com.potato.liftinsight.video.SelectableLine
+import com.potato.liftinsight.training.data.TimeseriesMetric
+import com.potato.liftinsight.training.data.TimeseriesPoint
+import com.potato.liftinsight.video.RepSplitDetector
 import com.potato.liftinsight.video.VideoEditSelection
 import com.potato.liftinsight.video.VideoEditSelections
 import com.potato.liftinsight.video.VideoEditor
@@ -82,8 +85,10 @@ import com.potato.liftinsight.video.VideoProcessor
 import com.potato.liftinsight.video.VideoTimelineSegment
 import java.io.File
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,6 +118,10 @@ internal fun TrainingVideoEditorDialog(
     var isLoadingFiles by remember(videoFileName, hasProcessedCopy) { mutableStateOf(hasProcessedCopy) }
     var processedFile by remember(videoFileName, hasProcessedCopy) { mutableStateOf<File?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isDetectingSplits by remember { mutableStateOf(false) }
+    var splitStatusMessage by remember { mutableStateOf<String?>(null) }
+    // Loaded timeseries for auto-split detection
+    var loadedTimeseries by remember { mutableStateOf<Map<String, List<TimeseriesPoint>>>(emptyMap()) }
     var analysisState by remember { mutableStateOf(initialAnalysisState) }
 
     // Barbell detection/tracking state (user-driven, interactive)
@@ -293,6 +302,33 @@ internal fun TrainingVideoEditorDialog(
                     radius = entity.radius
                 )
             }
+        }
+    }
+
+    // Load timeseries for auto-split detection
+    LaunchedEffect(metahistoryId) {
+        if (metahistoryId == null) {
+            loadedTimeseries = emptyMap()
+            return@LaunchedEffect
+        }
+        withContext(Dispatchers.IO) {
+            val database = LiftInsightDatabase.from(context)
+            val tsDao = database.timeseriesDao()
+            val metrics = listOf(
+                TimeseriesMetric.LEFT_LEG_SPINE_ANGLE,
+                TimeseriesMetric.RIGHT_LEG_SPINE_ANGLE,
+                TimeseriesMetric.LEFT_KNEE_ANGLE,
+                TimeseriesMetric.RIGHT_KNEE_ANGLE,
+                TimeseriesMetric.SPINE_ANGLE
+            )
+            val data = mutableMapOf<String, List<TimeseriesPoint>>()
+            for (metric in metrics) {
+                val points = tsDao.getTimeSeries(metahistoryId, metric)
+                if (points.isNotEmpty()) {
+                    data[metric] = points
+                }
+            }
+            loadedTimeseries = data
         }
     }
 
@@ -615,6 +651,50 @@ internal fun TrainingVideoEditorDialog(
                 isSaving = isSaving,
                 selectedSegment = selectedSegment,
                 canUndo = editorState.canUndo,
+                isDetectingSplits = isDetectingSplits,
+                splitStatusMessage = splitStatusMessage,
+                hasTimeseriesData = loadedTimeseries.isNotEmpty(),
+                onAutoSplit = {
+                    if (isDetectingSplits || loadedTimeseries.isEmpty() || durationMs <= 0L) return@TimelineEditorCard
+                    isDetectingSplits = true
+                    splitStatusMessage = context.getString(R.string.training_video_editor_auto_split_loading)
+                    val timeseries = loadedTimeseries
+                    val currentDurationMs = durationMs
+                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val splitTimes = RepSplitDetector.detectRepSplits(
+                                timeseries = timeseries,
+                                rdpEpsilon = 1.5,
+                                levelTolerance = 8.0,
+                                minGapMs = 600L
+                            )
+                            val newSelection = VideoEditSelections.fromSourceSplitTimes(
+                                durationMs = currentDurationMs,
+                                splitTimesMs = splitTimes
+                            )
+                            withContext(Dispatchers.Main) {
+                                if (splitTimes.size >= 2) {
+                                    editorState.applyAutomaticSelection(
+                                        updatedSelection = newSelection,
+                                        preferredEditedPositionMs = 0L
+                                    )
+                                    splitStatusMessage = context.getString(
+                                        R.string.training_video_editor_auto_split_detected,
+                                        splitTimes.size
+                                    )
+                                } else {
+                                    splitStatusMessage = context.getString(R.string.training_video_editor_auto_split_failed)
+                                }
+                                isDetectingSplits = false
+                            }
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                splitStatusMessage = context.getString(R.string.training_video_editor_auto_split_failed)
+                                isDetectingSplits = false
+                            }
+                        }
+                    }
+                },
                 onCursorChange = { editedPositionMs ->
                     val boundedPositionMs = editedPositionMs.coerceIn(0L, editorState.selection.durationMs)
                     previewPositionMs = boundedPositionMs
@@ -842,6 +922,10 @@ private fun TimelineEditorCard(
     isSaving: Boolean,
     selectedSegment: VideoTimelineSegment?,
     canUndo: Boolean,
+    isDetectingSplits: Boolean = false,
+    splitStatusMessage: String? = null,
+    hasTimeseriesData: Boolean = false,
+    onAutoSplit: () -> Unit = {},
     onCursorChange: (Long) -> Unit,
     onSplit: () -> Unit,
     onDeleteSelected: () -> Unit,
@@ -873,6 +957,47 @@ private fun TimelineEditorCard(
                 onCursorChange = onCursorChange,
                 onSplitAtCursor = onSplit
             )
+
+            // Auto-split button and status
+            if (hasTimeseriesData) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        FilledTonalButton(
+                            onClick = onAutoSplit,
+                            enabled = !isSaving && !isDetectingSplits,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.ContentCut,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = stringResource(R.string.training_video_editor_auto_split_action))
+                        }
+
+                        if (isDetectingSplits) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+
+                        splitStatusMessage?.let { message ->
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
 
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,

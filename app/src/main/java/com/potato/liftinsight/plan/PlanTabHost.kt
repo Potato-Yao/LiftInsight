@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.potato.liftinsight.R
+import com.potato.liftinsight.camera.CameraCaptureMode
 import com.potato.liftinsight.camera.CameraScreen
 import com.potato.liftinsight.motion.MotionScreen
 import com.potato.liftinsight.motion.controller.MotionController
@@ -61,7 +62,8 @@ internal fun PlanTabHost(
     onMotionStateChange: (MotionState) -> Unit,
     motionController: MotionController,
     contentPadding: PaddingValues,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -411,7 +413,8 @@ internal fun PlanTabHost(
                             onPlanStateChange(planController.closeCamera(planState))
                         }
                     },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    captureMode = cameraCaptureMode
                 )
             }
 

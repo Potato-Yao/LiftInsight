@@ -345,6 +345,10 @@
     <string name="training_video_editor_loading">Loading video editor…</string>
     <string name="training_video_editor_tracking_barbell">Tracking barbell…</string>
     <string name="training_video_editor_save_error">LiftInsight could not save this video edit.</string>
+    <string name="training_video_editor_auto_split_action">Auto split reps</string>
+    <string name="training_video_editor_auto_split_detected">Auto-split: found %1$d rep splits</string>
+    <string name="training_video_editor_auto_split_failed">Auto-split: no rep splits detected</string>
+    <string name="training_video_editor_auto_split_loading">Detecting rep splits…</string>
 
     <!-- Training history - marked records -->
     <string name="training_mark_record">Mark</string>
@@ -425,4 +429,15 @@
     <string name="settings_video_cleanup_days_label">Delete raw videos older than (days)</string>
     <string name="settings_video_cleanup_days_error">Enter a value between %1$d and %2$d days</string>
     <string name="settings_video_cleanup_days_unsaved">Unsaved changes</string>
+
+    <!-- Settings - camera capture mode -->
+    <string name="settings_camera_capture">Camera capture</string>
+    <string name="settings_camera_capture_summary">Choose how lift videos are recorded. %1$s is active.</string>
+    <string name="settings_camera_mode_native">In-app camera (default)</string>
+    <string name="settings_camera_mode_external">External camera app</string>
+    <string name="settings_camera_mode_page_title">Camera capture mode</string>
+    <string name="settings_camera_mode_page_subtitle">The in-app camera is the default for recording lift videos, while using the external option opens your device camera app.</string>
+    <string name="settings_camera_mode_native_subtitle">Record directly inside LiftInsight. This is the default capture mode.</string>
+    <string name="settings_camera_mode_external_subtitle">Launch your device camera app to capture lift videos.</string>
+    <string name="camera_external_error_open">Could not open external camera app.</string>
 </resources>

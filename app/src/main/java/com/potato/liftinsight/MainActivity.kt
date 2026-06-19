@@ -9,10 +9,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.potato.liftinsight.camera.CameraCaptureMode
 import com.potato.liftinsight.common.logging.AndroidAppLogger
 import com.potato.liftinsight.home.HomeRoute
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.controller.TrainingHistoryController
+import com.potato.liftinsight.settings.data.CameraModeStore
 import com.potato.liftinsight.settings.data.ThemeStore
 import com.potato.liftinsight.settings.data.VideoCleanupStore
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
@@ -29,6 +31,7 @@ class MainActivity : ComponentActivity() {
 
         val themeStore = ThemeStore.from(applicationContext)
         val videoCleanupStore = VideoCleanupStore.from(applicationContext)
+        val cameraModeStore = CameraModeStore.from(applicationContext)
         val trainingPlanStore = TrainingPlanStore.from(applicationContext)
         val videoProcessor = VideoProcessor.from(applicationContext)
         val enableDebugPlanSeed = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
@@ -54,6 +57,10 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(videoCleanupStore.getCleanupThresholdDays())
             }
 
+            var cameraCaptureMode by remember(cameraModeStore) {
+                mutableStateOf(cameraModeStore.getCameraCaptureMode())
+            }
+
             LiftInsightTheme(themeMode = themeMode) {
                 HomeRoute(
                     trainingPlanStore = trainingPlanStore,
@@ -68,6 +75,11 @@ class MainActivity : ComponentActivity() {
                     onCleanupThresholdDaysChanged = { days ->
                         videoCleanupStore.setCleanupThresholdDays(days)
                         cleanupThresholdDaysState = days
+                    },
+                    currentCameraCaptureMode = cameraCaptureMode,
+                    onCameraCaptureModeChanged = { mode ->
+                        cameraModeStore.setCameraCaptureMode(mode)
+                        cameraCaptureMode = mode
                     }
                 )
             }

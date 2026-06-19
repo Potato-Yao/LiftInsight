@@ -19,6 +19,7 @@ import com.potato.liftinsight.body.controller.BodyController
 import com.potato.liftinsight.body.model.BodyState
 import com.potato.liftinsight.body.route.BodyRoute
 import com.potato.liftinsight.body.route.bodyRouteDepth
+import com.potato.liftinsight.camera.CameraCaptureMode
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.controller.TrainingHistoryController
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
@@ -34,7 +35,8 @@ internal fun RecordTabHost(
     videoProcessor: VideoProcessor,
     trainingHistoryController: TrainingHistoryController,
     contentPadding: PaddingValues,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native
 ) {
     val shouldHandleBodyBack = bodyState.bodyRoute != BodyRoute.Overview
 
@@ -121,7 +123,8 @@ internal fun RecordTabHost(
                     videoProcessor = videoProcessor,
                     onBack = {
                         onBodyStateChange(bodyController.closeBodyDetail(bodyState))
-                    }
+                    },
+                    cameraCaptureMode = cameraCaptureMode
                 )
             }
         }
