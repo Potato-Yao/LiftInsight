@@ -185,7 +185,7 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
 
 由于透视原理，圆在相机角度改变的视频中会变成椭圆。加之有时黑色的杠铃片会和背景融为一体，简单的物体识别无法胜任杠铃片的自动识别。
 
-考虑到pose landmark人体识别的准确度很高，并且杠铃往往固定在手上，因此我制定了混合策略以识别杠铃片。
+考虑到pose landmark人体识别的准确度很高，并且杠铃往往固定在手上，我制定了混合策略以识别杠铃片。
 
 首先，找到手的位置。由于杠铃是由手抓着的，可以借助opencv识别手部附近的直线来找到杠铃杆。而杠铃片又固定于杠铃杆，只需要识别与杠铃直线相连的圆或椭圆，就能实现对杠铃片的识别。
 
@@ -193,11 +193,11 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
 
 === 视频分段与截断
 
-在一个训练视频中，准备动作往往占据较长时间（比如抓举往往需要三十秒去调整站位、预设身体张力，而抓举本身只需要十秒左右），极大浪费了储存空间，因此将非动作部分视频删去是必要的。对于一个有多次重复动作的视频，对其自动分段，就可以实现预览视频时快捷地在动作之间跳转（因为每两次动作间可能会有短暂的间歇），便于快速分析动作。而要想做到分段，也依赖预先对视频前后无关部分的截断。
+在一个训练视频中，准备动作往往占据较长时间（比如抓举往往需要三十秒去调整站位、预设身体张力，而抓举本身只需要十秒左右），极大浪费了储存空间，因此将非动作部分视频删去是必要的。对于一个有多次重复动作的视频，对其自动分段，就可以实现预览视频时快捷地在动作之间跳转，便于快速分析动作。而要想做到分段，也依赖预先对视频前后无关部分的截断。
 
 上述操作的自动化算法都依赖于对关节与时间函数关系的分析。
 
-首先是重复动作的分段。比如说深蹲，深蹲从站立、下蹲到最低点、再次站起的整个过程中，膝角近似从$180 degree$到$45 degree$再回到$180 degree$。理论上这个过程是连续的，所以它就像一个波的正半部分一样。那一次进行了多次动作的训练的关节与时间的图像就是多个这样的峰。另外一般每两次动作之间是有一段短暂的间歇的，波之间并不是连着的。
+首先是重复动作的分段。比如说深蹲，深蹲从站立、下蹲到最低点、再次站起的整个过程中，膝角近似从$180 degree$到$45 degree$再回到$180 degree$。理论上这个过程是连续的，所以它就像一个波的正半部分一样。一次进行了多次动作的训练的关节与时间的图像就是多个这样的峰。另外一般每两次动作之间是有一段短暂的间歇的，波之间并不是连续的。
 
 为此，我首先设计了针对单个曲线进行分段的算法（下文中曲线均使用点的数组而非集合表示）。
 
@@ -298,12 +298,13 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
 
       计算运动幅度评分
       $
-        italic("motion_range_score") = max((theta_95 - theta_5)/(60 degree), 1)
+        italic("motion_range_score") = max((theta_(95%) - theta_(5%))/(60 degree), 1)
       $
 
       #center_down_arrow
 
       计算分割点的标准差$sigma_R$.
+
       计算极值稳定度评分
       $
         italic("extrema_score") = 1 / (1 + sigma_R / lambda) = lambda / (lambda + sigma_R)
@@ -349,8 +350,8 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
       即对于$forall c_i in C$，令集合$P_i ={c_j in C | |c_i.x - c_j.x| <= epsilon}$，赋值
       $
         C = cases(
-          & C - P_i union {1/(|P_i|)sum_(p in P_i) p_i.x dot score(p_i)} text(", if") |P_i| > 1,
-          & C - P_i text(", if") |P_i| = 1
+          & C - P_i union {1/(|P_i|)sum_(p in P_i) p_i.x dot score(p_i)} & text(", if") |P_i| > 1,
+          & C - P_i & text(", if") |P_i| = 1
         )
       $
 
@@ -359,10 +360,10 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
   ],
 )
 
-这套算法仍有改进空间，#ref(<img_period>)所示是其应用于杠铃划船上的效果。
+本算法自带去除前后非动作部分的能力，只要保证前后部分的身体运动幅度极小或极大以至于与动作明显不一致。这套算法仍有改进空间，#ref(<img_period>)所示是其应用于杠铃划船上的效果。
 
 #figure(
-  image("../assets/period_pure_angle_plots.png", width: big_image_scale),
+  image("../assets/period_angle_plots.png", width: big_image_scale),
   caption: "分段算法实际效果",
 ) <img_period>
 
@@ -580,13 +581,7 @@ CREATE TABLE metahistory_bin (
   caption: [Devloop工作原理],
 ) <fig-workflow>
 
-需要注意的是，除了图中的几个模型，实际上还有一个用于指挥的agent，我也称之为devloop。
-
-agent的模型选择经历了多次变化。在最开始，我可用的模型是来自GitHub copilot的GPT5.4和deepseek v4，于是选择了GPT作为devloop、planner和engineer，deepseek pro作为reviewer和summarizer。
-
-后来GPT的额度耗尽，同时我发现reviewer和summarizer的工作较为简单，于是为了降低成本、加快速度，改成了deepseek pro作为devloop、planner和engineer，deepseek flash作为reviewer和summarizer。
-
-但是deepseek速度实在太慢，并且它作为planner对模糊需求的猜测和计划制定的能力并不足。因此我又购入了Xiaomi mimo 2.5，使用mimo2.5 pro作为devloop和planner，deepseek pro作为engineer，deepseek flash作为reviewer和summarizer。这样效率和工作正确度就高了很多。之所以不用更聪明和便宜的mimo作为engineer，是因为engineer是token用量最大的地方，而当planner的计划描述足够清晰时，不同模型在代码质量上的差异就会很小，因此选用了deepseek进行这项工作。
+需要注意的是，除了图中的几个模型，实际上还有一个用于指挥的agent，称之为devloop。
 
 == 程序架构与实现方案
 
