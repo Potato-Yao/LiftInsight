@@ -44,6 +44,7 @@ interface VideoExporter {
             val videoFileManager = VideoFileManager(appContext)
             val videoProcessStore = VideoProcessStore.fromDatabase(database, logger)
             val worker = VideoExportRenderWorker(
+                context = appContext,
                 videoFileManager = videoFileManager,
                 poseFrameDao = database.poseFrameDao(),
                 timeseriesDao = database.timeseriesDao(),

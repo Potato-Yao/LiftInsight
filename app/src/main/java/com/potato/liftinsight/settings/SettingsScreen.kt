@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Videocam
@@ -75,6 +76,8 @@ internal fun SettingsScreen(
     onCleanupThresholdDaysChanged: (Int) -> Unit,
     currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native,
     onCameraCaptureModeChanged: (CameraCaptureMode) -> Unit = {},
+    currentLanguageMode: AppLanguageMode = AppLanguageMode.FollowSystem,
+    onLanguageModeSelected: (AppLanguageMode) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var route by rememberSaveable { mutableStateOf(SettingsRoute.Overview) }
@@ -88,8 +91,12 @@ internal fun SettingsScreen(
             currentThemeMode = currentThemeMode,
             cleanupThresholdDays = currentCleanupThresholdDays,
             currentCameraCaptureMode = currentCameraCaptureMode,
+            currentLanguageMode = currentLanguageMode,
             onOpenThemeSettings = {
                 route = SettingsRoute.Theme
+            },
+            onOpenLanguageSettings = {
+                route = SettingsRoute.Language
             },
             onOpenVideoCleanupSettings = {
                 route = SettingsRoute.VideoCleanup
@@ -103,6 +110,18 @@ internal fun SettingsScreen(
         SettingsRoute.Theme -> ThemeSettingsScreen(
             currentThemeMode = currentThemeMode,
             onThemeModeSelected = onThemeModeSelected,
+            onBack = {
+                route = SettingsRoute.Overview
+            },
+            modifier = modifier
+        )
+
+        SettingsRoute.Language -> LanguageSettingsScreen(
+            currentLanguageMode = currentLanguageMode,
+            onLanguageModeSelected = {
+                onLanguageModeSelected(it)
+                route = SettingsRoute.Overview
+            },
             onBack = {
                 route = SettingsRoute.Overview
             },
@@ -137,7 +156,9 @@ private fun SettingsOverviewScreen(
     currentThemeMode: AppThemeMode,
     cleanupThresholdDays: Int,
     currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native,
+    currentLanguageMode: AppLanguageMode = AppLanguageMode.FollowSystem,
     onOpenThemeSettings: () -> Unit,
+    onOpenLanguageSettings: () -> Unit,
     onOpenVideoCleanupSettings: () -> Unit,
     onOpenCameraCaptureSettings: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -210,10 +231,38 @@ private fun SettingsOverviewScreen(
             }
         }
 
-        item(key = "settingsVideoCleanup") {
+        item(key = "settingsLanguage") {
             AnimatedVisibility(
                 visible = showContent,
                 enter = settingsSectionEnter(delayMillis = 100),
+                exit = ExitTransition.None
+            ) {
+                MetricCard(
+                    title = stringResource(R.string.settings_language),
+                    subtitle = stringResource(
+                        R.string.settings_language_summary,
+                        stringResource(currentLanguageMode.labelResId)
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onOpenLanguageSettings,
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Rounded.Language,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    trailingContent = {
+                        SettingsTrailingArrow()
+                    }
+                ) {}
+            }
+        }
+
+        item(key = "settingsVideoCleanup") {
+            AnimatedVisibility(
+                visible = showContent,
+                enter = settingsSectionEnter(delayMillis = 150),
                 exit = ExitTransition.None
             ) {
                 MetricCard(
@@ -241,7 +290,7 @@ private fun SettingsOverviewScreen(
         item(key = "settingsCameraCapture") {
             AnimatedVisibility(
                 visible = showContent,
-                enter = settingsSectionEnter(delayMillis = 130),
+                enter = settingsSectionEnter(delayMillis = 200),
                 exit = ExitTransition.None
             ) {
                 MetricCard(
@@ -269,7 +318,7 @@ private fun SettingsOverviewScreen(
         item(key = "settingsAbout") {
             AnimatedVisibility(
                 visible = showContent,
-                enter = settingsSectionEnter(delayMillis = 150),
+                enter = settingsSectionEnter(delayMillis = 250),
                 exit = ExitTransition.None
             ) {
                 MetricCard(
@@ -288,6 +337,100 @@ private fun SettingsOverviewScreen(
                         SettingsTrailingArrow()
                     }
                 ) {}
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun LanguageSettingsScreen(
+    currentLanguageMode: AppLanguageMode,
+    onLanguageModeSelected: (AppLanguageMode) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showContent by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        showContent = true
+    }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(text = stringResource(R.string.settings_language))
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back)
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentPadding = PaddingValues(
+                start = 24.dp,
+                top = 12.dp,
+                end = 24.dp,
+                bottom = 32.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item(key = "languageDescription") {
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = settingsSectionEnter(delayMillis = 0),
+                    exit = ExitTransition.None
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_language_page_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Text(
+                            text = stringResource(R.string.settings_language_page_subtitle),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            AppLanguageMode.entries.forEachIndexed { index, languageMode ->
+                item(key = languageMode.storageValue) {
+                    AnimatedVisibility(
+                        visible = showContent,
+                        enter = settingsSectionEnter(delayMillis = 50 + index * 50),
+                        exit = ExitTransition.None
+                    ) {
+                        LanguageModeCard(
+                            languageMode = languageMode,
+                            subtitle = when (languageMode) {
+                                AppLanguageMode.FollowSystem -> stringResource(R.string.settings_language_follow_system_subtitle)
+                                AppLanguageMode.English -> stringResource(R.string.settings_language_english_subtitle)
+                                AppLanguageMode.Chinese -> stringResource(R.string.settings_language_chinese_subtitle)
+                            },
+                            isSelected = currentLanguageMode == languageMode,
+                            onClick = {
+                                onLanguageModeSelected(languageMode)
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -737,6 +880,36 @@ private fun CameraCaptureModeCard(
 }
 
 @Composable
+private fun LanguageModeCard(
+    languageMode: AppLanguageMode,
+    subtitle: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    MetricCard(
+        title = stringResource(languageMode.labelResId),
+        subtitle = subtitle,
+        modifier = modifier.fillMaxWidth(),
+        highlighted = isSelected,
+        onClick = onClick,
+        leadingContent = {
+            Icon(
+                imageVector = Icons.Rounded.Language,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        },
+        trailingContent = {
+            RadioButton(
+                selected = isSelected,
+                onClick = null
+            )
+        }
+    ) {}
+}
+
+@Composable
 private fun SettingsTrailingArrow() {
     Icon(
         imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -814,4 +987,3 @@ private fun AboutPanel(
         }
     }
 }
-

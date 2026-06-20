@@ -1,5 +1,6 @@
 package com.potato.liftinsight
 
+import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -14,7 +15,10 @@ import com.potato.liftinsight.common.logging.AndroidAppLogger
 import com.potato.liftinsight.home.HomeRoute
 import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.record.controller.TrainingHistoryController
+import com.potato.liftinsight.settings.AppLanguageMode
+import com.potato.liftinsight.settings.LanguageContext
 import com.potato.liftinsight.settings.data.CameraModeStore
+import com.potato.liftinsight.settings.data.LanguageStore
 import com.potato.liftinsight.settings.data.ThemeStore
 import com.potato.liftinsight.settings.data.VideoCleanupStore
 import com.potato.liftinsight.ui.theme.LiftInsightTheme
@@ -24,6 +28,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        val languageStore = LanguageStore.from(newBase)
+        super.attachBaseContext(LanguageContext.wrap(newBase, languageStore.getLanguageMode()))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         android.util.Log.i("MainActivity", "onCreate: starting application")
@@ -32,6 +41,7 @@ class MainActivity : ComponentActivity() {
         val themeStore = ThemeStore.from(applicationContext)
         val videoCleanupStore = VideoCleanupStore.from(applicationContext)
         val cameraModeStore = CameraModeStore.from(applicationContext)
+        val languageStore = LanguageStore.from(applicationContext)
         val trainingPlanStore = TrainingPlanStore.from(applicationContext)
         val videoProcessor = VideoProcessor.from(applicationContext)
         val enableDebugPlanSeed = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
@@ -61,6 +71,10 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(cameraModeStore.getCameraCaptureMode())
             }
 
+            var languageMode by remember(languageStore) {
+                mutableStateOf(languageStore.getLanguageMode())
+            }
+
             LiftInsightTheme(themeMode = themeMode) {
                 HomeRoute(
                     trainingPlanStore = trainingPlanStore,
@@ -80,6 +94,12 @@ class MainActivity : ComponentActivity() {
                     onCameraCaptureModeChanged = { mode ->
                         cameraModeStore.setCameraCaptureMode(mode)
                         cameraCaptureMode = mode
+                    },
+                    currentLanguageMode = languageMode,
+                    onLanguageModeChanged = { mode: AppLanguageMode ->
+                        languageStore.setLanguageMode(mode)
+                        languageMode = mode
+                        recreate()
                     }
                 )
             }

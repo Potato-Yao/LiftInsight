@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
+import com.potato.liftinsight.R
 import com.potato.liftinsight.training.data.TimeseriesPoint
 import com.potato.liftinsight.video.ActiveRange
 import com.potato.liftinsight.video.BarbellOverlayRenderer
@@ -78,6 +80,20 @@ internal fun PoseOverlayCanvas(
             selectableLines.isNotEmpty()
 
     if (!hasAnyOverlay) return
+
+    val angleTextLines = if (showAngleDisplay) {
+        val interpolatedAngles = angleTimeSeries.mapValues { (_, points) ->
+            if (points.isEmpty()) return@mapValues null
+            val simplified = RdpSimplifier.simplify(points, rdpEpsilon)
+            RdpSimplifier.interpolateValue(simplified, currentPositionMs)
+        }
+        val displayAngles = currentAngles.mapValues { (key, raw) ->
+            interpolatedAngles[key] ?: raw
+        }
+        buildAngleTextLines(displayAngles)
+    } else {
+        emptyList()
+    }
 
     val effectiveModifier = if ((onCircleTapped != null && selectableCircles.isNotEmpty()) ||
         (onLineTapped != null && selectableLines.isNotEmpty())) {
@@ -228,18 +244,7 @@ internal fun PoseOverlayCanvas(
         }
 
         if (showAngleDisplay) {
-            // Compute RDP-interpolated angles for display text
-            val interpolatedAngles = angleTimeSeries.mapValues { (_, points) ->
-                if (points.isEmpty()) return@mapValues null
-                val simplified = RdpSimplifier.simplify(points, rdpEpsilon)
-                RdpSimplifier.interpolateValue(simplified, currentPositionMs)
-            }
-            // Merge with raw currentAngles: prefer interpolated when available, fall back to raw
-            val displayAngles = currentAngles.mapValues { (key, raw) ->
-                interpolatedAngles[key] ?: raw
-            }
-            val lines = buildAngleTextLines(displayAngles)
-            PoseOverlayRenderer.drawAngleOverlay(canvas, lines)
+            PoseOverlayRenderer.drawAngleOverlay(canvas, angleTextLines)
         }
 
         if (showAnglePlot && angleTimeSeries.values.any { it.isNotEmpty() }) {
@@ -312,13 +317,14 @@ internal fun PoseOverlayCanvas(
     }
 }
 
+@Composable
 private fun buildAngleTextLines(angles: Map<String, Double?>): List<String> {
     val lines = mutableListOf<String>()
-    angles["spine_angle"]?.let { lines += "Spine: %.1f\u00B0".format(it) }
-    angles["left_leg_spine_angle"]?.let { lines += "L Leg-Spine: %.1f\u00B0".format(it) }
-    angles["right_leg_spine_angle"]?.let { lines += "R Leg-Spine: %.1f\u00B0".format(it) }
-    angles["left_knee_angle"]?.let { lines += "L Knee: %.1f\u00B0".format(it) }
-    angles["right_knee_angle"]?.let { lines += "R Knee: %.1f\u00B0".format(it) }
+    angles["spine_angle"]?.let { lines += stringResource(R.string.training_video_overlay_spine_angle, it) }
+    angles["left_leg_spine_angle"]?.let { lines += stringResource(R.string.training_video_overlay_left_leg_spine_angle, it) }
+    angles["right_leg_spine_angle"]?.let { lines += stringResource(R.string.training_video_overlay_right_leg_spine_angle, it) }
+    angles["left_knee_angle"]?.let { lines += stringResource(R.string.training_video_overlay_left_knee_angle, it) }
+    angles["right_knee_angle"]?.let { lines += stringResource(R.string.training_video_overlay_right_knee_angle, it) }
     return lines
 }
 

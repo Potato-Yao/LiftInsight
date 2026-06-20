@@ -460,7 +460,7 @@ private fun MotionRow(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = motion.type.displayName,
+                    text = stringResource(motion.type.labelResId),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -615,7 +615,7 @@ private fun MotionEditorContent(
                             onExpandedChange = { typeExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = editor.type.displayName,
+                                value = stringResource(editor.type.labelResId),
                                 onValueChange = {},
                                 readOnly = true,
                                 modifier = Modifier
@@ -633,7 +633,7 @@ private fun MotionEditorContent(
                             ) {
                                 MotionType.entries.forEach { motionType ->
                                     DropdownMenuItem(
-                                        text = { Text(text = motionType.displayName) },
+                                        text = { Text(text = stringResource(motionType.labelResId)) },
                                         onClick = {
                                             onMotionTypeChange(motionType)
                                             typeExpanded = false
@@ -707,29 +707,29 @@ private fun MotionLibraryPreview() {
         MotionScreen(
             state = MotionState(
                 motions = listOf(
-                    MotionRowState(id = 1, name = "Back Squat", type = MotionType.BARBELL),
-                    MotionRowState(id = 2, name = "Bench Press", type = MotionType.BARBELL),
-                    MotionRowState(id = 3, name = "Clean Pull", type = MotionType.BARBELL),
-                    MotionRowState(id = 4, name = "Snatch", type = MotionType.BARBELL)
+                    MotionRowState(id = 1, name = stringResource(R.string.body_back_squat), type = MotionType.BARBELL),
+                    MotionRowState(id = 2, name = stringResource(R.string.motion_name_bench_press), type = MotionType.BARBELL),
+                    MotionRowState(id = 3, name = stringResource(R.string.motion_name_clean_pull), type = MotionType.BARBELL),
+                    MotionRowState(id = 4, name = stringResource(R.string.motion_name_snatch), type = MotionType.BARBELL)
                 ),
                 sections = listOf(
                     MotionSectionState(
                         label = "B",
                         motions = listOf(
-                            MotionRowState(id = 1, name = "Back Squat", type = MotionType.BARBELL),
-                            MotionRowState(id = 2, name = "Bench Press", type = MotionType.BARBELL)
+                            MotionRowState(id = 1, name = stringResource(R.string.body_back_squat), type = MotionType.BARBELL),
+                            MotionRowState(id = 2, name = stringResource(R.string.motion_name_bench_press), type = MotionType.BARBELL)
                         )
                     ),
                     MotionSectionState(
                         label = "C",
                         motions = listOf(
-                            MotionRowState(id = 3, name = "Clean Pull", type = MotionType.BARBELL)
+                            MotionRowState(id = 3, name = stringResource(R.string.motion_name_clean_pull), type = MotionType.BARBELL)
                         )
                     ),
                     MotionSectionState(
                         label = "S",
                         motions = listOf(
-                            MotionRowState(id = 4, name = "Snatch", type = MotionType.BARBELL)
+                            MotionRowState(id = 4, name = stringResource(R.string.motion_name_snatch), type = MotionType.BARBELL)
                         )
                     )
                 )
@@ -753,7 +753,7 @@ private fun MotionEditorPreview() {
             state = MotionState(
                 editor = MotionEditorState(
                     motionId = 1,
-                    name = "Snatch",
+                    name = stringResource(R.string.motion_name_snatch),
                     type = MotionType.BARBELL,
                     message = MotionEditorMessage.DeleteBlocked
                 )
@@ -768,4 +768,3 @@ private fun MotionEditorPreview() {
         )
     }
 }
-

@@ -1,14 +1,16 @@
 package com.potato.liftinsight.training.data
 
+import androidx.annotation.StringRes
+import com.potato.liftinsight.R
 import com.potato.liftinsight.video.imported.ImportedVideoAnalysisMode
 import com.potato.liftinsight.video.imported.ImportedVideoSource
 
-enum class MotionType(val displayName: String) {
-    MACHINE_COMPOUND("Machine Compound"),
-    FREE_WEIGHT_COMPOUND("Free-Weight Compound"),
-    BARBELL("Barbell"),
-    STATIC("Static"),
-    SELF_WEIGHT("Self-Weight")
+enum class MotionType(@param:StringRes val labelResId: Int) {
+    MACHINE_COMPOUND(R.string.motion_type_machine_compound),
+    FREE_WEIGHT_COMPOUND(R.string.motion_type_free_weight_compound),
+    BARBELL(R.string.motion_type_barbell),
+    STATIC(R.string.motion_type_static),
+    SELF_WEIGHT(R.string.motion_type_self_weight)
 }
 
 data class MotionRecord(
@@ -128,4 +130,3 @@ data class CreateHistoryRequest(
     val intensity: Int = 0,
     val dayIndex: Int = 0
 )
-

@@ -36,6 +36,7 @@ import com.potato.liftinsight.plan.data.TrainingPlanStore
 import com.potato.liftinsight.plan.data.defaultTrainingPlanSeedCatalog
 import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.record.controller.TrainingHistoryController
+import com.potato.liftinsight.settings.AppLanguageMode
 import com.potato.liftinsight.training.data.MotionStore
 import com.potato.liftinsight.ui.theme.AppThemeMode
 import com.potato.liftinsight.video.VideoExporter
@@ -51,7 +52,9 @@ fun HomeRoute(
     currentCleanupThresholdDays: Int = 30,
     onCleanupThresholdDaysChanged: (Int) -> Unit = {},
     currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native,
-    onCameraCaptureModeChanged: (CameraCaptureMode) -> Unit = {}
+    onCameraCaptureModeChanged: (CameraCaptureMode) -> Unit = {},
+    currentLanguageMode: AppLanguageMode = AppLanguageMode.FollowSystem,
+    onLanguageModeChanged: (AppLanguageMode) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -158,6 +161,8 @@ fun HomeRoute(
         currentCleanupThresholdDays = currentCleanupThresholdDays,
         onCleanupThresholdDaysChanged = onCleanupThresholdDaysChanged,
         currentCameraCaptureMode = currentCameraCaptureMode,
-        onCameraCaptureModeChanged = onCameraCaptureModeChanged
+        onCameraCaptureModeChanged = onCameraCaptureModeChanged,
+        currentLanguageMode = currentLanguageMode,
+        onLanguageModeChanged = onLanguageModeChanged
     )
 }

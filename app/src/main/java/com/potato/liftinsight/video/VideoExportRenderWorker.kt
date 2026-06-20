@@ -1,9 +1,11 @@
 package com.potato.liftinsight.video
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
+import com.potato.liftinsight.R
 import com.potato.liftinsight.common.logging.AppLogger
 import com.potato.liftinsight.record.LandmarkPosition
 import com.potato.liftinsight.record.parseLandmarksJson
@@ -15,6 +17,7 @@ import com.potato.liftinsight.training.data.TimeseriesPoint
 import java.io.File
 
 internal class VideoExportRenderWorker(
+    private val context: Context,
     private val videoFileManager: VideoFileManager,
     private val poseFrameDao: PoseFrameDao,
     private val timeseriesDao: TimeseriesDao,
@@ -314,11 +317,11 @@ internal class VideoExportRenderWorker(
 
     private fun buildAngleTextLinesFromMap(angles: Map<String, Double?>): List<String> {
         val lines = mutableListOf<String>()
-        angles["spine_angle"]?.let { lines += "Spine: %.1f\u00B0".format(it) }
-        angles["left_leg_spine_angle"]?.let { lines += "L Leg-Spine: %.1f\u00B0".format(it) }
-        angles["right_leg_spine_angle"]?.let { lines += "R Leg-Spine: %.1f\u00B0".format(it) }
-        angles["left_knee_angle"]?.let { lines += "L Knee: %.1f\u00B0".format(it) }
-        angles["right_knee_angle"]?.let { lines += "R Knee: %.1f\u00B0".format(it) }
+        angles["spine_angle"]?.let { lines += context.getString(R.string.training_video_overlay_spine_angle, it) }
+        angles["left_leg_spine_angle"]?.let { lines += context.getString(R.string.training_video_overlay_left_leg_spine_angle, it) }
+        angles["right_leg_spine_angle"]?.let { lines += context.getString(R.string.training_video_overlay_right_leg_spine_angle, it) }
+        angles["left_knee_angle"]?.let { lines += context.getString(R.string.training_video_overlay_left_knee_angle, it) }
+        angles["right_knee_angle"]?.let { lines += context.getString(R.string.training_video_overlay_right_knee_angle, it) }
         return lines
     }
 

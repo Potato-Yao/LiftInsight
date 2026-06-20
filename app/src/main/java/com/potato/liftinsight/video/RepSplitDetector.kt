@@ -126,16 +126,27 @@ object RepSplitDetector {
 
         if (candidates.isEmpty()) return null
 
-        // Select the better candidate by count and time span
-        val selected = candidates.maxByOrNull { group ->
-            group.count.toLong() * 100_000L + (group.xMax - group.xMin)
+        // Clean candidates: filter points by min time gap and recalculate stats
+        val cleanedCandidates = candidates.mapNotNull { group ->
+            val cleanPoints = filterPointsByMinGap(group.points, minGapMs)
+            if (cleanPoints.size < 2) return@mapNotNull null
+            group.copy(
+                points = cleanPoints,
+                count = cleanPoints.size,
+                xMin = cleanPoints.minOf { it.timestampMs },
+                xMax = cleanPoints.maxOf { it.timestampMs }
+            )
+        }
+
+        if (cleanedCandidates.isEmpty()) return null
+
+        // Select the better candidate: primary by count, secondary by time span
+        val selected = cleanedCandidates.maxByOrNull { group: LevelGroup ->
+            group.count.toLong() * 1_000_000L + (group.xMax - group.xMin)
         } ?: return null
 
-        // Extract split times from the selected group's points, filter by min gap
-        val splitTimesMs = filterByMinGap(
-            times = selected.points.map { it.timestampMs },
-            minGapMs = minGapMs
-        )
+        // Split times from already-cleaned points
+        val splitTimesMs = selected.points.map { it.timestampMs }
 
         if (splitTimesMs.size < 2) return null
 
@@ -230,6 +241,24 @@ object RepSplitDetector {
     }
 
     /**
+     * Filter a list of timeseries points by minimum gap between consecutive timestamps.
+     * Returns points sorted by timestamp, keeping the first of any too-close pair.
+     * Ported from Python filter_points_by_time_gap.
+     */
+    internal fun filterPointsByMinGap(
+        points: List<TimeseriesPoint>,
+        minGapMs: Long
+    ): List<TimeseriesPoint> {
+        val filtered = mutableListOf<TimeseriesPoint>()
+        for (point in points.sortedBy { it.timestampMs }) {
+            if (filtered.isEmpty() || point.timestampMs - filtered.last().timestampMs >= minGapMs) {
+                filtered.add(point)
+            }
+        }
+        return filtered
+    }
+
+    /**
      * Filter a list of timestamps by minimum gap between consecutive entries.
      * Returns timestamps in ascending order, keeping the first of any too-close pair.
      */
@@ -299,7 +328,7 @@ object RepSplitDetector {
         val filtered = if (consensus.isNotEmpty()) {
             filterByMinGap(consensus, minGapMs)
         } else if (selected.isNotEmpty()) {
-            selected.first().splitTimesMs
+            filterByMinGap(selected.first().splitTimesMs, minGapMs)
         } else {
             emptyList()
         }

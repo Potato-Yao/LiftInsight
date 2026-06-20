@@ -33,6 +33,7 @@ import com.potato.liftinsight.plan.model.PlanState
 import com.potato.liftinsight.plan.route.isPlanRouteFullScreen
 import com.potato.liftinsight.record.RecordTabHost
 import com.potato.liftinsight.record.controller.TrainingHistoryController
+import com.potato.liftinsight.settings.AppLanguageMode
 import com.potato.liftinsight.settings.SettingsScreen
 import com.potato.liftinsight.ui.theme.AppThemeMode
 import com.potato.liftinsight.ui.theme.LiftInsightMotion
@@ -63,7 +64,9 @@ internal fun HomeShell(
     currentCleanupThresholdDays: Int = 30,
     onCleanupThresholdDaysChanged: (Int) -> Unit = {},
     currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native,
-    onCameraCaptureModeChanged: (CameraCaptureMode) -> Unit = {}
+    onCameraCaptureModeChanged: (CameraCaptureMode) -> Unit = {},
+    currentLanguageMode: AppLanguageMode = AppLanguageMode.FollowSystem,
+    onLanguageModeChanged: (AppLanguageMode) -> Unit = {}
 ) {
     val coroutineScope = rememberCoroutineScope()
     val isFullScreenRoute = isPlanRouteFullScreen(planState.planRoute)
@@ -196,6 +199,8 @@ internal fun HomeShell(
                         onCleanupThresholdDaysChanged = onCleanupThresholdDaysChanged,
                         currentCameraCaptureMode = currentCameraCaptureMode,
                         onCameraCaptureModeChanged = onCameraCaptureModeChanged,
+                        currentLanguageMode = currentLanguageMode,
+                        onLanguageModeSelected = onLanguageModeChanged,
                         modifier = Modifier.padding(innerPadding)
                     )
                 }

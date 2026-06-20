@@ -9,6 +9,41 @@ import org.junit.Test
 
 class RepSplitDetectorTest {
 
+    // ── filterPointsByMinGap ─────────────────────────────────────────
+
+    @Test
+    fun `filterPointsByMinGap removes points too close together`() {
+        val points = listOf(
+            TimeseriesPoint(100L, 80.0),
+            TimeseriesPoint(300L, 81.0),
+            TimeseriesPoint(700L, 79.0),
+            TimeseriesPoint(1400L, 82.0),
+            TimeseriesPoint(1600L, 80.0)
+        )
+        val result = RepSplitDetector.filterPointsByMinGap(points, minGapMs = 500L)
+        assertEquals(3, result.size)
+        assertEquals(listOf(100L, 700L, 1400L), result.map { it.timestampMs })
+    }
+
+    @Test
+    fun `filterPointsByMinGap keeps all when gaps are large`() {
+        val points = listOf(
+            TimeseriesPoint(1000L, 90.0),
+            TimeseriesPoint(2500L, 91.0),
+            TimeseriesPoint(4000L, 89.0)
+        )
+        val result = RepSplitDetector.filterPointsByMinGap(points, minGapMs = 600L)
+        assertEquals(3, result.size)
+        assertEquals(listOf(1000L, 2500L, 4000L), result.map { it.timestampMs })
+    }
+
+    @Test
+    fun `filterPointsByMinGap returns single point unchanged`() {
+        val points = listOf(TimeseriesPoint(500L, 80.0))
+        val result = RepSplitDetector.filterPointsByMinGap(points, minGapMs = 600L)
+        assertEquals(1, result.size)
+    }
+
     // ── filterByMinGap ──────────────────────────────────────────────
 
     @Test
@@ -131,6 +166,44 @@ class RepSplitDetectorTest {
     }
 
     @Test
+    fun `analyzeCurveSplits cleans candidates before selecting winner`() {
+        // Maxima group has more raw points than minima,
+        // but max points are tightly clustered in time (gaps < minGapMs).
+        // After cleaning, max candidate shrinks below min candidate → min wins.
+        val points = listOf(
+            TimeseriesPoint(0L, 170.0),
+            TimeseriesPoint(200L, 130.0),
+            TimeseriesPoint(500L, 80.0),       // min 1
+            TimeseriesPoint(800L, 130.0),
+            TimeseriesPoint(900L, 170.0),      // max 1
+            TimeseriesPoint(1000L, 169.0),     // min-like (plateau dip)
+            TimeseriesPoint(1100L, 170.0),     // max 2 (only 200ms from max 1)
+            TimeseriesPoint(1300L, 130.0),
+            TimeseriesPoint(2000L, 80.0),      // min 2
+            TimeseriesPoint(2500L, 130.0),
+            TimeseriesPoint(3000L, 170.0),     // max 3 (distant)
+            TimeseriesPoint(3500L, 130.0),
+            TimeseriesPoint(4000L, 80.0),      // min 3
+            TimeseriesPoint(4500L, 130.0),
+            TimeseriesPoint(5000L, 170.0)
+        )
+        val result = RepSplitDetector.analyzeCurveSplits(
+            simplified = points,
+            levelTolerance = 20.0,
+            minGapMs = 600L,
+            name = "test"
+        )
+        assertNotNull(result)
+        // Max raw points: (900,170), (1100,170), (3000,170) → 3 raw points
+        // After gap filtering (minGapMs=600): 900 kept, 1100 skipped (gap=200), 3000 kept → 2 clean points
+        // Min raw points: (500,80), (2000,80), (4000,80) → 3 raw points
+        // After gap filtering: all gaps >= 1500 → 3 clean points
+        // Min wins by count: (3, span) > (2, span)
+        assertEquals("min", result!!.kind)
+        assertEquals(3, result.count)
+    }
+
+    @Test
     fun `analyzeCurveSplits returns null when no extrema found`() {
         // Strictly monotonic curve has no local extrema in interior
         val points = listOf(
@@ -237,6 +310,48 @@ class RepSplitDetectorTest {
     }
 
     // ── detectRepSplits integration ─────────────────────────────────
+
+    @Test
+    fun `consensusSplitTimes fallback applies gap filtering`() {
+        // Two curves with completely non-overlapping split times.
+        // No clusters reach minVotes=2, so consensus is empty.
+        // Fallback to best curve's splits, which must be gap-filtered.
+        val curves = listOf(
+            RepSplitDetector.CurveSplitResult(
+                splitTimesMs = listOf(1000L, 1050L, 1400L, 3000L),
+                score = 0.9,
+                kind = "min",
+                level = 80.0,
+                levelStd = 2.0,
+                angleRange = 90.0,
+                intervalCv = 0.1,
+                count = 4,
+                name = "left_knee_angle"
+            ),
+            RepSplitDetector.CurveSplitResult(
+                splitTimesMs = listOf(5000L),
+                score = 0.3,
+                kind = "min",
+                level = 85.0,
+                levelStd = 5.0,
+                angleRange = 60.0,
+                intervalCv = 0.5,
+                count = 1,
+                name = "right_knee_angle"
+            )
+        )
+        val result = RepSplitDetector.consensusSplitTimes(
+            curveResults = curves,
+            maxCurves = 2,
+            mergeWindowMs = 200L,
+            minGapMs = 600L
+        )
+        // No clusters with 2 distinct names → consensus empty → fallback to best curve.
+        // Best curve raw splits: [1000, 1050, 1400, 3000]
+        // After gap filtering (minGapMs=600): keep 1000, skip 1050 (50ms gap),
+        // skip 1400 (400ms from 1000), keep 3000 (2000ms from 1000)
+        assertEquals(listOf(1000L, 3000L), result.splitTimesMs)
+    }
 
     @Test
     fun `detectRepSplits returns empty for empty timeseries`() {

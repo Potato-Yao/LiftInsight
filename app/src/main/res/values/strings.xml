@@ -26,6 +26,16 @@
     <string name="settings_theme_light_subtitle">Use a bright interface for a clean daytime look.</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_theme_dark_subtitle">Use a darker interface that stays comfortable in low light.</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_summary">Current: %1$s</string>
+    <string name="settings_language_page_title">App language</string>
+    <string name="settings_language_page_subtitle">Choose the language LiftInsight uses for menus, labels, and messages.</string>
+    <string name="settings_language_follow_system">Follow system</string>
+    <string name="settings_language_follow_system_subtitle">Use the language selected in Android system settings.</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_english_subtitle">Show LiftInsight in English.</string>
+    <string name="settings_language_chinese">简体中文</string>
+    <string name="settings_language_chinese_subtitle">使用简体中文显示举重明析。</string>
     <string name="settings_about">About</string>
     <string name="settings_about_subtitle">View app details and project information.</string>
     <string name="about_panel_title">About</string>
@@ -142,6 +152,7 @@
     <string name="motion_name_snatch_pull">Snatch Pull</string>
     <string name="motion_name_clean_pull">Clean Pull</string>
     <string name="motion_name_push_press">Push Press</string>
+    <string name="motion_name_bench_press">Bench Press</string>
     <string name="motion_add_content_description">Add motion</string>
     <string name="motion_edit_content_description">Edit %1$s</string>
     <string name="motion_library_label">Motion library</string>
@@ -198,7 +209,7 @@
     <string name="training_detail_video_status">Video status</string>
     <string name="training_detail_video_analysis">Analysis</string>
     <string name="training_detail_section_title">Session details</string>
-    <string name="training_detail_summary">%.1f kg • %2$d reps • RPE %3$d</string>
+    <string name="training_detail_summary">%1$.1f kg • %2$d reps • RPE %3$d</string>
     <string name="training_detail_edit_content_description">Edit %1$s details</string>
     <string name="training_detail_save_content_description">Save %1$s details</string>
     <string name="training_play_video">Play</string>
