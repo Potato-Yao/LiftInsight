@@ -902,6 +902,61 @@ def calculate_knee_angle(pose_landmarks, h=1, w=1):
     return left_angle, right_angle
 
 
+def calculate_elbow_angle(pose_landmarks, h=1, w=1):
+    """
+    Calculate the angle at the elbow between upper arm and forearm.
+    Returns: (left_angle, right_angle) in degrees (180 = straight arm, <180 = bent).
+    """
+    if len(pose_landmarks) < 17:
+        return None, None
+
+    left_shoulder = pose_landmarks[LEFT_SHOULDER]
+    right_shoulder = pose_landmarks[RIGHT_SHOULDER]
+    left_elbow = pose_landmarks[LEFT_ELBOW]
+    right_elbow = pose_landmarks[RIGHT_ELBOW]
+    left_wrist = pose_landmarks[LEFT_WRIST]
+    right_wrist = pose_landmarks[RIGHT_WRIST]
+
+    left_angle = None
+    right_angle = None
+
+    if (left_shoulder.visibility >= 0.5 and left_elbow.visibility >= 0.5 and
+            left_wrist.visibility >= 0.5):
+        upper_arm_vec = np.array([
+            (left_shoulder.x - left_elbow.x) * w,
+            (left_shoulder.y - left_elbow.y) * h
+        ])
+        forearm_vec = np.array([
+            (left_wrist.x - left_elbow.x) * w,
+            (left_wrist.y - left_elbow.y) * h
+        ])
+        upper_arm_len = np.linalg.norm(upper_arm_vec)
+        forearm_len = np.linalg.norm(forearm_vec)
+        if upper_arm_len > 0 and forearm_len > 0:
+            cos_angle = np.clip(np.dot(upper_arm_vec, forearm_vec) /
+                                (upper_arm_len * forearm_len), -1.0, 1.0)
+            left_angle = np.degrees(np.arccos(cos_angle))
+
+    if (right_shoulder.visibility >= 0.5 and right_elbow.visibility >= 0.5 and
+            right_wrist.visibility >= 0.5):
+        upper_arm_vec = np.array([
+            (right_shoulder.x - right_elbow.x) * w,
+            (right_shoulder.y - right_elbow.y) * h
+        ])
+        forearm_vec = np.array([
+            (right_wrist.x - right_elbow.x) * w,
+            (right_wrist.y - right_elbow.y) * h
+        ])
+        upper_arm_len = np.linalg.norm(upper_arm_vec)
+        forearm_len = np.linalg.norm(forearm_vec)
+        if upper_arm_len > 0 and forearm_len > 0:
+            cos_angle = np.clip(np.dot(upper_arm_vec, forearm_vec) /
+                                (upper_arm_len * forearm_len), -1.0, 1.0)
+            right_angle = np.degrees(np.arccos(cos_angle))
+
+    return left_angle, right_angle
+
+
 def compute_body_angles(pose_landmarks, h=1, w=1):
     """
     Compute a compact set of key body angles from pose landmarks.
@@ -1167,6 +1222,7 @@ def draw_landmarks_on_image(rgb_image, detection_result):
             left_leg_spine_angle, right_leg_spine_angle = calculate_leg_spine_angle(pose_landmarks, mid_shoulder, mid_hip, h, w)
             left_foot_leg_angle, right_foot_leg_angle = calculate_foot_leg_angle(pose_landmarks, h, w)
             left_knee_angle, right_knee_angle = calculate_knee_angle(pose_landmarks, h, w)
+            left_elbow_angle, right_elbow_angle = calculate_elbow_angle(pose_landmarks, h, w)
 
             # Store spine data
             spine_data = {
@@ -1178,7 +1234,9 @@ def draw_landmarks_on_image(rgb_image, detection_result):
                 'left_foot_leg_angle': left_foot_leg_angle,
                 'right_foot_leg_angle': right_foot_leg_angle,
                 'left_knee_angle': left_knee_angle,
-                'right_knee_angle': right_knee_angle
+                'right_knee_angle': right_knee_angle,
+                'left_elbow_angle': left_elbow_angle,
+                'right_elbow_angle': right_elbow_angle
             }
 
             # Display joint angles
@@ -1211,6 +1269,16 @@ def draw_landmarks_on_image(rgb_image, detection_result):
 
             if right_knee_angle is not None:
                 cv2.putText(annotated_image, f"R Knee Angle: {right_knee_angle:.1f} deg", (10, y_offset),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+                y_offset += 40
+
+            if left_elbow_angle is not None:
+                cv2.putText(annotated_image, f"L Elbow Angle: {left_elbow_angle:.1f} deg", (10, y_offset),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+                y_offset += 40
+
+            if right_elbow_angle is not None:
+                cv2.putText(annotated_image, f"R Elbow Angle: {right_elbow_angle:.1f} deg", (10, y_offset),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
                 y_offset += 40
 
@@ -1378,6 +1446,14 @@ def filter_split_times_by_gap(times, min_gap_seconds=0.6):
     return filtered
 
 
+def filter_points_by_time_gap(points, min_gap_seconds=0.6):
+    filtered = []
+    for point in sorted(points, key=lambda p: p[0]):
+        if not filtered or point[0] - filtered[-1][0] >= min_gap_seconds:
+            filtered.append(point)
+    return filtered
+
+
 def split_times_from_curve(simplified, level_tolerance=8.0, min_gap_seconds=0.6):
     """
     Detect repetition split points for one curve using its own extrema.
@@ -1421,14 +1497,26 @@ def analyze_curve_splits(simplified, level_tolerance=8.0, min_gap_seconds=0.6):
         group = max(max_groups, key=lambda g: g['y'])
         group['kind'] = 'max'
         candidates.append(group)
-    if not candidates:
+
+    cleaned_candidates = []
+    for group in candidates:
+        clean_points = filter_points_by_time_gap(group['points'],
+                                                 min_gap_seconds=min_gap_seconds)
+        if len(clean_points) < 2:
+            continue
+        clean_group = group.copy()
+        clean_group['points'] = clean_points
+        clean_group['count'] = len(clean_points)
+        clean_group['x_min'] = min(point[0] for point in clean_points)
+        clean_group['x_max'] = max(point[0] for point in clean_points)
+        cleaned_candidates.append(clean_group)
+
+    if not cleaned_candidates:
         return None
 
-    selected = max(candidates, key=lambda group: (group['count'], group['x_max'] - group['x_min']))
-    split_times = filter_split_times_by_gap([point[0] for point in selected['points']],
-                                            min_gap_seconds=min_gap_seconds)
-    if len(split_times) < 2:
-        return None
+    selected = max(cleaned_candidates,
+                   key=lambda group: (group['count'], group['x_max'] - group['x_min']))
+    split_times = [point[0] for point in selected['points']]
 
     intervals = np.diff(split_times)
     interval_mean = float(np.mean(intervals)) if len(intervals) else 0.0
@@ -1547,7 +1635,8 @@ def auto_template_split(signal):
 
 def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angles,
                          left_foot_leg_angles, right_foot_leg_angles,
-                         left_knee_angles, right_knee_angles, video_path,
+                         left_knee_angles, right_knee_angles,
+                         left_elbow_angles, right_elbow_angles, video_path,
                          rdp_epsilon=1.5):
     """
     Generate and save plots for spine-leg angle vs time and foot-leg angle vs time.
@@ -1561,6 +1650,8 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
         right_foot_leg_angles: List of right foot-leg angles (or None for missing frames)
         left_knee_angles: List of left knee angles (or None for missing frames)
         right_knee_angles: List of right knee angles (or None for missing frames)
+        left_elbow_angles: List of left elbow angles (or None for missing frames)
+        right_elbow_angles: List of right elbow angles (or None for missing frames)
         video_path: Path to the video file (used for naming output files)
         rdp_epsilon: RDP simplification tolerance (degrees). Larger = smoother.
     """
@@ -1571,12 +1662,18 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
     valid_right_foot = [(t, a) for t, a in zip(time_data, right_foot_leg_angles) if a is not None]
     valid_left_knee = [(t, a) for t, a in zip(time_data, left_knee_angles) if a is not None]
     valid_right_knee = [(t, a) for t, a in zip(time_data, right_knee_angles) if a is not None]
+    valid_left_elbow = [(t, a) for t, a in zip(time_data, left_elbow_angles) if a is not None]
+    valid_right_elbow = [(t, a) for t, a in zip(time_data, right_elbow_angles) if a is not None]
 
     curve_results = []
+    split_level_tolerance = 8.0
+    split_min_gap_seconds = 0.6
+    consensus_max_curves = 3
+    consensus_merge_window_seconds = 0.5
 
     # Create figure with subplots
-    fig, axes = plt.subplots(4, 1, figsize=(14, 14), sharex=True,
-                             gridspec_kw={'height_ratios': [1, 1, 1, 0.45]})
+    fig, axes = plt.subplots(5, 1, figsize=(14, 17), sharex=True,
+                             gridspec_kw={'height_ratios': [1, 1, 1, 1, 0.45]})
     fig.suptitle(f'Angle Analysis: {video_path.split("/")[-1]}', fontsize=14, fontweight='bold')
 
     # Plot 1: Left & Right Spine-Leg Angle vs Time
@@ -1585,7 +1682,9 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
         times, angles = zip(*valid_left_leg_spine)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
-        split_result = analyze_curve_splits(simplified)
+        split_result = analyze_curve_splits(simplified,
+                                            level_tolerance=split_level_tolerance,
+                                            min_gap_seconds=split_min_gap_seconds)
         if split_result:
             split_result.update({'name': 'Left spine-leg', 'color': 'blue', 'axis': 0})
             curve_results.append(split_result)
@@ -1600,7 +1699,9 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
         times, angles = zip(*valid_right_leg_spine)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
-        split_result = analyze_curve_splits(simplified)
+        split_result = analyze_curve_splits(simplified,
+                                            level_tolerance=split_level_tolerance,
+                                            min_gap_seconds=split_min_gap_seconds)
         if split_result:
             split_result.update({'name': 'Right spine-leg', 'color': 'cyan', 'axis': 0})
             curve_results.append(split_result)
@@ -1632,7 +1733,9 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
         times, angles = zip(*valid_left_foot)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
-        split_result = analyze_curve_splits(simplified)
+        split_result = analyze_curve_splits(simplified,
+                                            level_tolerance=split_level_tolerance,
+                                            min_gap_seconds=split_min_gap_seconds)
         if split_result:
             split_result.update({'name': 'Left foot-leg', 'color': 'red', 'axis': 1})
             curve_results.append(split_result)
@@ -1647,7 +1750,9 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
         times, angles = zip(*valid_right_foot)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
-        split_result = analyze_curve_splits(simplified)
+        split_result = analyze_curve_splits(simplified,
+                                            level_tolerance=split_level_tolerance,
+                                            min_gap_seconds=split_min_gap_seconds)
         if split_result:
             split_result.update({'name': 'Right foot-leg', 'color': 'orange', 'axis': 1})
             curve_results.append(split_result)
@@ -1672,7 +1777,9 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
         times, angles = zip(*valid_left_knee)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
-        split_result = analyze_curve_splits(simplified)
+        split_result = analyze_curve_splits(simplified,
+                                            level_tolerance=split_level_tolerance,
+                                            min_gap_seconds=split_min_gap_seconds)
         if split_result:
             split_result.update({'name': 'Left knee', 'color': 'green', 'axis': 2})
             curve_results.append(split_result)
@@ -1687,7 +1794,9 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
         times, angles = zip(*valid_right_knee)
         pts = np.column_stack([times, angles])
         simplified = rdp_simplify(pts, rdp_epsilon)
-        split_result = analyze_curve_splits(simplified)
+        split_result = analyze_curve_splits(simplified,
+                                            level_tolerance=split_level_tolerance,
+                                            min_gap_seconds=split_min_gap_seconds)
         if split_result:
             split_result.update({'name': 'Right knee', 'color': 'lime', 'axis': 2})
             curve_results.append(split_result)
@@ -1708,8 +1817,72 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
     axes[2].grid(True, alpha=0.3)
     axes[2].set_ylim([0, 200])
 
-    # --- Select best curves and draw final consensus split lines ---
-    final_split_times, selected_curves = consensus_split_times(curve_results)
+    # Plot 4: Left & Right Elbow Angle vs Time
+    elbow_level_points = []
+    if valid_left_elbow:
+        times, angles = zip(*valid_left_elbow)
+        pts = np.column_stack([times, angles])
+        simplified = rdp_simplify(pts, rdp_epsilon)
+        split_result = analyze_curve_splits(simplified,
+                                            level_tolerance=split_level_tolerance,
+                                            min_gap_seconds=split_min_gap_seconds)
+        if split_result:
+            split_result.update({'name': 'Left elbow', 'color': 'purple', 'axis': 3})
+            curve_results.append(split_result)
+            print(f"Auto-split: scored {len(split_result['split_times'])} left elbow split(s) "
+                  f"at {split_result['score']:.2f}")
+        elbow_level_points.extend(simplified.tolist())
+        axes[3].plot(times, angles, color='purple', linewidth=0.5, alpha=0.3, label='Left raw')
+        axes[3].plot(simplified[:, 0], simplified[:, 1], color='purple', linewidth=2,
+                     label=f'Left RDP (eps={rdp_epsilon})')
+        axes[3].scatter(simplified[:, 0], simplified[:, 1], c='purple', s=15, zorder=5)
+    if valid_right_elbow:
+        times, angles = zip(*valid_right_elbow)
+        pts = np.column_stack([times, angles])
+        simplified = rdp_simplify(pts, rdp_epsilon)
+        split_result = analyze_curve_splits(simplified,
+                                            level_tolerance=split_level_tolerance,
+                                            min_gap_seconds=split_min_gap_seconds)
+        if split_result:
+            split_result.update({'name': 'Right elbow', 'color': 'magenta', 'axis': 3})
+            curve_results.append(split_result)
+            print(f"Auto-split: scored {len(split_result['split_times'])} right elbow split(s) "
+                  f"at {split_result['score']:.2f}")
+        elbow_level_points.extend(simplified.tolist())
+        axes[3].plot(times, angles, color='magenta', linewidth=0.5, alpha=0.3, label='Right raw')
+        axes[3].plot(simplified[:, 0], simplified[:, 1], color='magenta', linewidth=2,
+                     label=f'Right RDP (eps={rdp_epsilon})')
+        axes[3].scatter(simplified[:, 0], simplified[:, 1], c='magenta', s=15, zorder=5)
+    mark_horizontal_levels(axes[3], elbow_level_points)
+    axes[3].axhline(y=180, color='b', linestyle='--', alpha=0.5, label='Straight (180°)')
+    axes[3].axhline(y=90, color='r', linestyle='--', alpha=0.5, label='Bent 90°')
+    axes[3].set_xlabel('Time (seconds)')
+    axes[3].set_ylabel('Angle (degrees)')
+    axes[3].set_title('Elbow Angle vs Time — Left & Right')
+    axes[3].legend(loc='upper right')
+    axes[3].grid(True, alpha=0.3)
+    axes[3].set_ylim([0, 200])
+
+    # --- Draw each curve's own split lines on its angle subplot ---
+    for curve in curve_results:
+        ax = axes[curve['axis']]
+        for si, st in enumerate(curve['split_times']):
+            ax.axvline(x=st, color=curve['color'], linestyle='--', linewidth=1.1, alpha=0.75,
+                       label=f"{curve['name']} split" if si == 0 else '')
+            ax.text(st, ax.get_ylim()[1] * 0.97, f'R{si + 1}',
+                    ha='center', va='top', fontsize=8, color=curve['color'],
+                    fontweight='bold')
+
+    for axis_index in range(4):
+        axis_has_splits = any(curve['axis'] == axis_index for curve in curve_results)
+        if axis_has_splits:
+            axes[axis_index].legend(loc='upper right')
+
+    # --- Select best curves for the final consensus split plot ---
+    final_split_times, selected_curves = consensus_split_times(
+        curve_results,
+        max_curves=consensus_max_curves,
+        merge_window_seconds=consensus_merge_window_seconds)
     if selected_curves:
         selected_names = ', '.join([f"{curve['name']} ({curve['score']:.2f})"
                                     for curve in selected_curves])
@@ -1717,18 +1890,7 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
     if final_split_times:
         print(f"Final split: detected {len(final_split_times)} repetition split(s)")
 
-    for axis_index in range(3):
-        ax = axes[axis_index]
-        for si, st in enumerate(final_split_times):
-            ax.axvline(x=st, color='black', linestyle='--', linewidth=1.6, alpha=0.85,
-                       label='Final rep split' if si == 0 else '')
-            ax.text(st, ax.get_ylim()[1] * 0.97, f'R{si + 1}',
-                    ha='center', va='top', fontsize=8, color='black',
-                    fontweight='bold')
-        if final_split_times:
-            ax.legend(loc='upper right')
-
-    split_ax = axes[3]
+    split_ax = axes[4]
     if selected_curves:
         y_ticks = []
         y_labels = []
@@ -1758,7 +1920,17 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
     split_ax.set_title('Final Rep Split Consensus')
     split_ax.grid(True, axis='x', alpha=0.3)
 
-    plt.tight_layout()
+    tolerance_text = (
+        f"Split settings: RDP eps={rdp_epsilon}, "
+        f"level tolerance={split_level_tolerance:.1f}\u00b0, "
+        f"min split gap={split_min_gap_seconds:.1f}s, "
+        f"consensus window={consensus_merge_window_seconds:.1f}s, "
+        f"top curves={consensus_max_curves}"
+    )
+    fig.text(0.01, 0.01, tolerance_text, ha='left', va='bottom', fontsize=8,
+             bbox=dict(boxstyle='round,pad=0.25', fc='white', alpha=0.85))
+
+    plt.tight_layout(rect=[0, 0.03, 1, 1])
 
     # Save the plot
     plot_path = video_path.replace('.mp4', '_angle_plots.png')
@@ -1798,6 +1970,16 @@ def generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angle
     if valid_right_knee:
         _, angles = zip(*valid_right_knee)
         print(f"\nRight Knee Angle Statistics:")
+        print(f"  Min: {min(angles):.1f}\u00b0, Max: {max(angles):.1f}\u00b0, Mean: {np.mean(angles):.1f}\u00b0")
+
+    if valid_left_elbow:
+        _, angles = zip(*valid_left_elbow)
+        print(f"\nLeft Elbow Angle Statistics:")
+        print(f"  Min: {min(angles):.1f}\u00b0, Max: {max(angles):.1f}\u00b0, Mean: {np.mean(angles):.1f}\u00b0")
+
+    if valid_right_elbow:
+        _, angles = zip(*valid_right_elbow)
+        print(f"\nRight Elbow Angle Statistics:")
         print(f"  Min: {min(angles):.1f}\u00b0, Max: {max(angles):.1f}\u00b0, Mean: {np.mean(angles):.1f}\u00b0")
 
 
@@ -1988,6 +2170,8 @@ def process_video(video_path, model_path):
     right_foot_leg_angles = []
     left_knee_angles = []
     right_knee_angles = []
+    left_elbow_angles = []
+    right_elbow_angles = []
     # Data collection for barbell confidence plot
     barbell_confidence_data = []
     barbell_confidence_details_data = []
@@ -2021,6 +2205,8 @@ def process_video(video_path, model_path):
             right_foot_leg_angles.append(spine_data.get('right_foot_leg_angle'))
             left_knee_angles.append(spine_data.get('left_knee_angle'))
             right_knee_angles.append(spine_data.get('right_knee_angle'))
+            left_elbow_angles.append(spine_data.get('left_elbow_angle'))
+            right_elbow_angles.append(spine_data.get('right_elbow_angle'))
         else:
             left_leg_spine_angles.append(None)
             right_leg_spine_angles.append(None)
@@ -2028,6 +2214,8 @@ def process_video(video_path, model_path):
             right_foot_leg_angles.append(None)
             left_knee_angles.append(None)
             right_knee_angles.append(None)
+            left_elbow_angles.append(None)
+            right_elbow_angles.append(None)
 
         # Collect barbell confidence data
         if (barbell_result is not None and barbell_result.get('barbell') is not None):
@@ -2063,6 +2251,7 @@ def process_video(video_path, model_path):
         generate_angle_plots(time_data, left_leg_spine_angles, right_leg_spine_angles,
                              left_foot_leg_angles, right_foot_leg_angles,
                              left_knee_angles, right_knee_angles,
+                             left_elbow_angles, right_elbow_angles,
                              video_path, 0.4)
 
     # Generate barbell confidence plot
@@ -2091,6 +2280,7 @@ def main():
     videos = ["petal_20260313_140005.mp4"]
     videos = ["petal_20260320_194209.mp4", "petal_20260320_200055.mp4"]
     videos = ["period_pure.mp4"]
+    videos = ["period.mp4"]
 
     # Use the full model for good balance of speed/accuracy
     selected_model = model_full

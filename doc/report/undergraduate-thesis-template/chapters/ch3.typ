@@ -1,9 +1,5 @@
 #import math.op
 
-#import "@preview/algorithmic:1.0.7"
-#import algorithmic: algorithm-figure, style-algorithm
-#show: style-algorithm
-
 #import "../image_scale.typ": big_image_scale, image_scale, small_image_scale
 #let avg = op("avg")
 #let med = op("median")
@@ -82,8 +78,6 @@
   ],
   caption: "sRPE系数",
 )
-
-
 
 借助sRPE就可以计算一次训练的训练强度：
 
