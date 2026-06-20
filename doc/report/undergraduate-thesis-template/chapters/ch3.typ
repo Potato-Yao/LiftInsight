@@ -87,7 +87,7 @@ $ "work load" = "sRPE" times "Duration time(in minute)" $
 
 === 人体、杠铃与动作建模
 
-为了对动作进行分析，首先需要将视频中的人物转化为数学模型。一个很自然的方法是记录下若干重要部位、关节的坐标。通过这些数据即可计算各个关节的夹角等数据。对于举重来说，比较重要的有躯干角（脊椎-地面夹角）、臀位角（脊椎-股骨夹角）、膝角（股骨-胫骨夹角）和踝角（胫骨-足弓夹角）。
+为了对动作进行分析，首先需要将视频中的人物转化为数学模型。一个很自然的方法是记录下若干重要部位、关节的坐标。通过这些数据即可计算各个关节的夹角等数据。对于举重来说，比较重要的有左右股骨与脊椎所在直线的夹角（髋角）、左右股骨与胫骨的夹角（膝角）、左右胫骨与足底平面的夹角（踝角）和左右肱骨与尺骨的夹角（臂角）。
 
 只要记录下各个坐标和时间的函数关系，就对动作做出了建模。但是在实际情况中，由于模型的识别精度和准确度偏差，这样得到的数据是带有噪声的，不便于后续的数据分析。
 
@@ -221,8 +221,8 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
       $
         cases(
           forall x in X_i (| x - avg(X_i) | <= lambda),
-          union X_i = Y,
-          inter X_i = emptyset
+          union_i X_i = Y,
+          inter_i X_i = emptyset
         )
       $
 
@@ -261,7 +261,7 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
 
 在实际录制的视频中，可能有些关节被遮挡，导致对应的数据可信度低。在一些动作中，有些关节的运动幅度是极小的，如杠铃划船中的膝关节和髋关节基本不动，无法产生显著用于分段的特征。因此仅选取某一个关节的数据来进行视频分段是不合理的。因此，项目实际上采用了八个关节的数据，分别是左右股骨与脊椎所在直线的夹角（髋角）、左右股骨与胫骨的夹角（膝角）、左右胫骨与足底平面的夹角（踝角）和左右肱骨与尺骨的夹角（臂角），通过算法筛选中三组最优的，并将其合并作为最终的分段依据。
 
-为了选择最优的三组数据，我们需要设计算法量化一组数据的可信度。这基于四个因素。第一是数据点的个数，数据越多偏差就越小；第二是每个分隔之间的时间，一般做组时每次动作花费的时间是相近的，因此时间彼此越相近越好；第三是关节变化的幅度，越大越好，这是为了避免错误使用了在运动过程中保持固定的关节的数据；第四是选取来做分割的各个值之间相差多大，也就是标准差，这是因为同一动作动作进行得到的最大或最小角度应当是近似的，因此这个因素越小越好。将其归一化后加权就得到了最后量化的指标。
+为了选择最优的三组数据，我们需要设计算法量化一组数据的可信度。这基于四个因素。第一是数据点的个数，数据越多偏差就越小；第二是每个分隔之间的时间，一般做组时每次动作花费的时间是相近的，因此时间彼此越相近越好；第三是关节变化的幅度，越大越好，这是为了避免错误使用了在运动过程中保持固定的关节的数据；第四是选取来做分割的各个值之间相差多大，也就是标准差，这是因为同一动作重复进行得到的最大或最小角度应当是近似的，因此这个因素越小越好。将其归一化后加权就得到了最后量化的指标。
 
 #figure(
   kind: "algorithm",
@@ -274,7 +274,7 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
       计算数据点个数评分
 
       $
-        italic("count_score") = max((|R|)/5, 1)
+        italic("count_score") = min((|R|)/5, 1)
       $
 
       #center_down_arrow
@@ -292,7 +292,7 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
 
       计算运动幅度评分
       $
-        italic("motion_range_score") = max((theta_(95%) - theta_(5%))/(60 degree), 1)
+        italic("motion_range_score") = min((theta_(95%) - theta_(5%))/(60 degree), 1)
       $
 
       #center_down_arrow
@@ -365,147 +365,151 @@ Pose Landmark提供了33个可用的节点，每个节点提供了$x$、$y$和$z
 
 本项目借助Room框架，使用Sqlite进行数据的持久化存储，包括运动动作、训练计划、训练记录，以及应用内信息的存储。数据表都是由我设计、ChatGPT优化改进得到的。各个表的结构如下所示。
 
-```sql
--- 1. motion
-CREATE TABLE motion (
-    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    name TEXT NOT NULL
-);
-CREATE UNIQUE INDEX index_motion_name ON motion (name);
--- 2. plan
-CREATE TABLE plan (
-    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    name TEXT NOT NULL,
-    cycle_period INTEGER NOT NULL,
-    current_index INTEGER NOT NULL DEFAULT 0,
-    last_applied_at INTEGER NOT NULL DEFAULT 0
-);
--- 3. plan_selection
-CREATE TABLE plan_selection (
-    id INTEGER NOT NULL,
-    current_plan_id INTEGER,
-    current_day_epoch INTEGER,
-    PRIMARY KEY(id),
-    FOREIGN KEY(current_plan_id) REFERENCES plan(id) ON DELETE SET NULL
-);
-CREATE INDEX index_plan_selection_current_plan_id ON plan_selection (current_plan_id);
--- 4. workout_session
-CREATE TABLE workout_session (
-    id INTEGER NOT NULL,
-    is_workout_going INTEGER NOT NULL DEFAULT 0,
-    is_paused INTEGER NOT NULL DEFAULT 0,
-    started_at INTEGER NOT NULL DEFAULT 0,
-    last_resumed_at INTEGER NOT NULL DEFAULT 0,
-    elapsed_before_pause_ms INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY(id)
-);
--- 5. workout_progress
-CREATE TABLE workout_progress (
-    id INTEGER NOT NULL,
-    plan_id INTEGER NOT NULL,
-    plan_day_index INTEGER NOT NULL,
-    next_set_index INTEGER NOT NULL DEFAULT 0,
-    active_set_index INTEGER,
-    total_set_count INTEGER NOT NULL,
-    break_ends_at INTEGER NOT NULL DEFAULT 0,
-    is_finished INTEGER NOT NULL DEFAULT 0,
-    completed_elapsed_time_ms INTEGER NOT NULL DEFAULT 0,
-    active_history_id INTEGER,
-    workout_intensity INTEGER,
-    PRIMARY KEY(id)
-);
--- 6. metaplan
-CREATE TABLE metaplan (
-    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    plan_id INTEGER NOT NULL,
-    motion_id INTEGER NOT NULL,
-    day_index INTEGER NOT NULL,
-    sets INTEGER NOT NULL,
-    reps INTEGER NOT NULL,
-    intensity REAL NOT NULL DEFAULT 0.0,
-    weight REAL NOT NULL,
-    order_index INTEGER NOT NULL,
-    FOREIGN KEY(plan_id) REFERENCES plan(id) ON DELETE CASCADE,
-    FOREIGN KEY(motion_id) REFERENCES motion(id) ON DELETE RESTRICT
-);
-CREATE INDEX index_metaplan_plan_id ON metaplan (plan_id);
-CREATE INDEX index_metaplan_motion_id ON metaplan (motion_id);
-CREATE UNIQUE INDEX index_metaplan_plan_id_day_index_order_index ON metaplan (plan_id, day_index, order_index);
--- 7. history
-CREATE TABLE history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    plan_id INTEGER NOT NULL,
-    start_time INTEGER NOT NULL,
-    end_time INTEGER NOT NULL,
-    intensity INTEGER NOT NULL DEFAULT 0,
-    day_index INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY(plan_id) REFERENCES plan(id) ON DELETE RESTRICT
-);
-CREATE INDEX index_history_plan_id ON history (plan_id);
--- 8. metahistory
-CREATE TABLE metahistory (
-    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    date TEXT NOT NULL,
-    rep INTEGER NOT NULL,
-    rpe INTEGER NOT NULL,
-    weight REAL NOT NULL,
-    motion_id INTEGER NOT NULL,
-    video_name TEXT,
-    video_source TEXT NOT NULL DEFAULT 'CAMERA_CAPTURE',
-    imported_video_analysis_mode TEXT NOT NULL DEFAULT 'ESTIMATED',
-    imported_reference_label TEXT NOT NULL DEFAULT '',
-    imported_reference_pixel_distance REAL,
-    imported_reference_distance_meters REAL,
-    history_id INTEGER,
-    FOREIGN KEY(motion_id) REFERENCES motion(id) ON DELETE RESTRICT,
-    FOREIGN KEY(history_id) REFERENCES history(id) ON DELETE SET NULL
-);
-CREATE INDEX index_metahistory_motion_id ON metahistory (motion_id);
-CREATE INDEX index_metahistory_history_id ON metahistory (history_id);
--- 9. video_process_state
-CREATE TABLE video_process_state (
-    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    video_name TEXT NOT NULL,
-    state TEXT NOT NULL,
-    progress INTEGER NOT NULL,
-    processed_video_name TEXT
-);
-CREATE UNIQUE INDEX index_video_process_state_video_name ON video_process_state (video_name);
--- 10. metahistory_bin
-CREATE TABLE metahistory_bin (
-    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    date TEXT NOT NULL,
-    rep INTEGER NOT NULL,
-    rpe INTEGER NOT NULL,
-    weight REAL NOT NULL,
-    motion_id INTEGER NOT NULL,
-    motion_name TEXT NOT NULL,
-    video_name TEXT,
-    video_source TEXT NOT NULL DEFAULT 'CAMERA_CAPTURE',
-    imported_video_analysis_mode TEXT NOT NULL DEFAULT 'ESTIMATED',
-    imported_reference_label TEXT NOT NULL DEFAULT '',
-    imported_reference_pixel_distance REAL,
-    imported_reference_distance_meters REAL,
-    history_id INTEGER
-);
-```
+#figure(
+  [
+    ```sql
+    CREATE TABLE IF NOT EXISTS `motion` (
+      `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      `name` TEXT NOT NULL,
+      `type` TEXT NOT NULL
+    );
+    -- skip
+    CREATE TABLE IF NOT EXISTS `plan` (
+      `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      `name` TEXT NOT NULL,
+      `cycle_period` INTEGER NOT NULL,
+      `current_index` INTEGER NOT NULL,
+      `last_applied_at` INTEGER NOT NULL
+    );
+    -- skip
+    CREATE TABLE IF NOT EXISTS `workout_progress` (
+      `id` INTEGER NOT NULL,
+      `plan_id` INTEGER NOT NULL,
+      `plan_day_index` INTEGER NOT NULL,
+      `next_set_index` INTEGER NOT NULL,
+      `active_set_index` INTEGER,
+      `total_set_count` INTEGER NOT NULL,
+      `break_ends_at` INTEGER NOT NULL,
+      `is_finished` INTEGER NOT NULL,
+      `completed_elapsed_time_ms` INTEGER NOT NULL,
+      `active_history_id` INTEGER,
+      `workout_intensity` INTEGER,
+      PRIMARY KEY(`id`)
+    );
+    CREATE TABLE IF NOT EXISTS `metaplan` (
+      `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      `plan_id` INTEGER NOT NULL,
+      `motion_id` INTEGER NOT NULL,
+      `day_index` INTEGER NOT NULL,
+      `sets` INTEGER NOT NULL,
+      `reps` INTEGER NOT NULL,
+      `intensity` REAL NOT NULL,
+      `weight` REAL NOT NULL,
+      `order_index` INTEGER NOT NULL,
+      FOREIGN KEY(`plan_id`) REFERENCES `plan`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+      FOREIGN KEY(`motion_id`) REFERENCES `motion`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+    );
+    -- skip
+    CREATE TABLE IF NOT EXISTS `metahistory` (
+      `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      `date` TEXT NOT NULL,
+      `rep` INTEGER NOT NULL,
+      `rpe` INTEGER NOT NULL,
+      `weight` REAL NOT NULL,
+      `motion_id` INTEGER NOT NULL,
+      `video_name` TEXT,
+      `video_source` TEXT NOT NULL,
+      `imported_video_analysis_mode` TEXT NOT NULL,
+      `imported_reference_label` TEXT NOT NULL,
+      `imported_reference_pixel_distance` REAL,
+      `imported_reference_distance_meters` REAL,
+      `pose_detection` INTEGER NOT NULL DEFAULT 0,
+      `angle_display` INTEGER NOT NULL DEFAULT 0,
+      `angle_plot` INTEGER NOT NULL DEFAULT 0,
+      `barbell_detection` INTEGER NOT NULL DEFAULT 0,
+      `power_calculation` INTEGER NOT NULL DEFAULT 0,
+      `marked` INTEGER NOT NULL DEFAULT 0,
+      `rdp_epsilon` REAL NOT NULL DEFAULT 1.5,
+      `rdp_smooth_skeleton` INTEGER NOT NULL DEFAULT 0,
+      `video_edited` INTEGER NOT NULL DEFAULT 0,
+      `history_id` INTEGER,
+      `active_range_start_ms` INTEGER,
+      `active_range_end_ms` INTEGER,
+      FOREIGN KEY(`motion_id`) REFERENCES `motion`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT,
+      FOREIGN KEY(`history_id`) REFERENCES `history`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+    );
+    -- skip
+    CREATE UNIQUE INDEX IF NOT EXISTS `index_video_process_state_video_name` ON `video_process_state` (`video_name`);
+    CREATE TABLE IF NOT EXISTS `metahistory_bin` (
+      `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      `date` TEXT NOT NULL,
+      `rep` INTEGER NOT NULL,
+      `rpe` INTEGER NOT NULL,
+      `weight` REAL NOT NULL,
+      `motion_id` INTEGER NOT NULL,
+      `motion_name` TEXT NOT NULL,
+      `video_name` TEXT,
+      `video_source` TEXT NOT NULL,
+      `imported_video_analysis_mode` TEXT NOT NULL,
+      `imported_reference_label` TEXT NOT NULL,
+      `imported_reference_pixel_distance` REAL,
+      `imported_reference_distance_meters` REAL,
+      `pose_detection` INTEGER NOT NULL DEFAULT 0,
+      `angle_display` INTEGER NOT NULL DEFAULT 0,
+      `angle_plot` INTEGER NOT NULL DEFAULT 0,
+      `barbell_detection` INTEGER NOT NULL DEFAULT 0,
+      `power_calculation` INTEGER NOT NULL DEFAULT 0,
+      `marked` INTEGER NOT NULL DEFAULT 0,
+      `rdp_epsilon` REAL NOT NULL DEFAULT 1.5,
+      `rdp_smooth_skeleton` INTEGER NOT NULL DEFAULT 0,
+      `video_edited` INTEGER NOT NULL DEFAULT 0,
+      `history_id` INTEGER,
+      `active_range_start_ms` INTEGER,
+      `active_range_end_ms` INTEGER
+    );
+    -- skip
+    CREATE TABLE IF NOT EXISTS `metahistory_barbell_frame` (
+      `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      `metahistory_id` INTEGER NOT NULL,
+      `timestamp_ms` INTEGER NOT NULL,
+      `x` REAL NOT NULL,
+      `y` REAL NOT NULL,
+      `radius` REAL NOT NULL,
+      `confidence` REAL NOT NULL,
+      `x2` REAL,
+      `y2` REAL,
+      `is_manually_edited` INTEGER NOT NULL,
+      FOREIGN KEY(`metahistory_id`) REFERENCES `metahistory`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+    );
+    -- skip
+    ```
+  ],
+  caption: "Table DDL节选",
+  supplement: [算法],
+)
 
 本项目还设计了配套的DAO和Entity模型，以实现对数据增删查改的接口。
 
-```text
-├── training
-│   └── data
-│       ├── BodyMetricDao.kt
-│       ├── HistoryDao.kt
-│       ├── ImportedVideoRecords.kt
-│       ├── LiftInsightDatabase.kt
-│       ├── MotionDao.kt
-│       ├── MotionStore.kt
-│       ├── PlanDao.kt
-│       ├── PlanStore.kt
-│       ├── TrainingEntities.kt
-│       └── TrainingRecords.kt
-```
+#figure(
+  [
+    ```text
+    ├── training
+    │   └── data
+    │       ├── BodyMetricDao.kt
+    │       ├── HistoryDao.kt
+    │       ├── ImportedVideoRecords.kt
+    │       ├── LiftInsightDatabase.kt
+    │       ├── MotionDao.kt
+    │       ├── MotionStore.kt
+    │       ├── PlanDao.kt
+    │       ├── PlanStore.kt
+    │       ├── TrainingEntities.kt
+    │       └── TrainingRecords.kt
+    ```
+  ],
+  caption: "接口实例",
+  supplement: [算法],
+)
 
 === Multi-Agent Workflow
 
