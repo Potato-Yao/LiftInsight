@@ -27,6 +27,7 @@
 #include "chapters/ch4.typ"
 #include "chapters/ch5.typ"
 #include "chapters/ch6.typ"
+#include "chapters/ch7.typ"
 
 // == 参考文献引用
 
