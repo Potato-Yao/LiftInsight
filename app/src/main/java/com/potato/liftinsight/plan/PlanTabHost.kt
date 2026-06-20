@@ -63,7 +63,7 @@ internal fun PlanTabHost(
     motionController: MotionController,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
-    cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native
+    cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Default
 ) {
     val coroutineScope = rememberCoroutineScope()
 

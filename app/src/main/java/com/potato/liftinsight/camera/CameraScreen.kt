@@ -47,7 +47,7 @@ fun CameraScreen(
     onRecordingFinished: (videoName: String?) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    captureMode: CameraCaptureMode = CameraCaptureMode.Native
+    captureMode: CameraCaptureMode = CameraCaptureMode.Default
 ) {
     val context = LocalContext.current
     val currentOnBack by rememberUpdatedState(onBack)

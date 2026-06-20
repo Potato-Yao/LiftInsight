@@ -153,6 +153,21 @@
     <string name="motion_name_clean_pull">Clean Pull</string>
     <string name="motion_name_push_press">Push Press</string>
     <string name="motion_name_bench_press">Bench Press</string>
+
+    <!-- Sample seed data (Chinese names for release builds) -->
+    <string name="seed_motion_snatch">抓举</string>
+    <string name="seed_motion_clean_and_jerk">挺举</string>
+    <string name="seed_motion_snatch_pull">高抓</string>
+    <string name="seed_motion_clean_pull">高翻</string>
+    <string name="seed_motion_push_press">借力推</string>
+    <string name="seed_motion_front_squat">前蹲</string>
+    <string name="seed_motion_back_squat">后蹲</string>
+    <string name="seed_motion_bench_press">卧推</string>
+    <string name="seed_motion_deadlift">硬拉</string>
+    <string name="seed_motion_warm_up">热身</string>
+    <string name="seed_motion_cool_down">放松</string>
+    <string name="seed_plan_temporary">临时</string>
+    <string name="seed_plan_daily">daily</string>
     <string name="motion_add_content_description">Add motion</string>
     <string name="motion_edit_content_description">Edit %1$s</string>
     <string name="motion_library_label">Motion library</string>

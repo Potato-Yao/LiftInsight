@@ -74,7 +74,7 @@ internal fun SettingsScreen(
     onThemeModeSelected: (AppThemeMode) -> Unit,
     currentCleanupThresholdDays: Int,
     onCleanupThresholdDaysChanged: (Int) -> Unit,
-    currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native,
+    currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Default,
     onCameraCaptureModeChanged: (CameraCaptureMode) -> Unit = {},
     currentLanguageMode: AppLanguageMode = AppLanguageMode.FollowSystem,
     onLanguageModeSelected: (AppLanguageMode) -> Unit = {},
@@ -155,7 +155,7 @@ internal fun SettingsScreen(
 private fun SettingsOverviewScreen(
     currentThemeMode: AppThemeMode,
     cleanupThresholdDays: Int,
-    currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native,
+    currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Default,
     currentLanguageMode: AppLanguageMode = AppLanguageMode.FollowSystem,
     onOpenThemeSettings: () -> Unit,
     onOpenLanguageSettings: () -> Unit,

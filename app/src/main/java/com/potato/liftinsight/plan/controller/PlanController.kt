@@ -13,7 +13,6 @@ import com.potato.liftinsight.video.VideoProcessor
 
 class PlanController(
     internal val trainingPlanStore: TrainingPlanStore,
-    internal val shouldSeedDebugPlans: Boolean = false,
     internal val nowProvider: () -> Long = { System.currentTimeMillis() },
     private val logger: AppLogger = AndroidAppLogger,
     internal val videoProcessor: VideoProcessor = NoOpVideoProcessor

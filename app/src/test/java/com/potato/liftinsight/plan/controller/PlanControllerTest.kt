@@ -63,7 +63,7 @@ class PlanControllerTest {
                 AvailableMotionState(id = 6, title = "Front Squat"),
                 AvailableMotionState(id = 7, title = "Back Squat")
             ),
-            debugPlans = listOf(
+            samplePlans = listOf(
                 TrainingPlanState(
                     id = 1,
                     name = "Strength Base",
@@ -109,7 +109,7 @@ class PlanControllerTest {
                     )
                 )
             ),
-            debugCurrentPlanId = 2
+            sampleCurrentPlanId = 2
         )
     }
 
@@ -125,7 +125,6 @@ class PlanControllerTest {
     ): PlanController {
         return PlanController(
             trainingPlanStore = trainingPlanStore,
-            shouldSeedDebugPlans = true,
             nowProvider = nowProvider,
             logger = logger,
             videoProcessor = videoProcessor

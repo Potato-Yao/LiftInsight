@@ -26,9 +26,9 @@ class CameraModeStoreTest {
     }
 
     @Test
-    fun getCameraCaptureMode_returnsNativeWhenNothingStored() {
+    fun getCameraCaptureMode_returnsExternalWhenNothingStored() {
         val store = CameraModeStore.from(context)
-        assertEquals(CameraCaptureMode.Native, store.getCameraCaptureMode())
+        assertEquals(CameraCaptureMode.Default, store.getCameraCaptureMode())
     }
 
     @Test
@@ -41,19 +41,21 @@ class CameraModeStoreTest {
     }
 
     @Test
-    fun getCameraCaptureMode_fallsBackToNativeWhenStoredValueIsUnknown() {
+    fun getCameraCaptureMode_fallsBackToExternalWhenStoredValueIsUnknown() {
         val sharedPreferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         sharedPreferences.edit()
             .putString("camera_capture_mode", "unexpected")
             .commit()
 
         val store = CameraModeStore.from(context)
-        assertEquals(CameraCaptureMode.Native, store.getCameraCaptureMode())
+        assertEquals(CameraCaptureMode.Default, store.getCameraCaptureMode())
     }
 
     @Test
-    fun cameraCaptureMode_defaultIsNative() {
-        assertEquals(CameraCaptureMode.Native, CameraCaptureMode.fromStorageValue(null))
+    fun cameraCaptureMode_defaultIsExternal() {
+        assertEquals(CameraCaptureMode.External, CameraCaptureMode.Default)
+        assertEquals(CameraCaptureMode.Default, CameraCaptureMode.fromStorageValue(null))
+        assertEquals(CameraCaptureMode.Default, CameraCaptureMode.fromStorageValue("unexpected"))
     }
 
     @Test

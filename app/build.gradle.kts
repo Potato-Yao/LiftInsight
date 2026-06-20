@@ -11,6 +11,14 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("LiftInsight.apk")
+        }
+    }
+}
+
 android {
     namespace = "com.potato.liftinsight"
     compileSdk {

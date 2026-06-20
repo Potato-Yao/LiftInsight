@@ -128,7 +128,7 @@ internal fun TrainingHistoryScreen(
     videoExporter: VideoExporter = NoOpVideoExporter,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native
+    cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Default
 ) {
     val context = LocalContext.current
     var state by remember(controller) { mutableStateOf<TrainingHistoryState>(controller.emptyState()) }

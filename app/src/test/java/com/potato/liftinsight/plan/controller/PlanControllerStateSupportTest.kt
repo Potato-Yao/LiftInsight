@@ -42,7 +42,7 @@ class PlanControllerStateSupportTest {
                 AvailableMotionState(id = 2, title = "Clean & Jerk"),
                 AvailableMotionState(id = 3, title = "Front Squat")
             ),
-            debugPlans = listOf(
+            samplePlans = listOf(
                 TrainingPlanState(
                     id = 1,
                     name = "Test Plan",
@@ -54,7 +54,7 @@ class PlanControllerStateSupportTest {
                     )
                 )
             ),
-            debugCurrentPlanId = 1
+            sampleCurrentPlanId = 1
         )
     }
 
@@ -66,7 +66,6 @@ class PlanControllerStateSupportTest {
     private fun controller(nowProvider: () -> Long = { 1_000L }): PlanController {
         return PlanController(
             trainingPlanStore = trainingPlanStore,
-            shouldSeedDebugPlans = true,
             nowProvider = nowProvider
         )
     }

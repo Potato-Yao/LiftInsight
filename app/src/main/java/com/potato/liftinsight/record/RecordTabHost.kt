@@ -36,7 +36,7 @@ internal fun RecordTabHost(
     trainingHistoryController: TrainingHistoryController,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
-    cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native
+    cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Default
 ) {
     val shouldHandleBodyBack = bodyState.bodyRoute != BodyRoute.Overview
 

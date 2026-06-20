@@ -17,9 +17,11 @@ enum class CameraCaptureMode(
     );
 
     companion object {
+        val Default: CameraCaptureMode = External
+
         fun fromStorageValue(value: String?): CameraCaptureMode {
             return entries.firstOrNull { mode -> mode.storageValue == value }
-                ?: Native
+                ?: Default
         }
     }
 }

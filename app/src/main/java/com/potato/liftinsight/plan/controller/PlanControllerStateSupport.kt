@@ -28,18 +28,16 @@ internal suspend fun PlanController.loadStateImpl(
     seedCatalog: TrainingPlanSeedCatalog
 ): PlanState {
     logDebug(
-        "Loading plan state: availableMotionSeeds=${seedCatalog.availableMotions.size}, debugPlanSeedEnabled=$shouldSeedDebugPlans"
+        "Loading plan state: availableMotionSeeds=${seedCatalog.availableMotions.size}, samplePlanCount=${seedCatalog.samplePlans.size}"
     )
 
     return withContext(Dispatchers.IO) {
         trainingPlanStore.ensureAvailableMotions(seedCatalog.availableMotions)
 
-        if (shouldSeedDebugPlans) {
-            trainingPlanStore.seedPlansIfEmpty(
-                plans = seedCatalog.debugPlans,
-                currentPlanId = seedCatalog.debugCurrentPlanId
-            )
-        }
+        trainingPlanStore.seedPlansIfEmpty(
+            plans = seedCatalog.samplePlans,
+            currentPlanId = seedCatalog.sampleCurrentPlanId
+        )
 
         reloadStateInternalImpl(
             state = emptyState,

@@ -46,22 +46,20 @@ import com.potato.liftinsight.video.VideoProcessor
 fun HomeRoute(
     trainingPlanStore: TrainingPlanStore,
     videoProcessor: VideoProcessor,
-    enableDebugPlanSeed: Boolean,
     currentThemeMode: AppThemeMode,
     onThemeModeSelected: (AppThemeMode) -> Unit,
     currentCleanupThresholdDays: Int = 30,
     onCleanupThresholdDaysChanged: (Int) -> Unit = {},
-    currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Native,
+    currentCameraCaptureMode: CameraCaptureMode = CameraCaptureMode.Default,
     onCameraCaptureModeChanged: (CameraCaptureMode) -> Unit = {},
     currentLanguageMode: AppLanguageMode = AppLanguageMode.FollowSystem,
     onLanguageModeChanged: (AppLanguageMode) -> Unit = {}
 ) {
     val context = LocalContext.current
 
-    val planController = remember(trainingPlanStore, enableDebugPlanSeed, videoProcessor) {
+    val planController = remember(trainingPlanStore, videoProcessor) {
         PlanController(
             trainingPlanStore = trainingPlanStore,
-            shouldSeedDebugPlans = enableDebugPlanSeed,
             videoProcessor = videoProcessor
         )
     }

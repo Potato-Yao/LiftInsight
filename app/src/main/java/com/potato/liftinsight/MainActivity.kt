@@ -1,7 +1,6 @@
 package com.potato.liftinsight
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -44,7 +43,6 @@ class MainActivity : ComponentActivity() {
         val languageStore = LanguageStore.from(applicationContext)
         val trainingPlanStore = TrainingPlanStore.from(applicationContext)
         val videoProcessor = VideoProcessor.from(applicationContext)
-        val enableDebugPlanSeed = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         android.util.Log.d("MainActivity", "onCreate: stores and processor initialized")
 
         val cleanupThresholdDays = videoCleanupStore.getCleanupThresholdDays()
@@ -79,7 +77,6 @@ class MainActivity : ComponentActivity() {
                 HomeRoute(
                     trainingPlanStore = trainingPlanStore,
                     videoProcessor = videoProcessor,
-                    enableDebugPlanSeed = enableDebugPlanSeed,
                     currentThemeMode = themeMode,
                     onThemeModeSelected = { selectedThemeMode ->
                         themeStore.setThemeMode(selectedThemeMode)
